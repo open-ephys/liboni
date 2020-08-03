@@ -13,8 +13,8 @@ characteristics on-the-fly. When used in combination with
 and provide sub-millisecond round-trip communication from brain, through host PC's
 main memory, and back again. This repository contains the following folders:
 
-- **[api](./api/README)** liboni API and language bindings. MIT-licensed.
-- **[drivers](./drivers/README)** device drivers used by the API at runtime.
+- **[api](api/README.md)** liboni API and language bindings. MIT-licensed.
+- **[drivers](drivers/README.md)** device drivers used by the API at runtime.
   License depends on driver.
   
 __Citing this work__: 
