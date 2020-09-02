@@ -5,7 +5,7 @@ namespace oni.lib
     using System.Security;
     using System.Text;
 
-    // See oni_defs.h or oni_error_str()
+    // See oni_defs.h
     public enum Error
     {
         SUCCESS = 0,
@@ -35,26 +35,17 @@ namespace oni.lib
         INVALWRITESIZE = -24,
         NOTWRITEDEV = -25,
         DEVIDXREPEAT = -26,
+        PROTCONFIG = -27,
     }
 
     // Make managed version of oni_device_t
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct device_t
+    public partial struct device_t
     {
         public readonly uint idx;            // Complete rsv.rsv.hub.idx device table index
         public readonly int id;              // Device ID
         public readonly uint read_size;      // Read size
         public readonly uint write_size;     // Write size
-
-
-        // Adjust this as required
-        public override string ToString() =>
-            $@" 0x{idx:X} : {Marshal.PtrToStringAnsi(NativeMethods.oni_device_str(id))}, Read size: {read_size}, Write Size: {write_size}";
-
-        public string Description()
-        {
-            return Marshal.PtrToStringAnsi(NativeMethods.oni_device_str(id));
-        }
     }
 
     [SuppressUnmanagedCodeSecurity] // Call into native code without incurring the performance loss of a run-time security check when doing so
@@ -89,7 +80,6 @@ namespace oni.lib
                         requiredVersion));
         }
 
-        // liboni:
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
         private static extern void oni_version(out int major, out int minor, out int patch);
 

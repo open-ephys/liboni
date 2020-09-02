@@ -10,7 +10,7 @@
 
 #define UNUSED(x) (void)(x)
 
-// to save some repetition
+// NB: To save some repetition
 #define CTX_CAST const oni_riffa_ctx ctx = (oni_riffa_ctx)driver_ctx
 
 #define MIN(a,b) ((a<b) ? a : b)
@@ -37,7 +37,10 @@ typedef enum oni_conf_reg_off {
     CONFSYSCLKHZOFFSET = 7, // Configuration base system clock frequency register byte offset
     CONFACQCLKHZOFFSET = 8, // Configuration frame counter clock frequency register byte offset
     CONFRESETACQCOUNTER = 9, // Configuration frame counter clock reset register byte offset
-    CONFHWADDRESS = 10 // Configuration hardware address register byte offset
+    CONFHWADDRESS = 10, // Configuration hardware address register byte offset
+
+    // ONIX-specific configuration
+    CONFONIXFLAGS0 = 11,
 } oni_conf_off_t;
 
 static inline oni_conf_off_t _oni_register_offset(oni_config_t reg);
@@ -70,16 +73,16 @@ oni_driver_ctx oni_driver_create_ctx()
 int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 {
     CTX_CAST;
-    if (host_idx < 0) host_idx = 0; //we should implement an auto list and select method
+    if (host_idx < 0) host_idx = 0; // TODO: We should implement an auto list and select method
     ctx->fpga = fpga_open(host_idx);
     if (ctx->fpga == NULL) return ONI_EINIT;
-    
-    //get a lock so this handle resets the system on close
+
+    // Get a lock so this handle resets the system on close
     if (fpga_lock(ctx->fpga) != 0) //if not possible to get the lock.
     {
         fpga_close(ctx->fpga);
         ctx->fpga = NULL;
-        return ONI_ERETRIG; //seemed the most appropriate error
+        return ONI_ERETRIG; // Seemed the most appropriate error
     }
 
     //reset the whole system
@@ -95,7 +98,9 @@ int oni_driver_destroy_ctx(oni_driver_ctx driver_ctx)
 
     if (ctx->fpga != NULL)
     {
-        fpga_reset(ctx->fpga); //Let's keep the fpga turned off, just in case. Should automatically reset on close with the lock, but this does not hurt.
+        // NB: Let's keep the fpga turned off, just in case. Should
+        // automatically reset on close with the lock, but this does not hurt.
+        fpga_reset(ctx->fpga);
         fpga_close(ctx->fpga);
     }
     free(ctx);
@@ -166,7 +171,7 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
     uint32_t addr;
     int rc;
 
-    //Prior to an ONI reset, reset the whole fpga to ensure that DMA transmission buffers are clear
+    // Prior to an ONI reset, reset the whole fpga to ensure that DMA transmission buffers are clear
     if (reg == ONI_CONFIG_RESET && value != 0)
         fpga_reset(ctx->fpga);
 
@@ -206,7 +211,7 @@ int oni_driver_set_opt_callback(oni_driver_ctx driver_ctx,
 
     if (oni_option == ONI_OPT_RUNNING && *(uint32_t*)value == 0)
     {
-        //When acquisition is disabled we need to empty the DMA buffers
+        // When acquisition is disabled we need to empty the DMA buffers
         uint32_t* dummydata = malloc(ctx->block_size * sizeof(uint32_t));
         do {
             rc = fpga_recv(ctx->fpga, RIFFA_READ, dummydata, ctx->block_size, 200);
@@ -217,14 +222,14 @@ int oni_driver_set_opt_callback(oni_driver_ctx driver_ctx,
     else if (oni_option == ONI_OPT_BLOCKREADSIZE)
     {
         ctx->block_size = ((*(oni_size_t*)value) >> 2);
-        //configure block size in board
+        // Configure block size in board
         rc = fpga_send(ctx->fpga, RIFFA_READ, &ctx->block_size, 1, 0, 1, 0);
         if (rc < 1) return ONI_EWRITEFAILURE;
     }
     return ONI_ESUCCESS;
 }
 
-//this driver does not have custom options
+// NB: This driver does not have custom options
 int oni_driver_set_opt(oni_driver_ctx driver_ctx,
     int driver_option,
     const void *value,
@@ -279,6 +284,10 @@ static inline oni_conf_off_t _oni_register_offset(oni_config_t reg)
             return CONFRESETACQCOUNTER;
         case ONI_CONFIG_HWADDRESS:
             return CONFHWADDRESS;
+        case ONI_CONFIG_CUSTOMBEGIN:
+            return CONFONIXFLAGS0;
+        //case ONI_CONFIG_CUSTOMBEGIN + 1: // If we want more
+            //return CONFONIXFLAGS1;
         default:
             return 0;
     }

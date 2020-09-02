@@ -54,7 +54,7 @@ typedef struct oni_frame {
 
 } oni_frame_t;
 
-// Context manipulation
+// Context management
 ONI_EXPORT oni_ctx oni_create_ctx(const char* drv_name);
 ONI_EXPORT int oni_init_ctx(oni_ctx ctx, int host_idx);
 ONI_EXPORT int oni_destroy_ctx(oni_ctx ctx);

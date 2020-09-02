@@ -15,7 +15,8 @@ enum {
     ONI_OPT_MAXREADFRAMESIZE,
     ONI_OPT_MAXWRITEFRAMESIZE,
     ONI_OPT_BLOCKREADSIZE,
-    ONI_OPT_BLOCKWRITESIZE
+    ONI_OPT_BLOCKWRITESIZE,
+    ONI_OPT_CUSTOMBEGIN,
 };
 
 // NB: If you add an error here, make sure to update oni_error_str() in oni.c
@@ -24,7 +25,7 @@ enum {
     ONI_EPATHINVALID = -1, // Invalid stream path, fail on open
     ONI_EDEVID = -2, // Invalid device ID
     ONI_EDEVIDX = -3, // Invalid device index
-    ONI_EWRITESIZE = -4, //Data size is not an integer multiple of the write size for the designated device
+    ONI_EWRITESIZE = -4, // Data size is not an integer multiple of the write size for the designated device
     ONI_EREADFAILURE = -5, // Failure to read from a stream/register
     ONI_EWRITEFAILURE = -6, // Failure to write to a stream/register
     ONI_ENULLCTX = -7, // Attempt to use a NULL context
@@ -35,7 +36,7 @@ enum {
     ONI_ECOBSPACK = -12, // Invalid COBS packet
     ONI_ERETRIG = -13, // Attempt to trigger an already triggered operation
     ONI_EBUFFERSIZE = -14, // Supplied buffer is too small
-    ONI_EBADDEVTABLE = -15, // Badly formated device table supplied by firmware
+    ONI_EBADDEVTABLE = -15, // Badly formatted device table supplied by firmware
     ONI_EBADALLOC = -16, // Bad dynamic memory allocation
     ONI_ECLOSEFAIL = -17, // File descriptor close failure, check errno
     ONI_EREADONLY = -18, // Attempted write to read only object (register, context option, etc)
@@ -47,9 +48,10 @@ enum {
     ONI_EINVALWRITESIZE = -24, // Write buffer pre-allocation size is smaller than the maximal write frame size
     ONI_ENOTWRITEDEV = -25, // Frame allocation attempted for a non-writable device
     ONI_EDEVIDXREPEAT = -26, // Device table contains repeated device indices
+    ONI_EPROTCONFIG = -27, // Attempted to directly read or write a protected configuration option
 
     // NB: Always at bottom
-    ONI_MINERRORNUM = -27
+    ONI_MINERRORNUM = -28
 };
 
 // Registers available in the specification
@@ -64,7 +66,8 @@ typedef enum {
     ONI_CONFIG_SYSCLKHZ,
     ONI_CONFIG_ACQCLKHZ,
     ONI_CONFIG_RESETACQCOUNTER,
-    ONI_CONFIG_HWADDRESS
+    ONI_CONFIG_HWADDRESS,
+    ONI_CONFIG_CUSTOMBEGIN,
 } oni_config_t;
 
 // Fixed width device types

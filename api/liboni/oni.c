@@ -179,7 +179,9 @@ int oni_destroy_ctx(oni_ctx ctx)
     int rc = ctx->driver.destroy_ctx(ctx->driver.ctx);
     if (rc) return rc;
 
-    free(ctx->dev_hash_table);
+    if (ctx->dev_hash_table != NULL)
+        free(ctx->dev_hash_table);
+
     free(ctx);
 
     return ONI_ESUCCESS;
@@ -192,8 +194,7 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
     switch (ctx_opt) {
         case ONI_OPT_DEVICETABLE: {
 
-            assert(ctx->run_state > UNINITIALIZED
-                   && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -207,8 +208,7 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
         }
         case ONI_OPT_NUMDEVICES: {
 
-            assert(ctx->run_state > UNINITIALIZED
-                   && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -222,8 +222,7 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
         }
         case ONI_OPT_RUNNING: {
 
-            assert(ctx->run_state > UNINITIALIZED
-                   && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -231,16 +230,14 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
                 return ONI_EBUFFERSIZE;
 
             int rc = _oni_read_config(ctx, ONI_CONFIG_RUNNING, value);
-            if (rc)
-                return rc;
+            if (rc) return rc;
 
             *option_len = ONI_REGSZ;
             break;
         }
         case ONI_OPT_SYSCLKHZ: {
 
-            assert(ctx->run_state > UNINITIALIZED
-                   && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -248,16 +245,14 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
                 return ONI_EBUFFERSIZE;
 
             int rc = _oni_read_config(ctx, ONI_CONFIG_SYSCLKHZ, value);
-            if (rc)
-                return rc;
+            if (rc) return rc;
 
             *option_len = ONI_REGSZ;
             break;
         }
         case ONI_OPT_ACQCLKHZ: {
 
-            assert(ctx->run_state > UNINITIALIZED
-                   && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -265,16 +260,14 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
                 return ONI_EBUFFERSIZE;
 
             int rc = _oni_read_config(ctx, ONI_CONFIG_ACQCLKHZ, value);
-            if (rc)
-                return rc;
+            if (rc) return rc;
 
             *option_len = ONI_REGSZ;
             break;
         }
         case ONI_OPT_HWADDRESS: {
 
-            assert(ctx->run_state > UNINITIALIZED
-                   && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -282,8 +275,7 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
                 return ONI_EBUFFERSIZE;
 
             int rc = _oni_read_config(ctx, ONI_CONFIG_HWADDRESS, value);
-            if (rc)
-                return rc;
+            if (rc) return rc;
 
             *option_len = ONI_REGSZ;
             break;
@@ -339,8 +331,31 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
         case ONI_OPT_RESET:
         case ONI_OPT_RESETACQCOUNTER:
             return ONI_EWRITEONLY;
-        default:
-            return ONI_EINVALOPT;
+        default: {
+
+            // Attempt to read to custom (outside ONI spec) configuration
+            // option
+            assert(ctx_opt >= ONI_OPT_CUSTOMBEGIN && "Invalid custom configuration register.");
+            if (ctx_opt < ONI_OPT_CUSTOMBEGIN)
+                return ONI_EPROTCONFIG;
+
+            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            if (ctx->run_state < IDLE)
+                return ONI_EINVALSTATE;
+
+            if (*option_len < ONI_REGSZ)
+                return ONI_EBUFFERSIZE;
+
+            int rc = _oni_read_config(ctx,
+                                      ONI_CONFIG_CUSTOMBEGIN
+                                          + (ctx_opt - ONI_OPT_CUSTOMBEGIN),
+                                      value);
+            if (rc) return rc;
+
+            *option_len = ONI_REGSZ;
+
+            break;
+        }
     }
     return ONI_ESUCCESS;
 }
@@ -375,7 +390,7 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
             break;
         }
         case ONI_OPT_RESET: {
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state == IDLE && "Context state must be IDLE.");
             if (ctx->run_state != IDLE)
                 return ONI_EINVALSTATE;
 
@@ -384,7 +399,6 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
 
             if (*(oni_reg_val_t *)value != 0) {
 
-                // Set the reset register
                 int rc = _oni_write_config(
                     ctx, ONI_CONFIG_RESET, *(oni_reg_val_t*)value);
                 if (rc) return rc;
@@ -397,7 +411,7 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
         }
         case ONI_OPT_RESETACQCOUNTER: {
             assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
-            if (ctx->run_state != IDLE)
+            if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
             if (option_len != ONI_REGSZ)
@@ -405,7 +419,6 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
 
             if (*(oni_reg_val_t *)value != 0) {
 
-                // Set the reset register
                 int rc = _oni_write_config(
                     ctx, ONI_CONFIG_RESETACQCOUNTER, *(oni_reg_val_t *)value);
                 if (rc) return rc;
@@ -415,7 +428,7 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
         }
         case ONI_OPT_HWADDRESS: {
             assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
-            if (ctx->run_state != IDLE)
+            if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
             if (option_len != ONI_REGSZ)
@@ -487,8 +500,28 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
         case ONI_OPT_MAXREADFRAMESIZE:
         case ONI_OPT_MAXWRITEFRAMESIZE:
             return ONI_EREADONLY;
-        default:
-            return ONI_EINVALOPT;
+        default: {
+
+            // Attempt to write to custom (outside ONI spec) configuration
+            // option
+            assert(ctx_opt >= ONI_OPT_CUSTOMBEGIN && "Invalid custom configuration register.");
+            if (ctx_opt < ONI_OPT_CUSTOMBEGIN)
+                return ONI_EPROTCONFIG;
+
+            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            if (ctx->run_state < IDLE)
+                return ONI_EINVALSTATE;
+
+            if (option_len != ONI_REGSZ)
+                return ONI_EBUFFERSIZE;
+
+            int rc = _oni_write_config(ctx,
+                                       ONI_CONFIG_CUSTOMBEGIN + (ctx_opt - ONI_OPT_CUSTOMBEGIN),
+                                       *(oni_reg_val_t *)value);
+            if (rc) return rc;
+
+            break;
+        }
     }
 
     return ctx->driver.set_opt_callback(ctx->driver.ctx, ctx_opt, value, option_len);
@@ -837,6 +870,10 @@ const char *oni_error_str(int err)
         }
         case ONI_EDEVIDXREPEAT: {
             return "Device table contains repeated device indices";
+        }
+        case ONI_EPROTCONFIG : {
+            return "Attempted to directly read or write a protected "
+                   "configuration option";
         }
         default:
             return "Unknown error";

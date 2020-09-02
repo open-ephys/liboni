@@ -24,7 +24,8 @@
             MAXREADFRAMESIZE,
             MAXWRITEFRAMESIZE,
             BLOCKREADSIZE,
-            BLOCKWRITESIZE
+            BLOCKWRITESIZE,
+            CUSTOMBEGIN,
         }
 
         // Hardware constants
@@ -172,16 +173,6 @@
             SetIntOption((int)Option.RESETACQCOUNTER, 1);
         }
 
-        //public void SetBlockReadSize(int block_size)
-        //{
-        //    SetIntOption((int)Option.BLOCKREADSIZE, block_size);
-        //}
-
-        //public void SetBlockWriteSize(int block_size)
-        //{
-        //    SetIntOption((int)Option.BLOCKWRITESIZE, block_size);
-        //}
-
         public bool Running
         {
             get
@@ -224,6 +215,16 @@
             {
                 SetIntOption((int)Option.BLOCKWRITESIZE, value);
             }
+        }
+
+        public void SetONIXOption(int option, int value)
+        {
+            SetIntOption((int)Option.CUSTOMBEGIN + option, value);
+        }
+
+        public int GetONIXOption(int option)
+        {
+            return GetIntOption((int)Option.CUSTOMBEGIN + option);
         }
 
         public uint ReadRegister(uint dev_idx, uint reg_addr)
