@@ -68,6 +68,9 @@ typedef enum {
 } oni_config_t;
 
 // Fixed width device types
+// TODO: I feel like oni.h and onidefs.h should only deal with standard signed
+// or unsigned integer types and it should be the drivers' job to translate
+// these to fixed width integers instead of having these typedefs
 typedef uint32_t oni_size_t;
 typedef uint32_t oni_dev_id_t; // Device IDs are 32-bit numbers
 typedef uint32_t oni_dev_idx_t; // Device idx are 32-bit, byte.byte.btye.byte addresses

@@ -11,24 +11,23 @@ typedef HINSTANCE lib_handle_t;
 #else
 #include <dlfcn.h>
 #include <execinfo.h>
-typedef void* lib_handle_t;
+typedef void *lib_handle_t;
 #endif
 
 // Function pointers for common access
-
 typedef oni_driver_ctx(*oni_driver_create_ctx_f)();
+typedef int(*oni_driver_init_f)(oni_driver_ctx, int);
 typedef int(*oni_driver_destroy_ctx_f)(oni_driver_ctx);
 
-typedef int(*oni_driver_init_f)(oni_driver_ctx, int);
-typedef int(*oni_driver_read_stream_f)(oni_driver_ctx, oni_read_stream_t, void*, size_t);
-typedef int(*oni_driver_write_stream_f)(oni_driver_ctx, oni_write_stream_t, const char*, size_t);
-typedef int(*oni_driver_read_config_f)(oni_driver_ctx, oni_config_t, oni_reg_val_t*);
+typedef int(*oni_driver_read_stream_f)(oni_driver_ctx, oni_read_stream_t, void *, size_t);
+typedef int(*oni_driver_write_stream_f)(oni_driver_ctx, oni_write_stream_t, const char *, size_t);
+
+typedef int(*oni_driver_read_config_f)(oni_driver_ctx, oni_config_t, oni_reg_val_t *);
 typedef int(*oni_driver_write_config_f)(oni_driver_ctx, oni_config_t, oni_reg_val_t);
 
-typedef int(*oni_driver_set_opt_callback_f)(oni_driver_ctx, int, const void*, size_t);
-
-typedef int(*oni_driver_set_opt_f)(oni_driver_ctx, int, const void*, size_t);
-typedef int(*oni_driver_get_opt_f)(oni_driver_ctx, int, void*, size_t*);
+typedef int(*oni_driver_set_opt_f)(oni_driver_ctx, int, const void *, size_t);
+typedef int(*oni_driver_get_opt_f)(oni_driver_ctx, int, void *, size_t *);
+typedef int(*oni_driver_set_opt_callback_f)(oni_driver_ctx, int, const void *, size_t);
 
 typedef const char*(*oni_driver_str_f)();
 
@@ -49,7 +48,7 @@ typedef struct oni_driver {
     oni_driver_str_f str;
 } oni_driver_t;
 
-int oni_create_driver(const char* lib_name, oni_driver_t* driver);
-int oni_destroy_driver(oni_driver_t* driver);
+int oni_create_driver(const char *lib_name, oni_driver_t *driver);
+int oni_destroy_driver(oni_driver_t *driver);
 
 #endif

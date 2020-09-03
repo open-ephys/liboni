@@ -3,8 +3,8 @@
 
 // Version macros for compile-time API version detection
 // NB: see https://semver.org/
-#define ONI_VERSION_MAJOR 3
-#define ONI_VERSION_MINOR 2
+#define ONI_VERSION_MAJOR 4
+#define ONI_VERSION_MINOR 0
 #define ONI_VERSION_PATCH 0
 
 #define ONI_MAKE_VERSION(major, minor, patch) \
@@ -46,7 +46,7 @@ typedef struct {
 } oni_device_t;
 
 // Frame type
-typedef struct oni_frame {
+typedef struct {
     const oni_fifo_dat_t dev_idx;   // Device index that produced or accepts the frame
     const oni_fifo_dat_t data_sz;   // Size in bytes of data buffer
     const oni_fifo_time_t time;     // Frame time (ACQCLKHZ)
@@ -55,23 +55,23 @@ typedef struct oni_frame {
 } oni_frame_t;
 
 // Context manipulation
-ONI_EXPORT oni_ctx oni_create_ctx(const char* drv_name);
+ONI_EXPORT oni_ctx oni_create_ctx(const char *drv_name);
 ONI_EXPORT int oni_init_ctx(oni_ctx ctx, int host_idx);
 ONI_EXPORT int oni_destroy_ctx(oni_ctx ctx);
 
 // Context option getting/setting
-ONI_EXPORT int oni_get_opt(const oni_ctx ctx, int ctx_opt, void* value, size_t *size);
-ONI_EXPORT int oni_set_opt(oni_ctx ctx, int ctx_opt, const void* value, size_t size);
+ONI_EXPORT int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *size);
+ONI_EXPORT int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t size);
 
 // Driver option getting/setting
-ONI_EXPORT int oni_get_driver_opt(const oni_ctx ctx, int drv_opt, void* value, size_t *size);
-ONI_EXPORT int oni_set_driver_opt(oni_ctx ctx, int drv_opt, const void* value, size_t size);
+ONI_EXPORT int oni_get_driver_opt(const oni_ctx ctx, int drv_opt, void *value, size_t *size);
+ONI_EXPORT int oni_set_driver_opt(oni_ctx ctx, int drv_opt, const void *value, size_t size);
 
 // Hardware inspection, manipulation, and IO
 ONI_EXPORT int oni_read_reg(const oni_ctx ctx, oni_dev_idx_t dev_idx, oni_reg_addr_t addr, oni_reg_val_t *value);
 ONI_EXPORT int oni_write_reg(const oni_ctx ctx, oni_dev_idx_t dev_idx, oni_reg_addr_t addr, oni_reg_val_t value);
 ONI_EXPORT int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame);
-ONI_EXPORT int oni_create_frame(const oni_ctx ctx, oni_frame_t **frame, oni_dev_idx_t dev_idx, size_t data_sz);
+ONI_EXPORT int oni_create_frame(const oni_ctx ctx, oni_frame_t **frame, oni_dev_idx_t dev_idx, void *data, size_t data_sz);
 ONI_EXPORT int oni_write_frame(const oni_ctx ctx, const oni_frame_t *frame);
 ONI_EXPORT void oni_destroy_frame(oni_frame_t *frame);
 

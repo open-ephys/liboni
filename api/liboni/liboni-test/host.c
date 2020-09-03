@@ -353,7 +353,8 @@ int main(int argc, char *argv[])
 
     oni_size_t block_size = 1024;
     size_t block_size_sz = sizeof(block_size);
-    oni_set_opt(ctx, ONI_OPT_BLOCKREADSIZE, &block_size, block_size_sz);
+    rc = oni_set_opt(ctx, ONI_OPT_BLOCKREADSIZE, &block_size, block_size_sz);
+    if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
     printf("Setting block read size to: %u bytes\n", block_size);
 
     oni_get_opt(ctx, ONI_OPT_BLOCKREADSIZE, &block_size, &block_size_sz);
@@ -361,7 +362,8 @@ int main(int argc, char *argv[])
 
     block_size = 8192;
     block_size_sz = sizeof(block_size);
-    oni_set_opt(ctx, ONI_OPT_BLOCKWRITESIZE, &block_size, block_size_sz);
+    rc = oni_set_opt(ctx, ONI_OPT_BLOCKWRITESIZE, &block_size, block_size_sz);
+    if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
     printf("Setting write pre-allocation buffer to: %u bytes\n", block_size);
 
     oni_get_opt(ctx, ONI_OPT_BLOCKWRITESIZE, &block_size, &block_size_sz);

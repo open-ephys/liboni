@@ -320,6 +320,10 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
         }
         case ONI_OPT_BLOCKREADSIZE: {
 
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
+            if (ctx->run_state < IDLE)
+
             if (*option_len < ONI_REGSZ)
                 return ONI_EBUFFERSIZE;
 
@@ -328,6 +332,10 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
             break;
         }
         case ONI_OPT_BLOCKWRITESIZE: {
+
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
+            if (ctx->run_state < IDLE)
 
             if (*option_len < ONI_REGSZ)
                 return ONI_EBUFFERSIZE;
@@ -651,6 +659,7 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
 int oni_create_frame(const oni_ctx ctx,
                      oni_frame_t **frame,
                      oni_dev_idx_t dev_idx,
+                     void *data,
                      size_t data_sz)
 {
     assert(ctx != NULL && "Context is NULL");
@@ -700,6 +709,9 @@ int oni_create_frame(const oni_ctx ctx,
     *(oni_fifo_dat_t *)buffer_start = iframe->private.dev_idx;
     *((oni_fifo_dat_t *)buffer_start + 1)
         = iframe->private.data_sz >> BYTE_TO_FIFO_SHIFT;
+
+    // Copy data into frame
+    memcpy(iframe->private.data, data, data_sz)
 
     // Update buffer ref count and provide reference to frame
     _ref_inc(&(ctx->shared_wbuf->count));
