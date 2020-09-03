@@ -4,8 +4,8 @@ NAME      :=  liboni
 SNAME     :=  $(NAME).a
 DNAME     :=  $(NAME).so.1
 DNAMELN   :=  $(NAME).so
-HDR       :=  oni.h onidefs.h onidevices.h onidriver.h oelogo.h # Public headers to be installed
-SRC       :=  oni.c onidevices.c
+HDR       :=  oni.h onidefs.h onix.h onidriver.h oelogo.h # Public headers to be installed
+SRC       :=  oni.c onix.c
 POSIX_SRC :=  onidriverloader.c
 OBJ       :=  $(SRC:.c=.o)
 POSIX_OBJ :=  $(POSIX_SRC:.c=.o)

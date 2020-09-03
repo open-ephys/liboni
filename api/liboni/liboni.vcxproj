@@ -134,14 +134,14 @@
   <ItemGroup>
     <ClCompile Include="onidriverloader.c" />
     <ClCompile Include="oni.c" />
-    <ClCompile Include="onidevices.c" />
+    <ClCompile Include="onix.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="onidefs.h" />
     <ClInclude Include="onidriverloader.h" />
     <ClInclude Include="onidriver.h" />
     <ClInclude Include="oni.h" />
-    <ClInclude Include="onidevices.h" />
+    <ClInclude Include="onix.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -9,7 +9,7 @@
 #include <math.h>
 
 #include "oni.h"
-#include "onidevices.h"
+#include "onix.h"
 #include "oelogo.h"
 
 // Dump raw device streams to files?
@@ -128,7 +128,7 @@ void *read_loop(void *vargp)
             printf("\t[%llu] Dev: %zu (%s) \n",
                 frame->time,
                 frame->dev_idx,
-                oni_device_str(this_dev.id));
+                onix_device_str(this_dev.id));
                 // this_cnt);
 
             size_t i;
@@ -262,7 +262,7 @@ void print_dev_table(oni_device_t *devices, int num_devs)
     size_t dev_idx;
     for (dev_idx = 0; dev_idx < num_devs; dev_idx++) {
 
-        const char *dev_str = oni_device_str(devices[dev_idx].id);
+        const char *dev_str = onix_device_str(devices[dev_idx].id);
 
         printf("%02zd |%05zd: 0x%02x.0x%02x\t|%d\t|%u\t|%u\t|%s\n",
                dev_idx,
@@ -316,6 +316,11 @@ int main(int argc, char *argv[])
     rc = oni_init_ctx(ctx, -1);
     if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
     assert(rc == 0);
+
+    // Set ONIX_FLAG0 to turn on pass-through and issue reset
+    oni_reg_val_t val = 5;
+    rc = oni_set_opt(ctx, ONIX_OPT_PASSTHROUGH, &val, sizeof(val));
+    rc = oni_set_opt(ctx, ONI_OPT_RESET, &val, sizeof(val));
 
     // Examine device table
     size_t num_devs_sz = sizeof(num_devs);
@@ -411,11 +416,11 @@ int main(int argc, char *argv[])
     //assert(reg == 1 && "ONI_OPT_RUNNING should be 1.");
     printf("Hardware run state: %d\n", reg);
 
-    // Start acquisition
-    quit = 0;
-    reg = 1; // Reset clock
-    rc = oni_set_opt(ctx, ONI_OPT_RUNNING, &reg, sizeof(oni_size_t));
-    if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
+    //// Start acquisition
+    //quit = 0;
+    //reg = 1; // Reset clock
+    //rc = oni_set_opt(ctx, ONI_OPT_RUNNING, &reg, sizeof(oni_size_t));
+    //if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
 
     // Start reading and writing threads
     start_threads();

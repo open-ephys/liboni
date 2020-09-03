@@ -33,11 +33,12 @@
             TS4231V2ARR = 21,
             FMCANALOG1R3 = 22,
             FMCLINKCTRL = 23,
+            DS90UB9X = 24,
         }
 
         public static string Name(int id)
         {
-            return Marshal.PtrToStringAnsi(NativeMethods.oni_device_str(id));
+            return Marshal.PtrToStringAnsi(NativeMethods.onix_device_str(id));
         }
     }
 }

@@ -50,11 +50,11 @@ typedef struct {
     const oni_fifo_dat_t dev_idx;   // Device index that produced or accepts the frame
     const oni_fifo_dat_t data_sz;   // Size in bytes of data buffer
     const oni_fifo_time_t time;     // Frame time (ACQCLKHZ)
-    uint8_t *data;                  // Raw data block
+    char *data;                     // Raw data block
 
 } oni_frame_t;
 
-// Context manipulation
+// Context management
 ONI_EXPORT oni_ctx oni_create_ctx(const char *drv_name);
 ONI_EXPORT int oni_init_ctx(oni_ctx ctx, int host_idx);
 ONI_EXPORT int oni_destroy_ctx(oni_ctx ctx);

@@ -1,83 +1,86 @@
 #include <assert.h>
 
 #include "oni.h"
-#include "onidevices.h"
+#include "onix.h"
 
-const char *oni_device_str(int dev_id)
+const char *onix_device_str(int dev_id)
 {
     switch (dev_id) {
-        case ONI_NULL: {
+        case ONIX_NULL: {
             return "Placeholder device. Neither generates or accepts data.";
         }
-        case ONI_INFO: {
+        case ONIX_INFO: {
             return "Host status and error information.";
         }
-        case ONI_RHD2132: {
+        case ONIX_RHD2132: {
             return "Intan RHD2132 bioamplifier";
         }
-        case ONI_RHD2164: {
+        case ONIX_RHD2164: {
             return "Intan RHD2164 bioamplifier";
         }
-        case ONI_ESTIM: {
+        case ONIX_ESTIM: {
             return "Electrical stimulation subcircuit";
         }
-        case ONI_OSTIM: {
+        case ONIX_OSTIM: {
             return "Optical stimulation subcircuit";
         }
-        case ONI_TS4231: {
+        case ONIX_TS4231: {
             return "Triad TS4231 optical to digital converter";
         }
-        case ONI_DINPUT32: {
+        case ONIX_DINPUT32: {
             return "32-bit digital input port";
         }
-        case ONI_DOUTPUT32: {
+        case ONIX_DOUTPUT32: {
             return "32-bit digital output port";
         }
-        case ONI_BNO055: {
+        case ONIX_BNO055: {
             return "BNO055 9-axis IMU";
         }
-        case ONI_TEST0: {
+        case ONIX_TEST0: {
             return "Open Ephys test device";
         }
-        case ONI_NEUROPIX1R0: {
+        case ONIX_NEUROPIX1R0: {
             return "Neuropixels 1.0 probe";
         }
-        case ONI_HEARTBEAT: {
+        case ONIX_HEARTBEAT: {
             return "Heartbeat";
         }
-        case ONI_AD51X2: {
+        case ONIX_AD51X2: {
             return "AD51X2 digital potentiometer";
         }
-        case ONI_FMCVCTRL: {
+        case ONIX_FMCVCTRL: {
             return "Open Ephys FMC Host Board rev. 1.3 link voltage control "
                    "subcircuit";
         }
-        case ONI_AD7617: {
+        case ONIX_AD7617: {
             return "AD7617 ADC/DAS";
         }
-        case ONI_AD576X: {
+        case ONIX_AD576X: {
             return "AD576x DAC";
         }
-        case ONI_TESTREG0: {
+        case ONIX_TESTREG0: {
             return "A test device used for testing remote register programming";
         }
-        case ONI_BREAKDIG1R3: {
+        case ONIX_BREAKDIG1R3: {
             return "Open Ephys Breakout Board rev. 1.3 digital and user IO";
         }
-        case ONI_FMCCLKIN1R3: {
+        case ONIX_FMCCLKIN1R3: {
             return "Open Ephys FMC Host Board rev. 1.3 clock intput subcircuit";
         }
-        case ONI_FMCCLKOUT1R3: {
+        case ONIX_FMCCLKOUT1R3: {
             return "Open Ephys FMC Host Board rev. 1.3 clock output subcircuit";
         }
-        case ONI_TS4231V2ARR: {
+        case ONIX_TS4231V2ARR: {
             return "Triad TS421 optical to digital converter array for V2 base stations";
         }
-        case ONI_FMCANALOG1R3: {
+        case ONIX_FMCANALOG1R3: {
             return "Open Ephys FMC Host Board rev. 1.3 analog IO subcircuit";
         }
-        case ONI_FMCLINKCTRL: {
+        case ONIX_FMCLINKCTRL: {
             return "Open Ephys FMC Host Board coaxial headstage link control circuit";
+        }
+        case ONIX_DS90UB9RAW: {
+            return "Raw DS90UB9x deserializer";
         }
         default:
             return "Unknown device";
