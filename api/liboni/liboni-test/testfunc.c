@@ -7,7 +7,7 @@
 
 #define FINISHBLOCK(X) (*code_ptr = (X), code_ptr = dst++, code = 0x01)
 
-int oni_cobs_stuff(uint8_t *dst, const uint8_t *src, size_t size)
+int cobs_stuff(uint8_t *dst, const uint8_t *src, size_t size)
 {
     // Maximal payload size is is 254 bytes.
     if (size > 254)

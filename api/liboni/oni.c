@@ -25,9 +25,6 @@
 // Consistent overhead bytestuffing buffer size
 #define ONI_COBSBUFFERSIZE 255
 
-// Frame constants
-#define ONI_FRAMEHEADERSZ 2 * sizeof(oni_fifo_dat_t) + sizeof(oni_fifo_time_t) // [dev_idx, data_sz, time]
-
 // Reference counter
 struct ref {
     void (*free)(const struct ref *);
@@ -1280,7 +1277,8 @@ static int _oni_alloc_write_buffer(oni_ctx ctx, void **data, size_t size)
     return ONI_ESUCCESS;
 }
 
-// NB: Allow context to relase control of buffer without refilling in the case of restart
+// NB: Allow context to relase control of buffer without refilling in the case
+// of restart
 static void _oni_dump_buffers(oni_ctx ctx)
 {
     // Trigger buffer recreation on next call to _oni_read_buffer

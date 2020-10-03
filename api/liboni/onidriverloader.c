@@ -61,7 +61,7 @@ int oni_create_driver(const char* lib_name, oni_driver_t* driver)
     free(full_lib_name);
 
     if (!handle) {
-        //fprintf(stderr, "Failed to load driver: %s\n", dlerror());
+        fprintf(stderr, "Failed to load driver: %s\n", dlerror());
         return -1;
     }
 
@@ -77,8 +77,7 @@ int oni_create_driver(const char* lib_name, oni_driver_t* driver)
     LOAD_FUNCTION(get_opt);
     LOAD_FUNCTION(str);
 
-    if (!rc)
-    {
+    if (!rc) {
         driver->ctx = driver->create_ctx();
         if (!driver->ctx) rc = -1;
     }
