@@ -8,34 +8,27 @@ CFLAGS=-O3 -Wall
 LDFLAGS=-loni -ldl
 
 .PHONY: all
-all: bin/firm_xilly bin/host_xilly bin/cobs_test ## Build the firmware emulator, basic host, and helper functions
+all: host cobs_test ## Build basic host and test functions
 
 .PHONY: debug
 debug: CFLAGS += -DDEBUG -g3 ## Build with debug symbols
 debug: all
 
 .PHONY: profile
-profile: LDFLAGS += -lprofiler  ## Link in the perftools profiler
+profile: LDFLAGS += -lprofiler ## Link in the perftools profiler
 profile: all
 
-bin/cobs_test: cobs_test.c ## Make COBS test program
+cobs_test: cobs_test.c testfunc.c ## Make COBS test program
 	@echo Making $@
-	@[ -d bin ] || mkdir bin
-	$(CC) $(CFLAGS) $? -o $@
+	$(CC) $(CFLAGS) $^ -lm $(LDFLAGS) -o $@
 
-bin/firm_xilly: firm_xilly.c testfunc.c ## Make xillybus-based firmware emulator
+host: host.c ## Make simple host acquisition software
 	@echo Making $@
-	@[ -d bin ] || mkdir bin
-	$(CC) $(CFLAGS) $? -lm -lpthread $(LDFLAGS) -o $@
-
-bin/host_xilly: host_xilly.c ## Make simple host acquisition software targeting xillybus-based firmware
-	@echo Making $@
-	@[ -d bin ] || mkdir bin
 	$(CC) $(CFLAGS) $? -lm -lpthread $(LDFLAGS) -o $@
 
 .PHONY: clean
 clean: ## Clean build artifacts
-	rm -r ./bin
+	rm ./host ./cobs_test
 
 .PHONY: help
 help:
