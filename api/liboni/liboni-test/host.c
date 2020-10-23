@@ -13,7 +13,7 @@
 #include "oelogo.h"
 
 // Dump raw device streams to files?
-#define DUMPFILES
+// #define DUMPFILES
 
 // Turn on RT optimization
 #define RT
@@ -118,10 +118,9 @@ void *read_loop(void *vargp)
 
         if (display
             && counter % 1000 == 0
-            //&& counter < 100
-            //&& devices[i].id == ONI_FMCLINKCTRL
+            //&& counter < 50
+            //&& devices[i].id == ONIX_TS4231V2ARR
             ) {
-
             oni_device_t this_dev = devices[i];
 
             this_cnt++;
@@ -174,7 +173,7 @@ void *write_loop(void *vargp)
     // Pre-allocate write frame
     // TODO: hardcoded dev_idx not good
     oni_frame_t *w_frame = NULL;
-    int rc = oni_create_frame(ctx, &w_frame, 6, 24);
+    int rc = oni_create_frame(ctx, &w_frame, 7, &out_count, 4);
     if (rc < 0) {
         printf("Error: %s\n", oni_error_str(rc));
         goto error;
@@ -318,7 +317,7 @@ int main(int argc, char *argv[])
     assert(rc == 0);
 
     // Set ONIX_FLAG0 to turn on pass-through and issue reset
-    oni_reg_val_t val = 5;
+    oni_reg_val_t val = 0;
     rc = oni_set_opt(ctx, ONIX_OPT_PASSTHROUGH, &val, sizeof(val));
     rc = oni_set_opt(ctx, ONI_OPT_RESET, &val, sizeof(val));
 

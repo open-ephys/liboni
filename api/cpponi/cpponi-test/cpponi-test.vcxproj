@@ -109,6 +109,9 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy /y $(SolutionDir)..\liboni\$(PlatformTargetAsMSBuildArchitecture)\$(Configuration)\liboni.dll $(TargetDir)</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -151,16 +154,16 @@
     <ClInclude Include="..\..\liboni\oelogo.h" />
     <ClInclude Include="..\..\liboni\onidefs.h" />
     <ClInclude Include="..\oni.hpp" />
-    <ClInclude Include="..\onidevices.hpp" />
+    <ClInclude Include="..\onix.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\liboni\drivers\riffa\onidriver_riffa.vcxproj">
       <Project>{2eee4eea-f12c-4087-81ef-1eb27ce2036b}</Project>
+      <Private>True</Private>
     </ProjectReference>
     <ProjectReference Include="..\..\liboni\liboni.vcxproj">
       <Project>{0b6b9aca-75de-4776-a6ca-b4123ed59f1d}</Project>
-      <Private>true</Private>
-      <CopyLocalSatelliteAssemblies>false</CopyLocalSatelliteAssemblies>
+      <Private>True</Private>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

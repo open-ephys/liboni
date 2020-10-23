@@ -9,9 +9,9 @@ namespace oni
     [StructLayout(LayoutKind.Sequential)]
     public unsafe struct frame_t
     {
+        public readonly ulong time;  // Frame time in terms of acq. clock
         public readonly uint dev_idx; // Array of device indices in frame
         public readonly uint data_sz; // Size in bytes of data buffer
-        public readonly ulong time;  // Frame time in terms of acq. clock
         public readonly byte* data; // Multi-device raw data block
     }
 
@@ -40,29 +40,29 @@ namespace oni
             return output;
         }
 
-        // Same as Data() method, this has two copies per call which is ridiculous
-        internal void SetData<T>(T[] data) where T : struct
-        {
-            var frame = (frame_t*)handle.ToPointer();
+        //// Same as Data() method, this has two copies per call which is ridiculous
+        //internal void SetData<T>(T[] data) where T : struct
+        //{
+        //    var frame = (frame_t*)handle.ToPointer();
 
-            // Get the read size and offset for this device
-            var num_bytes = frame->data_sz;
+        //    // Get the read size and offset for this device
+        //    var num_bytes = frame->data_sz;
 
-            var buffer = new byte[num_bytes];
-            Buffer.BlockCopy(data, 0, buffer, 0, (int)num_bytes);
-            Marshal.Copy(buffer, 0, (IntPtr)frame->data, (int)num_bytes);
-        }
+        //    var buffer = new byte[num_bytes];
+        //    Buffer.BlockCopy(data, 0, buffer, 0, (int)num_bytes);
+        //    Marshal.Copy(buffer, 0, (IntPtr)frame->data, (int)num_bytes);
+        //}
 
-        internal void SetData(IntPtr data, int data_size)
-        {
-            var frame = (frame_t*)handle.ToPointer();
+        //internal void SetData(IntPtr data, int data_size)
+        //{
+        //    var frame = (frame_t*)handle.ToPointer();
 
-            // Get the read size and offset for this device
-            var num_bytes = frame->data_sz;
+        //    // Get the read size and offset for this device
+        //    var num_bytes = frame->data_sz;
 
-            // Copy the memory
-            Buffer.MemoryCopy(data.ToPointer(), frame->data, num_bytes, data_size);
-        }
+        //    // Copy the memory
+        //    Buffer.MemoryCopy(data.ToPointer(), frame->data, num_bytes, data_size);
+        //}
 
         protected override bool ReleaseHandle()
         {

@@ -21,10 +21,10 @@
     <ClInclude Include="..\oni.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\onidevices.hpp">
+    <ClInclude Include="..\..\liboni\onidefs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\liboni\onidefs.h">
+    <ClInclude Include="..\onix.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

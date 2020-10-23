@@ -23,12 +23,11 @@
 #endif
 
 #include <oni.h>
-#include <onidevices.h>
 
 // Version macros for compile-time API version detection
 // NB: see https://semver.org/
-#define CPPONI_VERSION_MAJOR 3
-#define CPPONI_VERSION_MINOR 1
+#define CPPONI_VERSION_MAJOR 4
+#define CPPONI_VERSION_MINOR 0
 #define CPPONI_VERSION_PATCH 0
 
 #define CPPONI_VERSION                                                         \
@@ -45,7 +44,7 @@
 
 namespace oni {
 
-    static_assert(ONI_VERSION >= ONI_MAKE_VERSION(3, 0, 0), "liboni is too old.");
+    static_assert(ONI_VERSION >= ONI_MAKE_VERSION(4, 0, 0), "liboni is too old.");
 
     class error_t : public std::exception
     {
@@ -243,11 +242,9 @@ namespace oni {
         {
             // Light-weight allocate write frame
             oni_frame_t *w_frame = NULL;
-            int rc= oni_create_frame(ctx_, &w_frame, dev_idx, data.size_bytes());
+            int rc = oni_create_frame(
+                ctx_, &w_frame, dev_idx, data.data(), data.size_bytes());
             if (rc < 0) throw error_t(rc);
-
-            // Copy data into frame
-            memcpy(w_frame->data, data.data(), data.size_bytes());
 
             // Do write
             rc = oni_write_frame(ctx_, w_frame);
@@ -263,11 +260,11 @@ namespace oni {
         {
             // Light-weight allocate write frame
             oni_frame_t  *w_frame = NULL;
-            int rc = oni_create_frame(ctx_, &w_frame, dev_idx, data.size() * sizeof(data_t));
+            int rc = oni_create_frame(ctx_,
+                                      &w_frame,
+                                      dev_idx,
+                                      data.data(), data.size() * sizeof(data_t));
             if (rc < 0) throw error_t(rc);
-
-            // Copy data into frame
-            memcpy(w_frame->data, data.data(), data.size() * sizeof(data_t));
 
             // Do write
             rc = oni_write_frame(ctx_, w_frame);
@@ -321,11 +318,6 @@ namespace oni {
         {
             if (ctx_ == nullptr)
                 return;
-
-            // Reset the hardware, ignore error codes since this may or
-            // this is called in destructor and we cannot throw.
-            oni_reg_val_t reset = 1;
-            oni_set_opt(ctx_, ONI_OPT_RESET, &reset, sizeof(reset));
 
             // Free resources
             auto rc = oni_destroy_ctx(ctx_);

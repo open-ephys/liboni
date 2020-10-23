@@ -67,7 +67,7 @@ namespace oni.lib
 
             // Make sure it is supported
             if (major < 3) {
-                throw VersionNotSupported(null, ">= v3.0.0");
+                throw VersionNotSupported(null, ">= v4.0.0");
             }
         }
 
@@ -126,7 +126,7 @@ namespace oni.lib
         public static extern int oni_read_frame(IntPtr ctx, out Frame frame);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
-        public static extern int oni_create_frame(IntPtr ctx, out Frame frame, uint dev_idx, uint data_sz);
+        public static extern int oni_create_frame(IntPtr ctx, out Frame frame, uint dev_idx, IntPtr data, uint data_sz);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
         public static extern int oni_write_frame(IntPtr ctx, Frame frame);

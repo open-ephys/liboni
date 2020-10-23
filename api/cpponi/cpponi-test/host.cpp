@@ -9,7 +9,7 @@
 
 #include "oelogo.h"
 #include "oni.hpp"
-#include "onidevices.hpp"
+#include "onix.hpp"
 
 // Dump raw device streams to files?
 //#define DUMPFILES
@@ -67,7 +67,7 @@ void print_dev_table(oni::device_map_t devices)
     int k = 0;
     for (const auto &d : devices) {
 
-        const char *dev_str = oni_device_str(d.second.id);
+        const char *dev_str = onix::device_str(d.second.id);
 
         printf("%02zd |%05zd: 0x%02x.0x%02x\t|%d\t|%u\t|%u\t|%s\n",
                k++,
@@ -108,7 +108,7 @@ void data_loop(std::shared_ptr<oni::context_t> ctx)
 
 
                 std::cout << "\t [" << frame.time() << "] Dev: " << frame.device_index() << " ("
-                          << oni::device_str(dev_map.at(frame.device_index()).id)
+                          << onix::device_str(dev_map.at(frame.device_index()).id)
                           << ")\n";
 
                 std::cout << "\tData: [";

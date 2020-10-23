@@ -11,8 +11,6 @@ extern "C" {
 #define ONI_EXPORT
 #endif
 
-#include "oni.h"
-
 #define MAXDEVID 99999
 
 // NB: "Officially" supported device IDs for the ONIX project occupy

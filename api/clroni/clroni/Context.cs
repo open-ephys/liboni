@@ -262,21 +262,28 @@
 
         public void Write<T> (uint dev_idx, T[] data) where T : struct
         {
-            Frame frame;
-            int rc = NativeMethods.oni_create_frame(handle, out frame, dev_idx, (uint)Buffer.ByteLength(data));
-            if (rc < 0) { throw new ONIException(rc); }
-            frame.SetData(data);
+            var num_bytes = Buffer.ByteLength(data);
+            var buffer = new byte[num_bytes];
+            Buffer.BlockCopy(data, 0, buffer, 0, num_bytes);
 
-            rc = NativeMethods.oni_write_frame(handle, frame);
-            if (rc < 0) { throw new ONIException(rc); }
+            fixed (byte *p = buffer)
+            {
+                Frame frame;
+                int rc = NativeMethods.oni_create_frame(handle, out frame, dev_idx, (IntPtr)p, (uint)num_bytes);
+                if (rc < 0) { throw new ONIException(rc); }
+                // frame.SetData(data);
+
+                rc = NativeMethods.oni_write_frame(handle, frame);
+                if (rc < 0) { throw new ONIException(rc); }
+            }
         }
 
         public void Write(uint dev_idx, IntPtr data, int data_size)
         {
             Frame frame;
-            int rc = NativeMethods.oni_create_frame(handle, out frame, dev_idx, (uint)data_size);
+            int rc = NativeMethods.oni_create_frame(handle, out frame, dev_idx, data, (uint)data_size);
             if (rc < 0) { throw new ONIException(rc); }
-            frame.SetData(data, data_size);
+            //frame.SetData(data, data_size);
 
             rc = NativeMethods.oni_write_frame(handle, frame);
             if (rc < 0) { throw new ONIException(rc); }

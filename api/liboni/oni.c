@@ -26,7 +26,8 @@
 #define ONI_COBSBUFFERSIZE 255
 
 // Frame constants
-#define ONI_FRAMEHEADERSZ 2 * sizeof(oni_fifo_dat_t) + sizeof(oni_fifo_time_t) // [dev_idx, data_sz, time]
+#define ONI_RFRAMEHEADERSZ sizeof(oni_fifo_time_t)  + 2 * sizeof(oni_fifo_dat_t) // [time, dev_idx, data_sz]
+#define ONI_WFRAMEHEADERSZ 2 * sizeof(oni_fifo_dat_t) // [dev_idx, data_sz]
 
 // Reference counter
 struct ref {
@@ -651,7 +652,7 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
     uint8_t *header = NULL;
     int rc = _oni_read_buffer(ctx,
                               (void **)&header,
-                              ONI_FRAMEHEADERSZ,
+                              ONI_RFRAMEHEADERSZ,
                               1);
     if (rc) return rc;
 
@@ -662,10 +663,10 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
     int total_size = sizeof(oni_frame_t);
 
     // Copy frame header members (continuous)
+    // 0. timer (8)
     // 1. index (4)
     // 2. data_sz (4)
-    // 3. timer (8)
-    memcpy((void *)&iframe->private.f.dev_idx, header, ONI_FRAMEHEADERSZ);
+    memcpy((void *)&iframe->private.f.time, header, ONI_RFRAMEHEADERSZ);
 
     // Find read size (+ padding)
     size_t rsize = iframe->private.f.data_sz;
@@ -726,22 +727,20 @@ int oni_create_frame(const oni_ctx ctx,
 
     // Allocate data storage
     char *buffer_start = NULL;
-    int rc = _oni_alloc_write_buffer(ctx, (void **)&buffer_start, ONI_FRAMEHEADERSZ + asize);
+    int rc = _oni_alloc_write_buffer(ctx, (void **)&buffer_start, ONI_WFRAMEHEADERSZ + asize);
     if (rc) return rc;
 
     // Fill out public fields
     // NB: https://stackoverflow.com/questions/9691404/how-to-initialize-const-in-a-struct-in-c-with-malloc
     *(oni_size_t *)&iframe->private.f.dev_idx = dev_idx;
     *(oni_size_t *)&iframe->private.f.data_sz = data_sz;
-    iframe->private.f.data = buffer_start + ONI_FRAMEHEADERSZ;
+    iframe->private.f.data = buffer_start + ONI_WFRAMEHEADERSZ;
 
-    // Copy frame header members (continuous)
-    // 1. index (4)
+    // Copy frame header members into start of continuous buffer, before data
+    // 0. index (4)
     // 2. data_sz (4)
-    // 3. timer: not needed.
-    *(oni_fifo_dat_t *)buffer_start = iframe->private.f.dev_idx;
-    *((oni_fifo_dat_t *)buffer_start + 1)
-        = iframe->private.f.data_sz >> BYTE_TO_FIFO_SHIFT;
+    *((oni_fifo_dat_t *)buffer_start + 0) = iframe->private.f.dev_idx;
+    *((oni_fifo_dat_t *)buffer_start + 1) = iframe->private.f.data_sz >> BYTE_TO_FIFO_SHIFT;
 
     // Copy data into frame
     memcpy(iframe->private.f.data, data, data_sz);
@@ -762,9 +761,9 @@ int oni_write_frame(const oni_ctx ctx, const oni_frame_t *frame)
     // Write the frame
     oni_frame_impl_t *iframe = (oni_frame_impl_t *)frame;
 
-    // Continuous frame starts 2 elements back in shared buffer
-    size_t wsize = iframe->private.f.data_sz + 2 * sizeof(oni_fifo_dat_t);
-    int rc = _oni_write(ctx, ONI_WRITE_STREAM_DATA, iframe->private.f.data - 2 * sizeof(oni_fifo_dat_t), wsize);
+    // Continuous frame starts ONI_WFRAMEHEADERSZ back in shared buffer
+    size_t wsize = iframe->private.f.data_sz + ONI_WFRAMEHEADERSZ;
+    int rc = _oni_write(ctx, ONI_WRITE_STREAM_DATA, iframe->private.f.data - ONI_WFRAMEHEADERSZ, wsize);
     if (rc != (int)wsize) return ONI_EWRITEFAILURE;
 
     return rc;
@@ -1006,8 +1005,8 @@ static int _oni_reset_routine(oni_ctx ctx)
     }
 
     // Add the header contents to the read size
-    ctx->max_read_frame_size += ONI_FRAMEHEADERSZ;
-    ctx->max_write_frame_size += ONI_FRAMEHEADERSZ;
+    ctx->max_read_frame_size += ONI_RFRAMEHEADERSZ;
+    ctx->max_write_frame_size += ONI_WFRAMEHEADERSZ;
 
     // NB: Default the block read size to a single max sized frame. This is bad
     // for high bandwidth performance and good for closed-loop delay. The opposite is true
