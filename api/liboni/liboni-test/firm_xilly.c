@@ -1,3 +1,10 @@
+// JN: I'm keeping this in the repo because, although obsolete, it contains
+// some nice ideas for how to emulate hardware in a way that behaves more like
+// their real world than e.g. onidriver_test does currently. The use of actual
+// unix fifos to so that data is produced and consumed on a separate thread is
+// more true to the async nature of physical hardware. Perhaps this will be
+// useful to incorporate into onidriver_test at some point.
+
 #define _GNU_SOURCE // fcntl
 
 #include <assert.h>

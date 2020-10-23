@@ -164,45 +164,50 @@ next:
     return NULL;
 }
 
-#ifdef _WIN32
-DWORD WINAPI write_loop(LPVOID lpParam)
-#else
-void *write_loop(void *vargp)
-#endif
-{
-    // Pre-allocate write frame
-    // TODO: hardcoded dev_idx not good
-    oni_frame_t *w_frame = NULL;
-    int rc = oni_create_frame(ctx, &w_frame, 7, &out_count, 4);
-    if (rc < 0) {
-        printf("Error: %s\n", oni_error_str(rc));
-        goto error;
-    }
-
-    // Loop count
-    uint32_t count = 0;
-
-    // Cycle through writable devices and write counter to their data
-    while (!quit) {
-
-        memcpy(w_frame->data, &out_count, 4);
-        out_count++;
-
-        int rc = oni_write_frame(ctx, w_frame);
-        if (rc < 0) {
-            printf("Error: %s\n", oni_error_str(rc));
-            goto error;
-        }
-
-        count++;
-
-        Sleep(1);
-    }
-
-error:
-    oni_destroy_frame(w_frame);
-    return NULL;
-}
+//#ifdef _WIN32
+//DWORD WINAPI write_loop(LPVOID lpParam)
+//#else
+//void *write_loop(void *vargp)
+//#endif
+//{
+//    // Pre-allocate write frame
+//    // TODO: hardcoded dev_idx not good
+//    oni_frame_t *w_frame = NULL;
+//    int rc = oni_create_frame(ctx, &w_frame, 6, &out_count, sizeof(out_count));
+//    if (rc < 0) {
+//        printf("Error: %s\n", oni_error_str(rc));
+//        goto error;
+//    }
+//
+//    // Loop count
+//    // uint32_t count = 0;
+//
+//    // Cycle through writable devices and write counter to their data
+//    while (!quit) {
+//
+//
+//        int rc = oni_write_frame(ctx, w_frame);
+//        if (rc < 0) {
+//            printf("Error: %s\n", oni_error_str(rc));
+//            goto error;
+//        }
+//
+//        memcpy(w_frame->data, &out_count, 4);
+//        out_count++;
+//
+//        // count++;
+//
+//#ifdef _WIN32
+//        Sleep(1);
+//#else
+//        usleep(1000);
+//#endif
+//    }
+//
+//error:
+//    oni_destroy_frame(w_frame);
+//    return NULL;
+//}
 
 void start_threads()
 {
@@ -211,19 +216,19 @@ void start_threads()
     DWORD read_tid;
     read_thread = CreateThread(NULL, 0, read_loop, NULL, 0, &read_tid);
 
-    DWORD write_tid;
-    write_thread = CreateThread(NULL, 0, write_loop, NULL, 0, &write_tid);
+    //DWORD write_tid;
+    //write_thread = CreateThread(NULL, 0, write_loop, NULL, 0, &write_tid);
 
 #ifdef RT
     if (!SetThreadPriority(read_thread, THREAD_PRIORITY_TIME_CRITICAL))
         printf("Unable to set read thread priority.\n");
-    if (!SetThreadPriority(write_thread, THREAD_PRIORITY_HIGHEST))
-        printf("Unable to set read thread priority.\n");
+    //if (!SetThreadPriority(write_thread, THREAD_PRIORITY_HIGHEST))
+    //    printf("Unable to set read thread priority.\n");
 #endif
 
 #else
     pthread_create(&read_tid, NULL, read_loop, NULL);
-    pthread_create(&write_tid, NULL, write_loop, NULL);
+    //pthread_create(&write_tid, NULL, write_loop, NULL);
 #endif
 }
 
@@ -237,8 +242,8 @@ void stop_threads()
     WaitForSingleObject(read_thread, 200); // INFINITE);
     CloseHandle(read_thread);
 
-    WaitForSingleObject(write_thread, 200);
-    CloseHandle(write_thread);
+    //WaitForSingleObject(write_thread, 200);
+    //CloseHandle(write_thread);
 #else
     if (running)
         pthread_join(read_tid, NULL);
@@ -281,19 +286,27 @@ int main(int argc, char *argv[])
 {
     printf(oe_logo_med);
 
-    int host_idx = 0;
+    oni_size_t block_read_size = 1024;
+    oni_size_t block_write_size = 1024;
+    int host_idx = -1;
     char *driver;
 
-    if (argc != 2 && argc != 3) {
-        printf("usage:\n");
-        printf("\thost driver [host_index] ...\n");
-        exit(1);
+    switch (argc) {
+
+        case 5:
+            block_write_size = atoi(argv[4]);
+        case 4:
+            block_read_size = atoi(argv[3]);
+        case 3:
+            host_idx = atoi(argv[2]);
+        case 2:
+            driver = argv[1];
+            break;
+        default:
+            printf("usage:\n");
+            printf("\thost driver [host_index] ...\n");
+            exit(1);
     }
-
-    driver = argv[1];
-
-    if (argc == 3)
-        host_idx = atoi(argv[2]);
 
 #if defined(_WIN32) && defined(RT)
     if (!SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS)) {
@@ -308,11 +321,11 @@ int main(int argc, char *argv[])
     int rc = ONI_ESUCCESS;
 
     // Generate context
-    ctx = oni_create_ctx("riffa");
+    ctx = oni_create_ctx(driver);
     if (!ctx) { printf("Failed to create context\n"); exit(EXIT_FAILURE); }
 
     // Initialize context and discover hardware
-    rc = oni_init_ctx(ctx, -1);
+    rc = oni_init_ctx(ctx, host_idx);
     if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
     assert(rc == 0);
 
@@ -355,23 +368,22 @@ int main(int argc, char *argv[])
     oni_get_opt(ctx, ONI_OPT_MAXWRITEFRAMESIZE, &frame_size, &frame_size_sz);
     printf("Max. write frame size: %u bytes\n", frame_size);
 
-    oni_size_t block_size = 1024;
-    size_t block_size_sz = sizeof(block_size);
-    rc = oni_set_opt(ctx, ONI_OPT_BLOCKREADSIZE, &block_size, block_size_sz);
+    printf("Setting block read size to: %u bytes\n", block_read_size);
+    size_t block_size_sz = sizeof(block_read_size);
+    rc = oni_set_opt(ctx, ONI_OPT_BLOCKREADSIZE, &block_read_size, block_size_sz);
     if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
-    printf("Setting block read size to: %u bytes\n", block_size);
+    assert(!rc && "Failure to set block read size");
 
-    oni_get_opt(ctx, ONI_OPT_BLOCKREADSIZE, &block_size, &block_size_sz);
-    printf("Block read size: %u bytes\n", block_size);
+    oni_get_opt(ctx, ONI_OPT_BLOCKREADSIZE, &block_read_size, &block_size_sz);
+    printf("Block read size: %u bytes\n", block_read_size);
 
-    block_size = 8192;
-    block_size_sz = sizeof(block_size);
-    rc = oni_set_opt(ctx, ONI_OPT_BLOCKWRITESIZE, &block_size, block_size_sz);
+    printf("Setting write pre-allocation buffer to: %u bytes\n", block_write_size);
+    block_size_sz = sizeof(block_write_size);
+    rc = oni_set_opt(ctx, ONI_OPT_BLOCKWRITESIZE, &block_write_size, block_size_sz);
     if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
-    printf("Setting write pre-allocation buffer to: %u bytes\n", block_size);
 
-    oni_get_opt(ctx, ONI_OPT_BLOCKWRITESIZE, &block_size, &block_size_sz);
-    printf("Write pre-allocation size: %u bytes\n", block_size);
+    oni_get_opt(ctx, ONI_OPT_BLOCKWRITESIZE, &block_write_size, &block_size_sz);
+    printf("Write pre-allocation size: %u bytes\n", block_write_size);
 
     // Try to write to base clock freq, which is write only
     oni_size_t reg = (oni_size_t)10e6;
@@ -404,7 +416,7 @@ int main(int argc, char *argv[])
     printf("Hardware run state: %d\n", reg);
     printf("Reseting  acquisition clock and starting hardware run simultaneously...\n");
 
-    // Restart acquisition clock counter and start acquisition
+    // Restart acquisition clock counter and start acquisition simultaneously
     reg = 2;
     rc = oni_set_opt(ctx, ONI_OPT_RESETACQCOUNTER, &reg, sizeof(oni_size_t));
     assert(!rc && "Register write failure.");
@@ -412,7 +424,7 @@ int main(int argc, char *argv[])
     rc = oni_get_opt(ctx, ONI_OPT_RUNNING, &reg, &reg_sz);
     if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
     assert(!rc && "Register read failure.");
-    //assert(reg == 1 && "ONI_OPT_RUNNING should be 1.");
+    assert(reg == 1 && "ONI_OPT_RUNNING should be 1.");
     printf("Hardware run state: %d\n", reg);
 
     //// Start acquisition
@@ -437,6 +449,7 @@ int main(int argc, char *argv[])
         printf("\ts - toggle pause register & r/w thread operation\n");
         printf("\tr - read from device register\n");
         printf("\tw - write to device register\n");
+        printf("\ta - reset the acquisition clock counter\n");
         printf("\tx - issue a hardware reset\n");
         printf("\tq - quit\n");
         printf(">>> ");
@@ -528,6 +541,12 @@ int main(int argc, char *argv[])
             else {
                 start_threads();
             }
+        }
+        else if (c == 'a') {
+            reg = 1;
+            rc = oni_set_opt(ctx, ONI_OPT_RESETACQCOUNTER, &reg, sizeof(oni_size_t));
+            assert(!rc && "Register write failure.");
+            printf("Acquisition clock counter reset issued.\n");
         }
     }
 

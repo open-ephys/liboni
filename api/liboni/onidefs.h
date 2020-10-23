@@ -2,6 +2,10 @@
 #define __ONI_DEFS_H__
 #include <stdint.h>
 
+// Frame header size in bytes
+// NB: Header is [dev_idx, data_sz, time]
+#define ONI_FRAMEHEADERSZ 2 * sizeof(oni_fifo_dat_t) + sizeof(oni_fifo_time_t)
+
 // Context options
 enum {
     ONI_OPT_DEVICETABLE = 0,
