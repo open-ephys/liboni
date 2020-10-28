@@ -1,11 +1,11 @@
 PREFIX  := /usr/local/include/
 
 .PHONY: install
-install: 
+install:
 	@[ -d $(DESTDIR)$(PREFIX) ] || mkdir -p $(DESTDIR)$(PREFIX)oni
-	cp oni.hpp onidevices.hpp $(DESTDIR)$(PREFIX)
+	cp oni.hpp onix.hpp $(DESTDIR)$(PREFIX)
 
 .PHONY: uninstall
 uninstall:
 	$(RM) -r $(DESTDIR)$(PREFIX)oni.hpp
-	$(RM) -r $(DESTDIR)$(PREFIX)onidevices.hpp
+	$(RM) -r $(DESTDIR)$(PREFIX)onix.hpp

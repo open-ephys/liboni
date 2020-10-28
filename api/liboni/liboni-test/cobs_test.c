@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 #include "testfunc.h"
-#include "../oni.c" // Acess static _oni_cobs_unstuff function
+#include "../oni.c" // Access static _oni_cobs_unstuff function
 
 int main(int argc, char *argv[])
 {

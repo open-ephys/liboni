@@ -9,7 +9,7 @@ SRC       :=  oni.c onix.c
 POSIX_SRC :=  onidriverloader.c
 OBJ       :=  $(SRC:.c=.o)
 POSIX_OBJ :=  $(POSIX_SRC:.c=.o)
-CFLAGS    :=  -Wall -W -Werror -fPIC -O3 $(DEFS)
+CFLAGS    :=  -Wall -W -Werror -fPIC -O3
 ISOCFLAGS :=  -pedantic
 LDFLAGS   :=  -L.
 PREFIX    :=  /usr/local

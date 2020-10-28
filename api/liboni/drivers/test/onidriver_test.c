@@ -202,9 +202,9 @@ static int _send_data_signal(oni_test_ctx ctx,
 // Generate frames
 // Second thread puts frames into FIFO whenever it reaches XX fraction of full
 int oni_driver_read_stream(oni_driver_ctx driver_ctx,
-    oni_read_stream_t stream,
-    void *data,
-    size_t size)
+                           oni_read_stream_t stream,
+                           void *data,
+                           size_t size)
 {
     CTX_CAST;
     int rc;
@@ -355,7 +355,7 @@ int oni_driver_read_config(oni_driver_ctx driver_ctx,
             *value = ctx->conf.rw;
             break;
         case ONI_CONFIG_TRIG:
-            // NB: if reading register takes time, with more complex
+            // TODO: if reading register takes time, with more complex
             // implementation, this must reflect that
             *value = 0;
             break;
@@ -394,9 +394,7 @@ int oni_driver_set_opt_callback(oni_driver_ctx driver_ctx,
     if (oni_option == ONI_OPT_BLOCKREADSIZE)
     {
         // NB: Block size must be a multiple of a full data frame
-        if (*(oni_size_t *)value
-                % (ONI_FRAMEHEADERSZ + ctx->dev_table[0].dev.read_size)
-            != 0)
+        if (*(oni_size_t *)value % (ONI_FRAMEHEADERSZ + ctx->dev_table[0].dev.read_size) != 0)
             return ONI_EINVALARG;
         else
             ctx->block_read_size = *(oni_size_t *) value;
@@ -465,7 +463,6 @@ static void _fill_read_buffer(oni_test_ctx ctx, uint32_t *data, size_t num_words
 
 static int _send_msg_signal(oni_test_ctx ctx, oni_signal_t type)
 {
-    // Src and dst buffers
     // COBS data, 1 overhead byte + 0x0 delimiter
     uint8_t dst[sizeof(oni_signal_t) + 2] = {0};
 

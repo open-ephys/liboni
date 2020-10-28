@@ -442,7 +442,6 @@ int main(int argc, char *argv[])
     while (c != 'q') {
 
         printf("Enter a command and press enter:\n");
-        printf("\tc - toggle 1/1000 clock display\n");
         printf("\td - toggle 1/1000 display\n");
         printf("\tt - print device table\n");
         printf("\tp - toggle pause register\n");

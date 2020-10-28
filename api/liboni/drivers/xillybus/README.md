@@ -1,17 +1,16 @@
-# `onidriver_xillybus` Hardware Translation Driver
+# `Xillybus` ONI Translation Layer
 
 [Xillybus](http://xillybus.com/) is a company that provides closed-source (but
 monetarily-free for academic use) FPGA IP cores as well as free and open-source
 device drivers that abstract PCIe communication to the level of system IO
 calls. For this reason, Xillybus IP Cores and drivers can be used as a high
-performance PCIe-based backend. A custom, completely open-source solution is in
-the works, but it is currently not available. `onidriver_xillybus` is designed
-to use Xillybus to implement the [ONI](https://github.com/jonnew/ONI) Host
-Communication Insterconnect using the Hardware Translation Driver
-specification. This driver translates Xillybus specific interfaction to
-higher-level API calls by implementing all the functions in `onidriver.h`.  The
-following steps show how to generate IP cores and obtain device drivers that
-will function with `onidriver_xillybus` Both Windows and Linux hosts are
+performance PCIe-based backend. This ONI translation layer converts Xillybus's raw API into
+ONI-compatible API by implementing all the functions in `onidriver.h`. Xillybus
+has been replaced by an open source alternative, RIFFA, and is no longer used
+by ONIX hardware.
+
+The following steps show how to generate IP cores and obtain device drivers
+that will function with `onidriver_xillybus` Both Windows and Linux hosts are
 supported.
 
 ## Building the library

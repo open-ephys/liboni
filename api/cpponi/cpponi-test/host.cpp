@@ -31,7 +31,6 @@ std::vector<FILE *> dump_files;
 
 volatile int quit = 0;
 volatile int display = 0;
-volatile int display_clock = 0;
 int running = 1;
 
 int parse_reg_cmd(const char *cmd, long *values, int len)
@@ -69,7 +68,7 @@ void print_dev_table(oni::device_map_t devices)
 
         const char *dev_str = onix::device_str(d.second.id);
 
-        printf("%02zd |%05zd: 0x%02x.0x%02x\t|%d\t|%u\t|%u\t|%s\n",
+        printf("%02d |%05d: 0x%02x.0x%02x\t|%d\t|%u\t|%u\t|%s\n",
                k++,
                d.second.idx,
                (uint8_t)(d.second.idx >> 8),
@@ -95,17 +94,14 @@ void data_loop(std::shared_ptr<oni::context_t> ctx)
 
             auto frame = ctx->read_frame();
 
-            //if (display_clock && counter % 100 == 0)
-                //std::cout << "\tSample: " << frame.clock() << "\n\n";
 
             auto data = frame.data<uint16_t>();
 
-#ifdef DUMPFILES 
+#ifdef DUMPFILES
             fwrite(data.data(), sizeof(uint16_t), data.size(), dump_files[frame.device_index()]);
 #endif
 
             if (display && counter % 1000 == 0) {
-
 
                 std::cout << "\t [" << frame.time() << "] Dev: " << frame.device_index() << " ("
                           << onix::device_str(dev_map.at(frame.device_index()).id)
@@ -133,19 +129,27 @@ int main(int argc, char *argv[])
     try {
         std::cout << oe_logo_med;
 
-        int host_idx = 0;
+        oni_size_t block_read_size = 1024;
+        oni_size_t block_write_size = 1024;
+        int host_idx = -1;
         std::string driver;
 
-        if (argc != 2 && argc != 3) {
-            std::cout << "usage:\n";
-            std::cout << "\thost driver [host_index] ...\n";
-            exit(1);
+        switch (argc) {
+
+            case 5:
+                block_write_size = atoi(argv[4]);
+            case 4:
+                block_read_size = atoi(argv[3]);
+            case 3:
+                host_idx = atoi(argv[2]);
+            case 2:
+                driver = argv[1];
+                break;
+            default:
+                std::cout << "usage:\n";
+                std::cout << "\thost driver [host_index] ...\n";
+                exit(1);
         }
-
-        driver = argv[1];
-
-        if (argc == 3)
-            host_idx = atoi(argv[2]);
 
         // Create context
         auto ctx = std::make_shared<oni::context_t>(driver.c_str(), host_idx);
@@ -171,18 +175,16 @@ int main(int argc, char *argv[])
                   << ctx->get_opt<uint32_t>(ONI_OPT_MAXREADFRAMESIZE)
                   << " bytes\n";
 
-        oni_size_t block_size = 1024;
-        std::cout << "Setting block read size to: " << block_size << " bytes\n";
-        ctx->set_opt(ONI_OPT_BLOCKREADSIZE, block_size);
+        std::cout << "Setting block read size to: " << block_read_size << " bytes\n";
+        ctx->set_opt(ONI_OPT_BLOCKREADSIZE, block_read_size);
 
         std::cout << "Block read size: "
                   << ctx->get_opt<oni_size_t>(ONI_OPT_BLOCKREADSIZE)
                   << " bytes\n";
 
-        block_size = 8192;
-        std::cout << "Setting write pre-allocation buffer to: " << block_size
+        std::cout << "Setting write pre-allocation buffer to: " << block_write_size
                   << " bytes\n";
-        ctx->set_opt(ONI_OPT_BLOCKWRITESIZE, block_size);
+        ctx->set_opt(ONI_OPT_BLOCKWRITESIZE, block_write_size);
 
         std::cout << "Write pre-allocation size: "
                   << ctx->get_opt<oni_size_t>(ONI_OPT_BLOCKWRITESIZE)
@@ -204,7 +206,6 @@ int main(int argc, char *argv[])
         while (cmd != "q") {
 
             std::cout << "Enter a command and press enter:\n"
-                      << "\tc - toggle 1/1000 clock display\n"
                       << "\td - toggle 1/1000 display\n"
                       << "\tt - print device table\n"
                       << "\tp - toggle running register\n"
@@ -224,8 +225,8 @@ int main(int argc, char *argv[])
                     std::cout << "Running.\n";
                 else
                     std::cout << "Paused\n";
-            } else if (cmd == "c") {
-                display_clock = (display_clock == 0) ? 1 : 0;
+            } else if (cmd == "x") {
+                ctx->set_opt(ONI_OPT_RESET, 1);
             } else if (cmd == "d") {
                 display = (display == 0) ? 1 : 0;
             } else if (cmd == "r") {
@@ -250,6 +251,8 @@ int main(int argc, char *argv[])
 
                 auto val = ctx->read_reg(dev_idx, addr);
                 std::cout << "Reg. value: " << val << "\n";
+            } else if (cmd == "t") {
+                print_dev_table(dev_map);
             } else if (cmd == "w") {
                 std::cout << "Write to a device register.\n"
                           << "Enter dev_idx reg_addr reg_val\n"

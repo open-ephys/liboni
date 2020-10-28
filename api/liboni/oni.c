@@ -104,7 +104,7 @@ typedef enum {
 
 // Static helpers
 static inline oni_dev_idx_t _oni_hash32(oni_dev_idx_t x);
-static inline int _oni_hashfind32(oni_ctx ctx, oni_dev_idx_t x);
+static inline int _oni_hash32_find(oni_ctx ctx, oni_dev_idx_t x);
 static int _oni_reset_routine(oni_ctx ctx);
 static inline int _oni_read(oni_ctx ctx, oni_read_stream_t stream, void *data, size_t size);
 static inline int _oni_write(oni_ctx ctx, oni_write_stream_t stream, const char* data, size_t size);
@@ -703,7 +703,7 @@ int oni_create_frame(const oni_ctx ctx,
     assert(ctx->run_state >= IDLE && "Context is not acquiring.");
 
     // Get the device hash index
-    int i = _oni_hashfind32(ctx, dev_idx);
+    int i = _oni_hash32_find(ctx, dev_idx);
     if (i < 0) return ONI_EDEVIDX;
 
     // Check that the devices accepts
@@ -899,7 +899,7 @@ static inline oni_dev_idx_t _oni_hash32(oni_dev_idx_t x)
     return x;
 }
 
-static inline int _oni_hashfind32(oni_ctx ctx, oni_dev_idx_t x)
+static inline int _oni_hash32_find(oni_ctx ctx, oni_dev_idx_t x)
 {
     int probe;
 
@@ -926,16 +926,19 @@ static int _oni_reset_routine(oni_ctx ctx)
     // Hash table size
     ctx->dev_hash_len = ctx->num_dev * ONI_DEVHASHOVERHEAD + 1;
 
-    // Make space for the device tables
+    // Make space for the device table
     oni_device_t *temp = realloc(ctx->dev_table,
                                  ctx->num_dev * sizeof(oni_device_t));
+
     if (temp)
         ctx->dev_table = temp;
     else
         return ONI_EBADALLOC;
 
+    // Make space for the device hash table
     temp = realloc(ctx->dev_hash_table,
                    ctx->dev_hash_len * sizeof(oni_device_t));
+
     if (temp)
         ctx->dev_hash_table = temp;
     else
@@ -1011,12 +1014,17 @@ static int _oni_reset_routine(oni_ctx ctx)
     // NB: Default the block read size to a single max sized frame. This is bad
     // for high bandwidth performance and good for closed-loop delay. The opposite is true
     // for write frames (to an extent) so this is defaulted to something large.
-    ctx->block_read_size = ctx->max_read_frame_size + ctx->max_read_frame_size % sizeof(oni_fifo_dat_t);
-    ctx->block_write_size = ctx->max_write_frame_size + ctx->max_write_frame_size % sizeof(oni_fifo_dat_t);
+    ctx->block_read_size = ctx->max_read_frame_size
+                           + ctx->max_read_frame_size % sizeof(oni_fifo_dat_t);
+    ctx->block_write_size = ctx->max_write_frame_size
+                            + ctx->max_write_frame_size % sizeof(oni_fifo_dat_t);
     ctx->block_write_size = ctx->block_write_size < 4096 ? 4096 : ctx->block_write_size;
 
     // Set the block read size in the driver, in case it needs it
-    ctx->driver.set_opt_callback(ctx->driver.ctx, ONI_OPT_BLOCKREADSIZE, &(ctx->block_read_size), sizeof(ctx->block_read_size));
+    ctx->driver.set_opt_callback(ctx->driver.ctx,
+                                 ONI_OPT_BLOCKREADSIZE,
+                                 &(ctx->block_read_size),
+                                 sizeof(ctx->block_read_size));
 
     return ONI_ESUCCESS;
 }

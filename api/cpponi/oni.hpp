@@ -1,5 +1,10 @@
 #pragma once
 
+// TODO
+// 1. Write tests for all possible calls to get_opt and set_opt. I don't think
+// get_opt currently works e.g. for device map or when a pointer option type is
+// provided.
+
 #include <algorithm>
 #include <cassert>
 #include <cstring>
@@ -46,12 +51,19 @@ namespace oni {
 
     static_assert(ONI_VERSION >= ONI_MAKE_VERSION(4, 0, 0), "liboni is too old.");
 
+    inline std::tuple<int, int, int> version()
+    {
+        std::tuple<int, int, int> v;
+        oni_version(&std::get<0>(v), &std::get<1>(v), &std::get<2>(v) );
+        return v;
+    }
+
     class error_t : public std::exception
     {
     public:
         explicit error_t(int errnum) : errnum_(errnum) {}
 
-        virtual const char *what() const noexcept
+        const char *what() const noexcept override
         {
             return oni_error_str(errnum_);
         }
@@ -62,18 +74,10 @@ namespace oni {
         int errnum_;
     };
 
-    inline std::tuple<int, int, int> version()
-    {
-        std::tuple<int, int, int> v;
-        oni_version(&std::get<0>(v), &std::get<1>(v), &std::get<2>(v) );
-        return v;
-    }
-
     class context_t;
 
     using device_t = oni_device_t;
     using device_map_t = std::unordered_map<oni_dev_idx_t, device_t>;
-    template<typename T> using driver_arg_t = std::pair<int,T>;
 
     // NB: Data held by frame_t is const. This means data needs to be copied
     // in order to be processed. This is good from a thread safety point of
@@ -84,7 +88,6 @@ namespace oni {
     {
         friend class context_t; // NB: Fills frame_t::frame_ptr_;
 
-    public:
         // NB: Copy and move assignment operators are going to be deleted
         // since this class has const members. Copy and move ctors will
         // implicitly declared.
@@ -94,6 +97,7 @@ namespace oni {
             // Nothing
         }
 
+    public:
         uint64_t time() const { return frame_ptr_->time; }
         oni_dev_idx_t device_index() const { return frame_ptr_->dev_idx; }
 
@@ -111,7 +115,7 @@ namespace oni {
         std::vector<raw_t> data() const
         {
             // This should be RVOed
-            return std::vector(
+            return std::vector<raw_t>(
                 reinterpret_cast<raw_t *const>(frame_ptr_->data),
                 reinterpret_cast<raw_t * const>(frame_ptr_->data) + frame_ptr_->data_sz / sizeof(raw_t));
         }
