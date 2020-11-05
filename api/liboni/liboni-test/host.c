@@ -33,12 +33,16 @@ FILE **dump_files;
 #include <pthread.h>
 #endif
 
+// Display options
+volatile int quit = 0;
+volatile int display = 1;
+int num_frames_to_display = -1; //50;
+int device_filter = -1; //ONIX_TS4231V1ARR
+
+// Global state
 volatile oni_ctx ctx = NULL;
 oni_size_t num_devs = 0;
 oni_device_t *devices = NULL;
-volatile int quit = 0;
-volatile int display = 0;
-const int quiet = 1;
 int running = 1;
 
 #ifdef _WIN32
@@ -117,9 +121,8 @@ void *read_loop(void *vargp)
 #endif
 
         if (display
-            && counter % 1000 == 0
-            //&& counter < 50
-            //&& devices[i].id == ONIX_TS4231V2ARR
+            && ((num_frames_to_display  <= 0 && counter % 1000 == 0) || (num_frames_to_display > 0 && counter < num_frames_to_display))
+            && (device_filter < 0 || devices[i].id == device_filter)
             ) {
             oni_device_t this_dev = devices[i];
 
@@ -258,28 +261,29 @@ void stop_threads()
 void print_dev_table(oni_device_t *devices, int num_devs)
 {
     // Show device table
-    printf("   +--------------------+-------+-------+-------+---------------------\n");
-    printf("   |        \t\t|  \t|Read\t|Wrt. \t|     \n");
-    printf("   |Dev. idx\t\t|ID\t|size\t|size \t|Desc.\n");
-    printf("   +--------------------+-------+-------+-------+---------------------\n");
+    printf("   +--------------------+-------+-------+-------+-------+---------------------\n");
+    printf("   |        \t\t|  \t|Firm.\t|Read\t|Wrt. \t|     \n");
+    printf("   |Dev. idx\t\t|ID\t|ver. \t|size\t|size \t|Desc.\n");
+    printf("   +--------------------+-------+-------+-------+-------+---------------------\n");
 
     size_t dev_idx;
     for (dev_idx = 0; dev_idx < num_devs; dev_idx++) {
 
         const char *dev_str = onix_device_str(devices[dev_idx].id);
 
-        printf("%02zd |%05zd: 0x%02x.0x%02x\t|%d\t|%u\t|%u\t|%s\n",
+        printf("%02zd |%05zd: 0x%02x.0x%02x\t|%d\t|%d\t|%u\t|%u\t|%s\n",
                dev_idx,
                devices[dev_idx].idx,
                (uint8_t)(devices[dev_idx].idx >> 8),
                (uint8_t)devices[dev_idx].idx,
                devices[dev_idx].id,
+               devices[dev_idx].version,
                devices[dev_idx].read_size,
                devices[dev_idx].write_size,
                dev_str);
     }
 
-    printf("   +--------------------+-------+-------+-------+---------------------\n");
+    printf("   +--------------------+-------+-------+-------+-------+---------------------\n");
 }
 
 int main(int argc, char *argv[])

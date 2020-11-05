@@ -44,6 +44,7 @@ namespace oni.lib
     {
         public readonly uint idx;            // Complete rsv.rsv.hub.idx device table index
         public readonly int id;              // Device ID
+        public readonly uint version;        // Device firmware version
         public readonly uint read_size;      // Read size
         public readonly uint write_size;     // Write size
     }
@@ -66,7 +67,7 @@ namespace oni.lib
             LibraryVersion = new Version(major, minor, patch);
 
             // Make sure it is supported
-            if (major < 3) {
+            if (major < 4) {
                 throw VersionNotSupported(null, ">= v4.0.0");
             }
         }

@@ -65,15 +65,33 @@ namespace clroni_test
         {
             int hw_idx = 0;
             string driver = "";
-            if (args.Length == 0 || args.Length > 2) {
-                Console.Error.WriteLine("usage:");
-                Console.Error.WriteLine("host driver [index]");
-                return;
-            } else if (args.Length == 1){
-                driver = args[0];
-            } else if (args.Length == 2) {
-                driver = args[0];
-                hw_idx = Int32.Parse(args[1]);
+            int blk_read_size = 1024;
+            int blk_write_size = 1024;
+
+            switch (args.Length)
+            {
+                case 1:
+                    driver = args[0];
+                    break;
+                case 2:
+                    driver = args[0];
+                    hw_idx = Int32.Parse(args[1]);
+                    break;
+                case 3:
+                    driver = args[0];
+                    hw_idx = Int32.Parse(args[1]);
+                    blk_read_size = Int32.Parse(args[2]);
+                    break;
+                case 4:
+                    driver = args[0];
+                    hw_idx = Int32.Parse(args[1]);
+                    blk_read_size = Int32.Parse(args[2]);
+                    blk_write_size = Int32.Parse(args[3]);
+                    break;
+                default:
+                    Console.Error.WriteLine("usage:");
+                    Console.Error.WriteLine("host driver [index block_read_size block_write_size]");
+                    return;
             }
 
             // Get version
@@ -112,7 +130,8 @@ namespace clroni_test
                                       + ctx.HardwareAddress);
 
                     // Set read pre-allocation size
-                    ctx.BlockReadSize = 4096;
+                    ctx.BlockReadSize = blk_read_size;
+                    ctx.BlockWriteSize = blk_write_size;
 
                     // State acquisition and reset acquisition clock counter
                     ctx.Start(true);

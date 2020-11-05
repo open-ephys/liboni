@@ -42,8 +42,8 @@ struct conf_reg {
 
 typedef struct {
     oni_device_t dev;
-    oni_reg_val_t reg_val;
-    uint16_t data_count;
+    int32_t message;
+    uint64_t counter;
 } test_dev_t;
 
 struct oni_test_ctx_impl {
@@ -105,7 +105,7 @@ oni_driver_ctx oni_driver_create_ctx()
     if (ctx == NULL)
         return NULL;
 
-    ctx->block_read_size = 1024;
+    ctx->block_read_size = 280;
 
     // HW address
     ctx->hw_addr = 0;
@@ -121,10 +121,11 @@ oni_driver_ctx oni_driver_create_ctx()
 
         ctx->dev_table[i].dev.idx = i << 8; // All dev_idx 0 on different hubs
         ctx->dev_table[i].dev.id = ONIX_TEST0;
-        ctx->dev_table[i].dev.read_size = 32; // Must be the same
-        ctx->dev_table[i].dev.write_size = 32; // Must be the same?
-        ctx->dev_table[i].reg_val= 42;
-        ctx->dev_table[i].data_count = 0;
+        ctx->dev_table[i].dev.version = 1;
+        ctx->dev_table[i].dev.read_size = 12;
+        ctx->dev_table[i].dev.write_size = 32;
+        ctx->dev_table[i].message = i * 42;
+        ctx->dev_table[i].counter = 0;
     }
 
     // Configuration registers
@@ -213,7 +214,7 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
     {
         // TODO: Pre-generate single static frame so we can see true
         // performance of library
-        _fill_read_buffer(ctx, data, ctx->block_read_size >> 2);
+        _fill_read_buffer(ctx, data, size >> 2);
         return ctx->block_read_size;
     }
     else if (stream == ONI_READ_STREAM_SIGNAL)
@@ -281,15 +282,15 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
                 return ONI_EDEVIDX;
 
             if (value && !ctx->conf.rw) { // read
-                if (ctx->conf.reg_addr == 0) {
-                    ctx->conf.reg_value = ctx->dev_table[i].reg_val;
+                if (ctx->conf.reg_addr == 1) { // Only register 1 (message) is specified for this device
+                    ctx->conf.reg_value = ctx->dev_table[i].message;
                     _send_msg_signal(ctx, CONFIGRACK);
                 } else {
                     _send_msg_signal(ctx, CONFIGRNACK);
                 }
             } else if (value) { // write
-                if (ctx->conf.reg_addr == 0) {
-                    ctx->dev_table[i].reg_val = ctx->conf.reg_value;
+                if (ctx->conf.reg_addr == 1) { // Only register 1 (message) is specified for this device
+                    ctx->dev_table[i].message = (short)ctx->conf.reg_value;
                     _send_msg_signal(ctx, CONFIGWACK);
                 } else {
                     _send_msg_signal(ctx, CONFIGWNACK);
@@ -439,7 +440,7 @@ static void _fill_read_buffer(oni_test_ctx ctx, uint32_t *data, size_t num_words
     // 1. index (1)
     // 2. data_sz (1)
     // 3. timer (2)
-    // 4. Data (num_words)
+    // 4. Data ([8: counter, 4: message])
     size_t i;
     int d = rand() % ctx->num_devs;
     for (i = 0;
@@ -448,16 +449,25 @@ static void _fill_read_buffer(oni_test_ctx ctx, uint32_t *data, size_t num_words
          i += (ONI_FRAMEHEADERSZ + ctx->dev_table[d].dev.read_size) >> 2) {
 
         // Header
-        *((uint64_t *)(data)) = ctx->frame_num++;
-        *(data + i + 2) = ctx->dev_table[d].dev.idx;
-        *(data + i + 3) = ctx->dev_table[d].dev.read_size;
+        *((uint64_t *)(data + i)) = ctx->frame_num++;
+        *((data + i + 2)) = ctx->dev_table[d].dev.idx;
+        *((data + i + 3)) = ctx->dev_table[d].dev.read_size;
 
-        // Data
-        size_t j;
-        uint16_t *start = (uint16_t *)(data + i + 4);
-        for (j = 0; j < ctx->dev_table[d].dev.read_size >> 1; j++) {
-            *(start + j) = ctx->dev_table[d].data_count++;
-        }
+        // Data in the order it is actually produced 
+        // by real hardware version of this device.
+        uint16_t *temp = (uint16_t *)(data + i + 4);
+
+        // Hub counter
+        temp[0] = (uint16_t)(ctx->dev_table[d].counter << 48);
+        temp[1] = (uint16_t)(ctx->dev_table[d].counter << 32);
+        temp[2] = (uint16_t)(ctx->dev_table[d].counter << 16);
+        temp[3] = (uint16_t)(ctx->dev_table[d].counter << 0);
+
+        // Message
+        temp[4] = (uint16_t)(ctx->dev_table[d].message << 16);
+        temp[5] = (uint16_t)(ctx->dev_table[d].message << 0);
+
+        ctx->dev_table[d].counter++;
     }
 }
 

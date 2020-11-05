@@ -34,6 +34,7 @@
             FMCANALOG1R3 = 22,
             FMCLINKCTRL = 23,
             DS90UB9X = 24,
+            TS4231V1ARR = 25,
         }
 
         public static string Name(int id)

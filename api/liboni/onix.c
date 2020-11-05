@@ -71,7 +71,8 @@ const char *onix_device_str(int dev_id)
             return "Open Ephys FMC Host Board rev. 1.3 clock output subcircuit";
         }
         case ONIX_TS4231V2ARR: {
-            return "Triad TS421 optical to digital converter array for V2 base stations";
+            return "Triad TS421 optical to digital converter array for V2 base "
+                   "stations";
         }
         case ONIX_FMCANALOG1R3: {
             return "Open Ephys FMC Host Board rev. 1.3 analog IO subcircuit";
@@ -81,6 +82,10 @@ const char *onix_device_str(int dev_id)
         }
         case ONIX_DS90UB9RAW: {
             return "Raw DS90UB9x deserializer";
+        }
+        case ONIX_TS4231V1ARR: {
+            return "Triad TS421 optical to digital converter array for V1 base "
+                   "stations";
         }
         default:
             return "Unknown device";

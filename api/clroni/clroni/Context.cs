@@ -163,11 +163,6 @@
             SetIntOption((int)Option.RUNNING, 0);
         }
 
-        public void Reset()
-        {
-            SetIntOption((int)Option.RESET, 1);
-        }
-
         public void ResetFrameClock()
         {
             SetIntOption((int)Option.RESETACQCOUNTER, 1);
