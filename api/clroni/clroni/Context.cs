@@ -5,7 +5,6 @@
     using System.Collections.Generic;
     using System.Runtime.InteropServices;
     using Microsoft.Win32.SafeHandles;
-
     using lib;
 
     public unsafe class Context : SafeHandleZeroOrMinusOneIsInvalid
@@ -33,7 +32,7 @@
         public readonly int HostIndex;
         public readonly Dictionary<uint, device_t> DeviceTable;
         public readonly uint SystemClockHz = 0;
-        public readonly uint AcquisitionClockHz = 0;
+        public readonly uint AcquisitionClockHz = 0; // Used to mark frames
         public readonly uint MaxReadFrameSize = 0;
         public readonly uint MaxWriteFrameSize = 0;
 
@@ -150,6 +149,16 @@
             if (rc != 0) { throw new ONIException(rc); }
         }
 
+        public void SetCustomOption(int option, int value)
+        {
+            SetIntOption((int)Option.CUSTOMBEGIN + option, value);
+        }
+
+        public int GetCustomOption(int option)
+        {
+            return GetIntOption((int)Option.CUSTOMBEGIN + option);
+        }
+
         public void Start(bool reset_frame_clock = true)
         {
             if (reset_frame_clock)
@@ -210,16 +219,6 @@
             {
                 SetIntOption((int)Option.BLOCKWRITESIZE, value);
             }
-        }
-
-        public void SetONIXOption(int option, int value)
-        {
-            SetIntOption((int)Option.CUSTOMBEGIN + option, value);
-        }
-
-        public int GetONIXOption(int option)
-        {
-            return GetIntOption((int)Option.CUSTOMBEGIN + option);
         }
 
         public uint ReadRegister(uint dev_idx, uint reg_addr)
