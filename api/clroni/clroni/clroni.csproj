@@ -6,7 +6,7 @@
     <PackageTags>ONI Open Ephys ONIX</PackageTags>
     <TargetFramework>net472</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>4.1.0</Version>
+    <Version>4.1.1</Version>
     <Authors>Jon Newman</Authors>
     <Company>MIT &amp; Open Ephys</Company>
     <Copyright>Copyright © Jonathan Newman 2020</Copyright>
@@ -40,18 +40,6 @@
   <ItemGroup>
     <None Remove="Makefile" />
   </ItemGroup>
-    
-    <ItemGroup>
-        <None Include="$(MSBuildThisFileDirectory)\..\..\liboni\x64\Release\*.dll" Pack="true" PackagePath="build\x64" Visible="false">
-            <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-        </None>
-        <None Include="$(MSBuildThisFileDirectory)\..\..\liboni\Win32\Release\*.dll" Pack="true" PackagePath="build\x86" Visible="false">
-            <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-        </None>
-        <None Include="$(MSBuildThisFileDirectory)\clroni.targets" Pack="true" PackagePath="build">
-            <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-        </None>
-    </ItemGroup>
 
     <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
         <None Include="$(MSBuildThisFileDirectory)\..\..\liboni\x64\Release\*.dll" Visible="false">
@@ -75,6 +63,12 @@
         <None Include="$(MSBuildThisFileDirectory)\..\..\liboni\Win32\Debug\*.dll" Visible="false">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="clroni.targets" PackagePath="build\net472" />
+        <Content Include="$(MSBuildThisFileDirectory)\..\..\liboni\Win32\Release\*.dll" PackagePath="build\native\bin\x86" Visible="false" />
+        <Content Include="$(MSBuildThisFileDirectory)\..\..\liboni\x64\Release\*.dll" PackagePath="build\native\bin\x64" Visible="false" />
     </ItemGroup>
 
 </Project>
