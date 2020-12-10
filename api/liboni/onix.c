@@ -87,6 +87,12 @@ const char *onix_device_str(int dev_id)
             return "Triad TS421 optical to digital converter array for V1 base "
                    "stations";
         }
+        case ONIX_MAX10ADCCORE: {
+            return "Max10 internal ADC device";
+        }
+        case ONIX_LOADTEST: {
+            return "Variable load testing device";
+        }
         default:
             return "Unknown device";
     }

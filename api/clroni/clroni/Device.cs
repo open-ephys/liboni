@@ -35,6 +35,8 @@
             FMCLINKCTRL = 23,
             DS90UB9X = 24,
             TS4231V1ARR = 25,
+            MAX10ADCCORE = 26,
+            LOADTEST = 27
         }
 
         public static string Name(int id)

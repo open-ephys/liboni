@@ -45,6 +45,8 @@ typedef enum {
     ONIX_FMCLINKCTRL        = 23,  // Open Ephys FMC Host Board coaxial headstage link control circuit
     ONIX_DS90UB9RAW         = 24,  // Raw DS90UB9x deserializer
     ONIX_TS4231V1ARR        = 25,  // Triad semiconductor TS421 optical to digital converter array targeting V1 base-stations
+    ONIX_MAX10ADCCORE       = 26,  // Max10 internal ADC device
+    ONIX_LOADTEST           = 27,  // Variable load testing device
 
     // NB: Final reserved device ID. Always on bottom
     ONIX_MAXDEVICEID        = MAXDEVID,

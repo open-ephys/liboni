@@ -35,8 +35,8 @@ FILE **dump_files;
 
 // Display options
 volatile int quit = 0;
-volatile int display = 1;
-int num_frames_to_display = -1; //50;
+volatile int display = 0;
+int num_frames_to_display = -1;
 int device_filter = -1; //ONIX_TS4231V1ARR
 
 // Global state
