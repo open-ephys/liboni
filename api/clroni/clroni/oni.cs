@@ -5,39 +5,6 @@ namespace oni.lib
     using System.Security;
     using System.Text;
 
-    // See oni_defs.h
-    public enum Error
-    {
-        SUCCESS = 0,
-        PATHINVALID = -1,
-        DEVID = -2,
-        DEVIDX = -3,
-        WRITESIZE = -4,
-        READFAILURE = -5,
-        WRITEFAILURE = -6,
-        NULLCTX = -7,
-        SEEKFAILURE = -8,
-        INVALSTATE = -9,
-        INVALOPT = -10,
-        INVALARG = -11,
-        COBSPACK = -12,
-        RETRIG = -13,
-        BUFFERSIZE = -14,
-        BADDEVMAP = -15,
-        BADALLOC = -16,
-        CLOSEFAIL = -17,
-        READONLY = -18,
-        UNIMPL = -19,
-        INVALREADSIZE = -20,
-        NOREADDEV = -21,
-        INIT = -22,
-        WRITEONLY = -23,
-        INVALWRITESIZE = -24,
-        NOTWRITEDEV = -25,
-        DEVIDXREPEAT = -26,
-        PROTCONFIG = -27,
-    }
-
     // Make managed version of oni_device_t
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public partial struct device_t
@@ -67,7 +34,8 @@ namespace oni.lib
             LibraryVersion = new Version(major, minor, patch);
 
             // Make sure it is supported
-            if (major < 4) {
+            if (major < 4)
+            {
                 throw VersionNotSupported(null, ">= v4.0.0");
             }
         }
@@ -102,7 +70,7 @@ namespace oni.lib
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
         public static extern int oni_set_opt(IntPtr ctx, int option, IntPtr val, int size);
 
-        [DllImport(LibraryName,  CallingConvention = CCCdecl)]
+        [DllImport(LibraryName, CallingConvention = CCCdecl)]
         public static extern int oni_set_opt(IntPtr ctx, int option, string val, int size);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
@@ -114,7 +82,7 @@ namespace oni.lib
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
         public static extern int oni_set_driver_opt(IntPtr ctx, int option, IntPtr val, int size);
 
-        [DllImport(LibraryName,  CallingConvention = CCCdecl)]
+        [DllImport(LibraryName, CallingConvention = CCCdecl)]
         public static extern int oni_set_driver_opt(IntPtr ctx, int option, string val, int size);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]

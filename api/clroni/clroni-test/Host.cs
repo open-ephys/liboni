@@ -43,7 +43,7 @@ namespace clroni_test
                         {
                             var dat = frame.Data<ushort>();
                             var idx = frame.DeviceIndex();
-                            Console.WriteLine("\t[{0}] Dev: {1} ({2})", frame.Clock(), idx, Device.Name(ctx.DeviceTable[idx].id));
+                            Console.WriteLine("\t[{0}] Dev: {1} ({2})", frame.Clock(), idx, ctx.DeviceTable[idx].Description());
                             Console.WriteLine("\t[{0}]", String.Join(", ", dat));
                         }
                     }

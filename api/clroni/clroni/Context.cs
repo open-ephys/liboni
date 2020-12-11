@@ -1,11 +1,11 @@
 ﻿namespace oni
 {
+    using lib;
+    using Microsoft.Win32.SafeHandles;
     using System;
-    using System.Text;
     using System.Collections.Generic;
     using System.Runtime.InteropServices;
-    using Microsoft.Win32.SafeHandles;
-    using lib;
+    using System.Text;
 
     public unsafe class Context : SafeHandleZeroOrMinusOneIsInvalid
     {
@@ -39,7 +39,7 @@
         readonly object context_lock = new object();
 
         public Context(string driver_name, int host_index)
-        : base (true)  // this.handle is IntPtr wrapped by the SafeHandle
+        : base(true)  // this.handle is IntPtr wrapped by the SafeHandle
         {
             // Create context
             handle = NativeMethods.oni_create_ctx(driver_name);
@@ -254,13 +254,13 @@
             Write(dev_idx, new T[] { data });
         }
 
-        public void Write<T> (uint dev_idx, T[] data) where T : struct
+        public void Write<T>(uint dev_idx, T[] data) where T : struct
         {
             var num_bytes = Buffer.ByteLength(data);
             var buffer = new byte[num_bytes];
             Buffer.BlockCopy(data, 0, buffer, 0, num_bytes);
 
-            fixed (byte *p = buffer)
+            fixed (byte* p = buffer)
             {
                 Frame frame;
                 int rc = NativeMethods.oni_create_frame(handle, out frame, dev_idx, (IntPtr)p, (uint)num_bytes);

@@ -1,7 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using Microsoft.Win32.SafeHandles;
+using System;
 using System.Runtime.InteropServices;
-using Microsoft.Win32.SafeHandles;
 
 namespace oni
 {
@@ -17,7 +16,7 @@ namespace oni
 
     public unsafe class Frame : SafeHandleZeroOrMinusOneIsInvalid
     {
-        protected Frame() 
+        protected Frame()
         : base(true)
         {
         }
