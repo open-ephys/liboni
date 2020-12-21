@@ -246,6 +246,8 @@
             Frame frame;
             int rc = NativeMethods.oni_read_frame(handle, out frame);
             if (rc < 0) { throw new ONIException(rc); }
+            var data_bytes = ((frame_t*)frame.DangerousGetHandle())->data_sz;
+            frame.addMemoryPressure(data_bytes);
             return frame;
         }
 

@@ -19,6 +19,7 @@ namespace oni
         protected Frame()
         : base(true)
         {
+          
         }
 
         // Ideally, I would like this to be a "Span" into the existing, allocated frame
@@ -62,10 +63,17 @@ namespace oni
         //    // Copy the memory
         //    Buffer.MemoryCopy(data.ToPointer(), frame->data, num_bytes, data_size);
         //}
+        private long mempress = 0;
+        public void addMemoryPressure(long mem)
+        {
+            mempress += mem;
+            GC.AddMemoryPressure(mem);
+        }
 
         protected override bool ReleaseHandle()
         {
             lib.NativeMethods.oni_destroy_frame(handle);
+            GC.RemoveMemoryPressure(mempress);
             return true;
         }
 
