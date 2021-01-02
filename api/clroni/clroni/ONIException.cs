@@ -18,7 +18,7 @@ namespace oni
 
         public override string ToString()
         {
-            return Marshal.PtrToStringAnsi(lib.NativeMethods.oni_error_str(Number));
+            return Marshal.PtrToStringAnsi(NativeMethods.oni_error_str(Number));
         }
 
         public override string Message

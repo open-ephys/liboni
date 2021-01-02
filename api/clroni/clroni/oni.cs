@@ -1,6 +1,7 @@
-namespace oni.lib
+namespace oni
 {
     using System;
+    using System.Runtime.ConstrainedExecution;
     using System.Runtime.InteropServices;
     using System.Security;
     using System.Text;
@@ -17,7 +18,7 @@ namespace oni.lib
     }
 
     [SuppressUnmanagedCodeSecurity] // Call into native code without incurring the performance loss of a run-time security check when doing so
-    public static unsafe partial class NativeMethods
+    internal static unsafe partial class NativeMethods
     {
         public static readonly Version LibraryVersion;
 
@@ -29,8 +30,7 @@ namespace oni.lib
         static NativeMethods()
         {
             // Set once LibraryVersion to version()
-            int major, minor, patch;
-            oni_version(out major, out minor, out patch);
+            oni_version(out int major, out int minor, out int patch);
             LibraryVersion = new Version(major, minor, patch);
 
             // Make sure it is supported
@@ -53,57 +53,59 @@ namespace oni.lib
         private static extern void oni_version(out int major, out int minor, out int patch);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl, CharSet = CharSet.Ansi)]
-        public static extern IntPtr oni_create_ctx(string driver_name);
+        internal static extern ContextHandle oni_create_ctx(string driver_name);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        public static extern int oni_init_ctx(IntPtr ctx, int host_idx);
+        internal static extern int oni_init_ctx(ContextHandle ctx, int host_idx);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        public static extern int oni_destroy_ctx(IntPtr ctx);
+        [ReliabilityContract(Consistency.WillNotCorruptState, Cer.MayFail)]
+        internal static extern int oni_destroy_ctx(IntPtr ctx);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        public static extern int oni_get_opt(IntPtr ctx, int option, IntPtr val, IntPtr size);
+        internal static extern int oni_get_opt(ContextHandle ctx, int option, IntPtr val, IntPtr size);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        public static extern int oni_get_opt(IntPtr ctx, int option, StringBuilder val, IntPtr size);
+        internal static extern int oni_get_opt(ContextHandle ctx, int option, StringBuilder val, IntPtr size);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        public static extern int oni_set_opt(IntPtr ctx, int option, IntPtr val, int size);
+        internal static extern int oni_set_opt(ContextHandle ctx, int option, IntPtr val, int size);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        public static extern int oni_set_opt(IntPtr ctx, int option, string val, int size);
+        internal static extern int oni_set_opt(ContextHandle ctx, int option, string val, int size);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        public static extern int oni_get_driver_opt(IntPtr ctx, int option, IntPtr val, IntPtr size);
+        internal static extern int oni_get_driver_opt(ContextHandle ctx, int option, IntPtr val, IntPtr size);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        public static extern int oni_get_driver_opt(IntPtr ctx, int option, StringBuilder val, IntPtr size);
+        internal static extern int oni_get_driver_opt(ContextHandle ctx, int option, StringBuilder val, IntPtr size);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        public static extern int oni_set_driver_opt(IntPtr ctx, int option, IntPtr val, int size);
+        internal static extern int oni_set_driver_opt(ContextHandle ctx, int option, IntPtr val, int size);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        public static extern int oni_set_driver_opt(IntPtr ctx, int option, string val, int size);
+        internal static extern int oni_set_driver_opt(ContextHandle ctx, int option, string val, int size);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        public static extern int oni_read_reg(IntPtr ctx, uint dev_idx, uint addr, IntPtr val);
+        internal static extern int oni_read_reg(ContextHandle ctx, uint dev_idx, uint addr, IntPtr val);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        public static extern int oni_write_reg(IntPtr ctx, uint dev_idx, uint addr, uint val);
+        internal static extern int oni_write_reg(ContextHandle ctx, uint dev_idx, uint addr, uint val);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
-        public static extern int oni_read_frame(IntPtr ctx, out Frame frame);
+        internal static extern int oni_read_frame(ContextHandle ctx, out Frame frame);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
-        public static extern int oni_create_frame(IntPtr ctx, out Frame frame, uint dev_idx, IntPtr data, uint data_sz);
+        internal static extern int oni_create_frame(ContextHandle ctx, out Frame frame, uint dev_idx, IntPtr data, uint data_sz);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
-        public static extern int oni_write_frame(IntPtr ctx, Frame frame);
+        internal static extern int oni_write_frame(ContextHandle ctx, Frame frame);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        public static extern void oni_destroy_frame(IntPtr frame);
+        [ReliabilityContract(Consistency.WillNotCorruptState, Cer.Success)]
+        internal static extern void oni_destroy_frame(IntPtr frame);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        public static extern IntPtr oni_error_str(int err);
+        internal static extern IntPtr oni_error_str(int err);
     }
 }

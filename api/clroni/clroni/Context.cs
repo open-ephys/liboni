@@ -1,13 +1,12 @@
-﻿namespace oni
-{
-    using lib;
-    using Microsoft.Win32.SafeHandles;
-    using System;
-    using System.Collections.Generic;
-    using System.Runtime.InteropServices;
-    using System.Text;
+﻿using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Security.Permissions;
+using System.Text;
 
-    public unsafe class Context : SafeHandleZeroOrMinusOneIsInvalid
+namespace oni
+{
+    public unsafe class Context : IDisposable
     {
         // NB: These need to be redeclared unfortunately
         public enum Option : int
@@ -27,33 +26,34 @@
             CUSTOMBEGIN,
         }
 
-        // Hardware constants
-        public readonly string HostDriver;
-        public readonly int HostIndex;
+        // ONIX hardware uses device 254 within each hub for the hub manager
+        private const int HUB_MGR_ADDRESS = 254;
+
+        // Constructor initialized
+        public readonly uint SystemClockHz;
+        public readonly uint AcquisitionClockHz;
+        public readonly uint MaxReadFrameSize;
+        public readonly uint MaxWriteFrameSize;
         public readonly Dictionary<uint, device_t> DeviceTable;
-        public readonly uint SystemClockHz = 0;
-        public readonly uint AcquisitionClockHz = 0; // Used to mark frames
-        public readonly uint MaxReadFrameSize = 0;
-        public readonly uint MaxWriteFrameSize = 0;
 
-        readonly object context_lock = new object();
+        // The safe handle used for API interaction
+        private readonly ContextHandle ctx;
 
-        public Context(string driver_name, int host_index)
-        : base(true)  // this.handle is IntPtr wrapped by the SafeHandle
+        public Context(string driver, int index)
         {
             // Create context
-            handle = NativeMethods.oni_create_ctx(driver_name);
-            if (handle == IntPtr.Zero)
+            ctx = NativeMethods.oni_create_ctx(driver);
+
+            if (ctx.IsInvalid)
             {
-                throw new InvalidProgramException("oni_create_ctx");
+                throw new InvalidProgramException(string.Format("Failed to create an " +
+                    "acquisition context for the specified driver: {0}.", driver));
             }
 
-            var rc = NativeMethods.oni_init_ctx(handle, host_index);
+            var rc = NativeMethods.oni_init_ctx(ctx, index);
             if (rc != 0) { throw new ONIException(rc); }
 
             // Get context metadata
-            HostDriver = driver_name;
-            HostIndex = host_index;
             SystemClockHz = (uint)GetIntOption((int)Option.SYSCLKHZ);
             AcquisitionClockHz = (uint)GetIntOption((int)Option.ACQCLKHZ);
             MaxReadFrameSize = (uint)GetIntOption((int)Option.MAXREADFRAMESIZE);
@@ -67,9 +67,6 @@
 
             var table = GetOption((int)Option.DEVICETABLE, size);
 
-            // TODO: This seems very inefficient. We allocate memory in value
-            // and then copy each element into device table.  Would be better to
-            // directly provide device table's memory as buffer.
             for (int i = 0; i < num_devs; i++)
             {
                 var d = (device_t)Marshal.PtrToStructure(table, typeof(device_t));
@@ -78,25 +75,32 @@
             }
         }
 
-        protected override bool ReleaseHandle()
-        {
-            return NativeMethods.oni_destroy_ctx(handle) == 0;
-        }
-
         // GetOption
         private IntPtr GetOption(int option, int size, bool drv_opt = false)
         {
             // NB: If I don't do all this wacky stuff, the size
-            // parameter ends up being too wrong for 64-bit compilation.
+            // parameter ends up being wrong for 64-bit compilation.
             var sz = Marshal.AllocHGlobal(IntPtr.Size);
-            if (IntPtr.Size == 4) Marshal.WriteInt32(sz, size); else Marshal.WriteInt64(sz, size);
+            if (IntPtr.Size == 4)
+            {
+                Marshal.WriteInt32(sz, size);
+            }
+            else
+            {
+                Marshal.WriteInt64(sz, size);
+            }
+
             var value = Marshal.AllocHGlobal(size);
 
-            int rc = 0;
+            int rc;
             if (!drv_opt)
-                rc = NativeMethods.oni_get_opt(handle, option, value, sz);
+            {
+                rc = NativeMethods.oni_get_opt(ctx, option, value, sz);
+            }
             else
-                rc = NativeMethods.oni_get_driver_opt(handle, option, value, sz);
+            {
+                rc = NativeMethods.oni_get_driver_opt(ctx, option, value, sz);
+            }
 
             if (rc != 0) { throw new ONIException(rc); }
             return value;
@@ -113,13 +117,27 @@
         private string GetStringOption(int option, bool drv_opt = false)
         {
             var sz = Marshal.AllocHGlobal(IntPtr.Size);
-            if (IntPtr.Size == 4) Marshal.WriteInt32(sz, 1000); else Marshal.WriteInt64(sz, 1000);
-            var str = new StringBuilder(1000);
-            int rc = 0;
-            if (!drv_opt)
-                rc = NativeMethods.oni_get_opt(handle, (int)option, str, sz);
+            if (IntPtr.Size == 4)
+            {
+                Marshal.WriteInt32(sz, 1000);
+            }
             else
-                rc = NativeMethods.oni_get_driver_opt(handle, (int)option, str, sz);
+            {
+                Marshal.WriteInt64(sz, 1000);
+            }
+
+            var str = new StringBuilder(1000);
+
+            int rc;
+            if (!drv_opt)
+            {
+                rc = NativeMethods.oni_get_opt(ctx, option, str, sz);
+            }
+            else
+            {
+                rc = NativeMethods.oni_get_driver_opt(ctx, option, str, sz);
+            }
+
             if (rc != 0) { throw new ONIException(rc); }
             return str.ToString();
         }
@@ -128,12 +146,24 @@
         private void SetIntOption(int opt, int value, bool drv_opt = false)
         {
             var val = Marshal.AllocHGlobal(IntPtr.Size);
-            if (IntPtr.Size == 4) Marshal.WriteInt32(val, value); else Marshal.WriteInt64(val, value);
-            int rc = 0;
-            if (!drv_opt)
-                rc = NativeMethods.oni_set_opt(handle, opt, val, 4);
+            if (IntPtr.Size == 4)
+            {
+                Marshal.WriteInt32(val, value);
+            }
             else
-                rc = NativeMethods.oni_set_driver_opt(handle, opt, val, 4);
+            {
+                Marshal.WriteInt64(val, value);
+            }
+
+            int rc;
+            if (!drv_opt)
+            {
+                rc = NativeMethods.oni_set_opt(ctx, opt, val, 4);
+            }
+            else
+            {
+                rc = NativeMethods.oni_set_driver_opt(ctx, opt, val, 4);
+            }
 
             if (rc != 0) { throw new ONIException(rc); }
         }
@@ -141,11 +171,16 @@
         // String SetOption
         private void SetStringOption(int opt, string value, bool drv_opt)
         {
-            int rc = 0;
+            int rc;
             if (!drv_opt)
-                rc = NativeMethods.oni_set_opt(handle, (int)opt, value, value.Length + 1);
+            {
+                rc = NativeMethods.oni_set_opt(ctx, opt, value, value.Length + 1);
+            }
             else
-                rc = NativeMethods.oni_set_driver_opt(handle, (int)opt, value, value.Length + 1);
+            {
+                rc = NativeMethods.oni_set_driver_opt(ctx, opt, value, value.Length + 1);
+            }
+
             if (rc != 0) { throw new ONIException(rc); }
         }
 
@@ -162,9 +197,13 @@
         public void Start(bool reset_frame_clock = true)
         {
             if (reset_frame_clock)
+            {
                 SetIntOption((int)Option.RESETACQCOUNTER, 2);
+            }
             else
+            {
                 SetIntOption((int)Option.RUNNING, 1);
+            }
         }
 
         public void Stop()
@@ -221,30 +260,33 @@
             }
         }
 
-        public uint ReadRegister(uint dev_idx, uint reg_addr)
+        public uint ReadRegister(uint? dev_index, uint register_address)
         {
-            lock (context_lock)
+            if (dev_index == null)
             {
-                var val = Marshal.AllocHGlobal(4);
-                int rc = NativeMethods.oni_read_reg(handle, dev_idx, reg_addr, val);
-                if (rc != 0) { throw new ONIException(rc); }
-                return (uint)Marshal.ReadInt32(val);
+                throw new ArgumentNullException("dev_index", "Attempt to read register from invalid device.");
             }
+
+            var val = Marshal.AllocHGlobal(4);
+            int rc = NativeMethods.oni_read_reg(ctx, (uint)dev_index, register_address, val);
+            if (rc != 0) { throw new ONIException(rc); }
+            return (uint)Marshal.ReadInt32(val);
         }
 
-        public void WriteRegister(uint dev_idx, uint reg_addr, uint value)
+        public void WriteRegister(uint? dev_index, uint register_address, uint value)
         {
-            lock (context_lock)
+            if (dev_index == null)
             {
-                int rc = NativeMethods.oni_write_reg(handle, dev_idx, reg_addr, value);
-                if (rc != 0) { throw new ONIException(rc); }
+                throw new ArgumentNullException("dev_index", "Attempt to write to register of invalid device.");
             }
+
+            int rc = NativeMethods.oni_write_reg(ctx, (uint)dev_index, register_address, value);
+            if (rc != 0) { throw new ONIException(rc); }
         }
 
         public Frame ReadFrame()
         {
-            Frame frame;
-            int rc = NativeMethods.oni_read_frame(handle, out frame);
+            int rc = NativeMethods.oni_read_frame(ctx, out Frame frame);
             if (rc < 0) { throw new ONIException(rc); }
             return frame;
         }
@@ -262,25 +304,42 @@
 
             fixed (byte* p = buffer)
             {
-                Frame frame;
-                int rc = NativeMethods.oni_create_frame(handle, out frame, dev_idx, (IntPtr)p, (uint)num_bytes);
+                int rc = NativeMethods.oni_create_frame(ctx, out Frame frame, dev_idx, (IntPtr)p, (uint)num_bytes);
                 if (rc < 0) { throw new ONIException(rc); }
-                // frame.SetData(data);
 
-                rc = NativeMethods.oni_write_frame(handle, frame);
+                rc = NativeMethods.oni_write_frame(ctx, frame);
                 if (rc < 0) { throw new ONIException(rc); }
             }
         }
 
         public void Write(uint dev_idx, IntPtr data, int data_size)
         {
-            Frame frame;
-            int rc = NativeMethods.oni_create_frame(handle, out frame, dev_idx, data, (uint)data_size);
+            int rc = NativeMethods.oni_create_frame(ctx, out Frame frame, dev_idx, data, (uint)data_size);
             if (rc < 0) { throw new ONIException(rc); }
-            //frame.SetData(data, data_size);
 
-            rc = NativeMethods.oni_write_frame(handle, frame);
+            rc = NativeMethods.oni_write_frame(ctx, frame);
             if (rc < 0) { throw new ONIException(rc); }
+        }
+
+        public uint? HubDataClock(uint hub_idx)
+        {
+            return ReadRegister(HUB_MGR_ADDRESS + hub_idx, 4);
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        [SecurityPermission(SecurityAction.Demand, UnmanagedCode = true)]
+        protected virtual void Dispose(bool disposing)
+        {
+
+            if (ctx != null && !ctx.IsInvalid)
+            {
+                ctx.Dispose();
+            }
         }
     }
 }

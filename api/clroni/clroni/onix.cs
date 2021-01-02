@@ -1,4 +1,4 @@
-﻿namespace oni.lib
+﻿namespace oni
 {
     using System;
     using System.Runtime.InteropServices;
@@ -21,7 +21,7 @@
     }
 
     // ONIX-specific extension functions
-    public static partial class NativeMethods
+    internal static partial class NativeMethods
     {
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
         public static extern IntPtr onix_device_str(int id);

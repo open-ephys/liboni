@@ -1,6 +1,8 @@
 ﻿using Microsoft.Win32.SafeHandles;
 using System;
+using System.Runtime.ConstrainedExecution;
 using System.Runtime.InteropServices;
+using System.Security.Permissions;
 
 namespace oni
 {
@@ -14,11 +16,34 @@ namespace oni
         public readonly byte* data; // Multi-device raw data block
     }
 
+    [SecurityPermission(SecurityAction.InheritanceDemand, UnmanagedCode = true)]
+    [SecurityPermission(SecurityAction.Demand, UnmanagedCode = true)]
     public unsafe class Frame : SafeHandleZeroOrMinusOneIsInvalid
     {
         protected Frame()
         : base(true)
         {
+        }
+
+        // Specialization, because its the most used
+        public ushort[] DataU16()
+        {
+            var frame = (frame_t*)handle.ToPointer();
+            ushort[] output = new ushort[frame->data_sz / 2];
+
+            // Make sure the array won't be moved around by the GC
+            var outp = GCHandle.Alloc(output, GCHandleType.Pinned);
+            var destination = (ushort*)outp.AddrOfPinnedObject().ToPointer();
+
+            // There are faster ways to do this, particularly by using wider types or by
+            // handling special lengths.
+            for (int i = 0; i < output.Length; i++)
+            {
+                destination[i] = ((ushort*)frame->data)[i];
+            }
+
+            outp.Free();
+            return output;
         }
 
         // Ideally, I would like this to be a "Span" into the existing, allocated frame
@@ -39,33 +64,10 @@ namespace oni
             return output;
         }
 
-        //// Same as Data() method, this has two copies per call which is ridiculous
-        //internal void SetData<T>(T[] data) where T : struct
-        //{
-        //    var frame = (frame_t*)handle.ToPointer();
-
-        //    // Get the read size and offset for this device
-        //    var num_bytes = frame->data_sz;
-
-        //    var buffer = new byte[num_bytes];
-        //    Buffer.BlockCopy(data, 0, buffer, 0, (int)num_bytes);
-        //    Marshal.Copy(buffer, 0, (IntPtr)frame->data, (int)num_bytes);
-        //}
-
-        //internal void SetData(IntPtr data, int data_size)
-        //{
-        //    var frame = (frame_t*)handle.ToPointer();
-
-        //    // Get the read size and offset for this device
-        //    var num_bytes = frame->data_sz;
-
-        //    // Copy the memory
-        //    Buffer.MemoryCopy(data.ToPointer(), frame->data, num_bytes, data_size);
-        //}
-
+        [ReliabilityContract(Consistency.WillNotCorruptState, Cer.Success)]
         protected override bool ReleaseHandle()
         {
-            lib.NativeMethods.oni_destroy_frame(handle);
+            NativeMethods.oni_destroy_frame(handle);
             return true;
         }
 
