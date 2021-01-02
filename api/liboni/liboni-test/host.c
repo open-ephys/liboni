@@ -418,7 +418,7 @@ int main(int argc, char *argv[])
     if (rc) {printf("Error: %s\n", oni_error_str(rc)); }
     assert(!rc && "Register read failure.");
     printf("Hardware run state: %d\n", reg);
-    printf("Reseting  acquisition clock and starting hardware run simultaneously...\n");
+    printf("Resetting acquisition clock and starting hardware run simultaneously...\n");
 
     // Restart acquisition clock counter and start acquisition simultaneously
     reg = 2;

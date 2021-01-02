@@ -47,6 +47,7 @@ typedef enum {
     ONIX_TS4231V1ARR        = 25,  // Triad semiconductor TS421 optical to digital converter array targeting V1 base-stations
     ONIX_MAX10ADCCORE       = 26,  // Max10 internal ADC device
     ONIX_LOADTEST           = 27,  // Variable load testing device
+    ONIX_MEMUSAGE           = 28,  // Acquisition hardware buffer usage reporting device
 
     // NB: Final reserved device ID. Always on bottom
     ONIX_MAXDEVICEID        = MAXDEVID,

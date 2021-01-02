@@ -5,7 +5,7 @@
 // NB: see https://semver.org/
 #define ONI_VERSION_MAJOR 4
 #define ONI_VERSION_MINOR 1
-#define ONI_VERSION_PATCH 1
+#define ONI_VERSION_PATCH 2
 
 #define ONI_MAKE_VERSION(major, minor, patch) \
     ((major) * 10000 + (minor) * 100 + (patch))
@@ -39,7 +39,7 @@ typedef struct oni_ctx_impl *oni_ctx;
 typedef struct {
     // NB: Block read so don't change order
     oni_size_t idx;           // Complete rsv.rsv.hub.idx device table index
-    oni_dev_id_t id;          // Device ID number (see oedevices.h)
+    oni_dev_id_t id;          // Device ID number
     oni_size_t version;       // Device firmware version
     oni_size_t read_size;     // Device data read size per frame in bytes
     oni_size_t write_size;    // Device data write size per frame in bytes

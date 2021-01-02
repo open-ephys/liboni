@@ -93,6 +93,9 @@ const char *onix_device_str(int dev_id)
         case ONIX_LOADTEST: {
             return "Variable load testing device";
         }
+        case ONIX_MEMUSAGE: {
+            return "Acquisition hardware buffer usage reporting device";
+        }
         default:
             return "Unknown device";
     }
