@@ -6,10 +6,13 @@ using System.Text;
 
 namespace oni
 {
+    /// <summary>
+    /// Open Neuro Interface (ONI) compliant acquisition context.
+    /// </summary>
     public unsafe class Context : IDisposable
     {
         // NB: These need to be redeclared unfortunately
-        public enum Option : int
+        private enum Option : int
         {
             DEVICETABLE = 0,
             NUMDEVICES,
@@ -29,16 +32,59 @@ namespace oni
         // ONIX hardware uses device 254 within each hub for the hub manager
         private const int HUB_MGR_ADDRESS = 254;
 
-        // Constructor initialized
-        public readonly uint SystemClockHz;
-        public readonly uint AcquisitionClockHz;
-        public readonly uint MaxReadFrameSize;
-        public readonly uint MaxWriteFrameSize;
-        public readonly Dictionary<uint, device_t> DeviceTable;
-
         // The safe handle used for API interaction
         private readonly ContextHandle ctx;
 
+        // Constructor initialized
+        /// <summary>
+        /// Host system clock frequency in Hz. This describes the frequency of
+        /// the clock governing the host hardware.
+        /// </summary>
+        public readonly uint SystemClockHz;
+
+        /// <summary>
+        /// Host system acquisition clock frequency in Hz, derived from <see cref="SystemClockHz"/>.
+        /// This describes the frequency of the clock used to drive the acquisition
+        /// counter which is used timestamp data frames.
+        /// </summary>
+        public readonly uint AcquisitionClockHz;
+
+        /// <summary>
+        /// The maximal size of a frame produced by a call to <see cref="ReadFrame"/>
+        /// in bytes. This number is the maximum sized frame that can be produced
+        /// across every device within the device table that generates read data.
+        /// </summary>
+        public readonly uint MaxReadFrameSize;
+
+        /// <summary>
+        /// The maximal size of consumed by a call to <see cref="Write"/> in bytes.
+        /// This number is the maximum sized frame that can be consumed across every
+        /// device within the device table that accepts write data.
+        /// </summary>
+        public readonly uint MaxWriteFrameSize;
+
+        /// <summary>
+        /// ONI specified device table containing the full device hierarchy
+        /// governed by this acquisition context. This <see cref="Dictionary"/>
+        /// maps a fully-qualified <see cref="Device.Index"/> to a
+        /// <see cref="Device"/> instance.
+        /// </summary>
+        public readonly Dictionary<uint, Device> DeviceTable;
+
+        /// <summary>
+        /// Initializes a new instance of <see cref="Context"/> with the
+        /// specified hardware translation driver and host hardware index.
+        /// </summary>
+        /// <param name="driver">A string specifying the device driver used by
+        /// the context to control hardware. This string corresponds a compiled
+        /// implementation of onidriver.h that has the name onidriver_<drv_name>.<so/dll>.
+        /// <param name="index">An index specifying the physical location within
+        /// the host that the host hardware resides. A value of -1 will use the
+        /// default location.</param>
+        /// <exception cref="System.InvalidProgramException">Thrown when the
+        /// specified driver cannot be found or is invalid.</exception>
+        /// <exception cref="ONIException">Thrown when there is an error during
+        /// hardware initialization (e.g. an invalid device table).</exception>
         public Context(string driver, int index)
         {
             // Create context
@@ -61,16 +107,16 @@ namespace oni
 
             // Populate device table
             int num_devs = GetIntOption((int)Option.NUMDEVICES);
-            DeviceTable = new Dictionary<uint, device_t>(num_devs);
-            int size_dev = Marshal.SizeOf(new device_t());
+            DeviceTable = new Dictionary<uint, Device>(num_devs);
+            int size_dev = Marshal.SizeOf(new Device());
             int size = size_dev * num_devs; // bytes required to read table
 
             var table = GetOption((int)Option.DEVICETABLE, size);
 
             for (int i = 0; i < num_devs; i++)
             {
-                var d = (device_t)Marshal.PtrToStructure(table, typeof(device_t));
-                DeviceTable.Add(d.idx, d);
+                var d = (Device)Marshal.PtrToStructure(table, typeof(Device));
+                DeviceTable.Add(d.Index, d);
                 table = new IntPtr((long)table + size_dev);
             }
         }
@@ -183,17 +229,36 @@ namespace oni
 
             if (rc != 0) { throw new ONIException(rc); }
         }
-
+        /// <summary>
+        /// Set an the value of implementation-specific context option (those
+        /// beyond ONI-specified options).
+        /// </summary>
+        /// <param name="option">Implementation-specific option to set.</param>
+        /// <param name="value">Option value</param>
         public void SetCustomOption(int option, int value)
         {
             SetIntOption((int)Option.CUSTOMBEGIN + option, value);
         }
-
+        /// <summary>
+        /// Retrieve the value of an implementation-specific context option.
+        /// </summary>
+        /// <param name="option">Context option to retrieve.</param>
+        /// <returns>Value of the context option.</returns>
+        /// <exception cref="ONIException"> Thrown when option is invalid.
+        /// </exception>
         public int GetCustomOption(int option)
         {
             return GetIntOption((int)Option.CUSTOMBEGIN + option);
         }
 
+        /// <summary>
+        /// Start data acquisition.
+        /// </summary>
+        /// <param name="reset_frame_clock">If true, the acquisition clock counter
+        /// is reset synchronously to the start of data acquisition in hardware (see
+        /// <see cref="AcquisitionClockHz"/>). This is equivalent to
+        /// calling this function and <see cref="ResetFrameClock"/> at precisely
+        /// the same moment, which is impossible in software.</param>
         public void Start(bool reset_frame_clock = true)
         {
             if (reset_frame_clock)
@@ -206,16 +271,26 @@ namespace oni
             }
         }
 
+        /// <summary>
+        /// Stop data acquisition.
+        /// </summary>
         public void Stop()
         {
             SetIntOption((int)Option.RUNNING, 0);
         }
 
+        /// <summary>
+        /// Reset the acquisition clock counter to 0
+        /// (<see cref="AcquisitionClockHz"/>).
+        /// </summary>
         public void ResetFrameClock()
         {
             SetIntOption((int)Option.RESETACQCOUNTER, 1);
         }
 
+        /// <summary>
+        /// Indicates whether or not data acquisition is running.
+        /// </summary>
         public bool Running
         {
             get
@@ -224,6 +299,11 @@ namespace oni
             }
         }
 
+        /// <summary>
+        /// The address of the host hardware within the acquisition computer.
+        /// Determines the synchronization role of the hardware in multi-host
+        /// systems.
+        /// </summary>
         public int HardwareAddress
         {
             get
@@ -236,6 +316,16 @@ namespace oni
             }
         }
 
+        /// <summary>
+        /// Number of bytes read during each driver access to the high-bandwidth
+        /// read channel using <see cref="Context.ReadFrame"/>. This option
+        /// allows control over a fundamental trade-off between closed-loop
+        /// response time and overall bandwidth. The minimum (default) value will
+        /// provide the lowest response latency. Larger values will reduce syscall
+        /// frequency and may improve processing performance for high-bandwidth
+        /// data sources. This minimum size of this option is determined by
+        /// <see cref="Context.MaxReadFrameSize"/>.
+        /// </summary>
         public int BlockReadSize
         {
             get
@@ -248,6 +338,14 @@ namespace oni
             }
         }
 
+        /// <summary>
+        /// Number of bytes pre-allocated for calls to <see cref="Write{T}(uint, T)"/>,
+        /// <see cref="Write{T}(uint, T[])"/>, and <see cref="Write(uint, IntPtr, int)"/>.
+        /// A larger size will reduce the average amount of dynamic memory
+        /// allocation system calls but increase the cost of each of those calls.
+        /// The minimum size of this option is determined by
+        /// <see cref="Context.MaxWriteFrameSize"/>.
+        /// </summary>
         public int BlockWriteSize
         {
             get
@@ -260,30 +358,56 @@ namespace oni
             }
         }
 
-        public uint ReadRegister(uint? dev_index, uint register_address)
+        /// <summary>
+        /// Read the value of a configuration register from a specific device
+        /// within the current <see cref="oni.Context.DeviceTable"/>. This can
+        /// be used to verify the success of calls to <see cref="Context.ReadRegister(uint, uint)"/>
+        /// or to obtain state information about devices managed by the current
+        /// acquisition context. Register specifications (addresses, read- and
+        /// write-access, and descriptions are provided on the ONI-device datasheet).
+        /// </summary>
+        /// <param name="dev_index">Fully-qualified device index within the
+        /// <see cref="Context.DeviceTable"/></param>
+        /// <param name="register_address">Address of register to be read.</param>
+        /// <returns>Value of the register.</returns>
+        /// <exception cref="ONIException"> Thrown if the device and/or register
+        /// address in invalid or if register is write only.</exception>
+        public uint ReadRegister(uint dev_index, uint register_address)
         {
-            if (dev_index == null)
-            {
-                throw new ArgumentNullException("dev_index", "Attempt to read register from invalid device.");
-            }
-
             var val = Marshal.AllocHGlobal(4);
-            int rc = NativeMethods.oni_read_reg(ctx, (uint)dev_index, register_address, val);
+            int rc = NativeMethods.oni_read_reg(ctx, dev_index, register_address, val);
             if (rc != 0) { throw new ONIException(rc); }
             return (uint)Marshal.ReadInt32(val);
         }
 
-        public void WriteRegister(uint? dev_index, uint register_address, uint value)
+        /// <summary>
+        /// Change the value of a configuration register from specific devices
+        /// within the current <see cref="Context.DeviceTable"/>.
+        /// Register specifications (addresses, read- and write-access,
+        /// acceptable values, and descriptions are provided on the ONI device
+        /// datasheet).
+        /// </summary>
+        /// <param name="dev_index">Fully-qualified device index within the
+        /// <see cref="Context.DeviceTable"/></param>
+        /// <param name="register_address">Address of register to write to.</param>
+        /// <param name="value">Value to write to the register.</param>
+        /// <exception cref="ONIException"> Thrown if the device and/or register
+        /// address in invalid or if register is read only.</exception>
+        public void WriteRegister(uint dev_index, uint register_address, uint value)
         {
-            if (dev_index == null)
-            {
-                throw new ArgumentNullException("dev_index", "Attempt to write to register of invalid device.");
-            }
-
-            int rc = NativeMethods.oni_write_reg(ctx, (uint)dev_index, register_address, value);
+            int rc = NativeMethods.oni_write_reg(ctx, dev_index, register_address, value);
             if (rc != 0) { throw new ONIException(rc); }
         }
 
+        /// <summary>
+        /// Read a device data frame from the high-bandwidth data input channel.
+        /// This call will block until either enough data available on the stream
+        /// to construct an underlying block buffer (see <see cref="Context.BlockReadSize"/>).
+        /// This function is zero-copy.
+        /// </summary>
+        /// <returns>A device data frame.</returns>
+        /// <exception cref="ONIException"> Thrown if their is an error reading
+        /// a frame.</exception>
         public Frame ReadFrame()
         {
             int rc = NativeMethods.oni_read_frame(ctx, out Frame frame);
@@ -291,39 +415,118 @@ namespace oni
             return frame;
         }
 
-        public void Write<T>(uint dev_idx, T data) where T : struct
+        /// <summary>
+        /// Write a single value to a particular device within the
+        /// <see cref="Context.DeviceTable"/> using the high-bandwidth
+        /// output channel.
+        /// </summary>
+        /// <typeparam name="T">Type of the value to be written. Must be an
+        /// unmanaged type.</typeparam>
+        /// <param name="dev_index">Fully-qualified device index within the
+        /// <see cref="oni.Context.DeviceTable"/></param>
+        /// <param name="value">Value to write to the device.</param>
+        /// <exception cref="ONIException">Throw if data is an invalid size
+        /// or the selected device does not accept write data.</exception>
+        public void Write<T>(uint dev_index, T value) where T : unmanaged
         {
-            Write(dev_idx, new T[] { data });
+            Write(dev_index, new T[] { value });
         }
 
-        public void Write<T>(uint dev_idx, T[] data) where T : struct
+        /// <summary>
+        /// Write an array to a particular device within the
+        /// <see cref="Context.DeviceTable"/> using the high-bandwidth
+        /// output channel.
+        /// </summary>
+        /// <typeparam name="T">Type of the value to be written. Must be an
+        /// unmanaged type.</typeparam>
+        /// <param name="dev_index">Fully-qualified device index within the
+        /// <see cref="Context.DeviceTable"/></param>
+        /// <param name="data">Data array to write to the device.</param>
+        /// <exception cref="ONIException">Throw if data array
+        /// is an invalid size or the selected device does not accept write
+        /// data.</exception>
+        public void Write<T>(uint dev_index, T[] data) where T : unmanaged
         {
             var num_bytes = Buffer.ByteLength(data);
-            var buffer = new byte[num_bytes];
-            Buffer.BlockCopy(data, 0, buffer, 0, num_bytes);
+            Frame frame;
+            int rc;
 
-            fixed (byte* p = buffer)
+            // NB: oni_create_frame copies this data
+            fixed (T* p = data)
             {
-                int rc = NativeMethods.oni_create_frame(ctx, out Frame frame, dev_idx, (IntPtr)p, (uint)num_bytes);
-                if (rc < 0) { throw new ONIException(rc); }
-
-                rc = NativeMethods.oni_write_frame(ctx, frame);
+                rc = NativeMethods.oni_create_frame(ctx, out frame, dev_index, (IntPtr)p, (uint)num_bytes);
                 if (rc < 0) { throw new ONIException(rc); }
             }
+
+            rc = NativeMethods.oni_write_frame(ctx, frame);
+            if (rc < 0) { throw new ONIException(rc); }
         }
 
-        public void Write(uint dev_idx, IntPtr data, int data_size)
+        //public void Write<T>(uint dev_idx, T[] data) where T : unmanaged
+        //{
+        //    var data_pinned = GCHandle.Alloc(data, GCHandleType.Pinned);
+        //    var num_bytes = Buffer.ByteLength(data);
+        //    var p = (byte*)data_pinned.AddrOfPinnedObject().ToPointer();
+
+        //    int rc = NativeMethods.oni_create_frame(ctx, out Frame frame, dev_idx, (IntPtr)p, (uint)num_bytes);
+        //    if (rc < 0) { throw new ONIException(rc); }
+
+        //    // NB: oni_create_frame copies this data so we can free the pinned handle
+        //    data_pinned.Free();
+
+        //    rc = NativeMethods.oni_write_frame(ctx, frame);
+        //    if (rc < 0) { throw new ONIException(rc); }
+        //}
+
+        //public void Write<T>(uint dev_idx, T[] data) where T : unmanaged
+        //{
+        //    var num_bytes = Buffer.ByteLength(data);
+        //    var buffer = new byte[num_bytes];
+        //    Buffer.BlockCopy(data, 0, buffer, 0, num_bytes);
+
+        //    fixed (byte* p = buffer)
+        //    {
+        //        int rc = NativeMethods.oni_create_frame(ctx, out Frame frame, dev_idx, (IntPtr)p, (uint)num_bytes);
+        //        if (rc < 0) { throw new ONIException(rc); }
+
+        //        rc = NativeMethods.oni_write_frame(ctx, frame);
+        //        if (rc < 0) { throw new ONIException(rc); }
+        //    }
+        //}
+
+        /// <summary>
+        /// Write data at an <see cref="IntPtr"/> to a particular device within the
+        /// <see cref="Context.DeviceTable"/> using the high-bandwidth
+        /// output channel.
+        /// </summary>
+        /// <param name="dev_index">Fully-qualified device index within the
+        /// <see cref="Context.DeviceTable"/></param>
+        /// <param name="data">Pointer to data to write to the device.</param>
+        /// <param name="data_size">Size of data pointed to by <see cref="data"/>
+        /// in bytes.</param>
+        /// <exception cref="ONIException">Throw if <see cref="data_size"/>
+        /// is an invalid size or the selected device does not accept write
+        /// data.</exception>
+        public void Write(uint dev_index, IntPtr data, int data_size)
         {
-            int rc = NativeMethods.oni_create_frame(ctx, out Frame frame, dev_idx, data, (uint)data_size);
+            int rc = NativeMethods.oni_create_frame(ctx, out Frame frame, dev_index, data, (uint)data_size);
             if (rc < 0) { throw new ONIException(rc); }
 
             rc = NativeMethods.oni_write_frame(ctx, frame);
             if (rc < 0) { throw new ONIException(rc); }
         }
 
-        public uint? HubDataClock(uint hub_idx)
+        /// <summary>
+        /// Retrieve the local clock rate for a particular hub in the
+        /// acquisition hierarchy.
+        /// </summary>
+        /// <param name="hub_index">The index specifying the hub to retrieve the
+        /// clock rate for.</param>
+        /// <returns>The clock rate of the hub at <see cref="hub_index"/> in Hz.
+        /// </returns>
+        public uint HubDataClock(uint hub_index)
         {
-            return ReadRegister(HUB_MGR_ADDRESS + hub_idx, 4);
+            return ReadRegister(HUB_MGR_ADDRESS + hub_index, 4);
         }
 
         public void Dispose()

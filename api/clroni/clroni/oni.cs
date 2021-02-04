@@ -1,23 +1,47 @@
+using System;
+using System.Runtime.ConstrainedExecution;
+using System.Runtime.InteropServices;
+using System.Security;
+using System.Text;
+
 namespace oni
 {
-    using System;
-    using System.Runtime.ConstrainedExecution;
-    using System.Runtime.InteropServices;
-    using System.Security;
-    using System.Text;
-
-    // Make managed version of oni_device_t
+    /// <summary>
+    /// Managed wrapper for the native API's oni_device_t.
+    /// </summary>
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public partial struct device_t
+    public partial struct Device
     {
-        public readonly uint idx;            // Complete rsv.rsv.hub.idx device table index
-        public readonly int id;              // Device ID
-        public readonly uint version;        // Device firmware version
-        public readonly uint read_size;      // Read size
-        public readonly uint write_size;     // Write size
+        /// <summary>
+        /// Fully-qualified <b>RSV.RSV.HUB.IDX</b> <see cref="Context.DeviceTable"/> device table index.
+        /// - <b>RSV</b>: 8-bit unsigned integer (reserved)
+        /// - <b>HUB</b>: 8-bit unsigned integer indicating the hub index
+        /// - <b>IDX</b>: 8-bit unsigned integer indicating the device index
+        /// </summary>
+        public readonly uint Index;
+
+        /// <summary>
+        /// <see cref="Device"/> ID
+        /// </summary>
+        public readonly int ID;
+
+        /// <summary>
+        /// <see cref="Device"/> firmware version
+        /// </summary>
+        public readonly uint Version;
+
+        /// <summary>
+        /// Input <see cref="Frame"/> read size
+        /// </summary>
+        public readonly uint ReadSize;
+
+        /// <summary>
+        /// Output <see cref="Frame"/> write size.
+        /// </summary>
+        public readonly uint WriteSize;
     }
 
-    [SuppressUnmanagedCodeSecurity] // Call into native code without incurring the performance loss of a run-time security check when doing so
+    [SuppressUnmanagedCodeSecurity] // NB: Call into native code without incurring the performance loss of a run-time security check when doing so
     internal static unsafe partial class NativeMethods
     {
         public static readonly Version LibraryVersion;
@@ -50,7 +74,7 @@ namespace oni
         }
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        private static extern void oni_version(out int major, out int minor, out int patch);
+        internal static extern void oni_version(out int major, out int minor, out int patch);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl, CharSet = CharSet.Ansi)]
         internal static extern ContextHandle oni_create_ctx(string driver_name);
