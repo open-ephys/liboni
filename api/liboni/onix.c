@@ -7,10 +7,10 @@ const char *onix_device_str(int dev_id)
 {
     switch (dev_id) {
         case ONIX_NULL: {
-            return "Placeholder device. Neither generates or accepts data.";
+            return "Placeholder device: neither generates or accepts data";
         }
         case ONIX_INFO: {
-            return "Host status and error information.";
+            return "Host status and error information";
         }
         case ONIX_RHD2132: {
             return "Intan RHD2132 bioamplifier";
@@ -78,7 +78,8 @@ const char *onix_device_str(int dev_id)
             return "Open Ephys FMC Host Board rev. 1.3 analog IO subcircuit";
         }
         case ONIX_FMCLINKCTRL: {
-            return "Open Ephys FMC Host Board coaxial headstage link control circuit";
+            return "Open Ephys FMC Host Board coaxial headstage link control "
+                   "circuit";
         }
         case ONIX_DS90UB9RAW: {
             return "Raw DS90UB9x deserializer";
@@ -101,3 +102,28 @@ const char *onix_device_str(int dev_id)
     }
 }
 
+const char *onix_hub_str(int dev_id)
+{
+    switch (dev_id) {
+        case ONIX_HUB_NULL: {
+            return "Placeholder hub";
+        }
+        case ONIX_HUB_FMCHOST1V4: {
+            return "Open Ephys FMC host version 1.4";
+        }
+        case ONIX_HUB_HS641V3: {
+            return "Open Ephys headstage-64 version 1.3";
+        }
+        case ONIX_HUB_HSNP1V2: {
+            return "Open Ephys headstage-neuropix version 1.2";
+        }
+        case ONIX_HUB_HS641V4: {
+            return "Open Ephys headstage-64 version 1.4";
+        }
+        case ONIX_HUB_HSNP1V3: {
+            return "Open Ephys headstage-neuropix version 1.3";
+        }
+        default:
+            return "Unknown hub";
+    }
+}

@@ -7,43 +7,17 @@ using System.Text;
 namespace oni
 {
     /// <summary>
-    /// Managed wrapper for the native API's oni_device_t.
+    /// Common language runtime bindings to liboni C library. The functionality
+    /// these bindings is exposed through higher-order types: <seealso cref="Context"/>,
+    /// <seealso cref="Hub"/>, <seealso cref="Device"/>, <seealso cref="Frame"/>,
+    /// and <seealso cref="ONIException"/>.
     /// </summary>
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public partial struct Device
-    {
-        /// <summary>
-        /// Fully-qualified <b>RSV.RSV.HUB.IDX</b> <see cref="Context.DeviceTable"/> device table index.
-        /// - <b>RSV</b>: 8-bit unsigned integer (reserved)
-        /// - <b>HUB</b>: 8-bit unsigned integer indicating the hub index
-        /// - <b>IDX</b>: 8-bit unsigned integer indicating the device index
-        /// </summary>
-        public readonly uint Index;
-
-        /// <summary>
-        /// <see cref="Device"/> ID
-        /// </summary>
-        public readonly int ID;
-
-        /// <summary>
-        /// <see cref="Device"/> firmware version
-        /// </summary>
-        public readonly uint Version;
-
-        /// <summary>
-        /// Input <see cref="Frame"/> read size
-        /// </summary>
-        public readonly uint ReadSize;
-
-        /// <summary>
-        /// Output <see cref="Frame"/> write size.
-        /// </summary>
-        public readonly uint WriteSize;
-    }
-
     [SuppressUnmanagedCodeSecurity] // NB: Call into native code without incurring the performance loss of a run-time security check when doing so
-    internal static unsafe partial class NativeMethods
+    public static unsafe partial class NativeMethods
     {
+        /// <summary>
+        /// <see href="http://stackoverflow.com">Semantic version</see> of this library.
+        /// </summary>
         public static readonly Version LibraryVersion;
 
         private const CallingConvention CCCdecl = CallingConvention.Cdecl;

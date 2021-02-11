@@ -2,11 +2,12 @@
 // limitations:
 //
 // 1. ONI_OPT_RUNNING does nothing. To make it work, data would need to be
-//    produced on a sepatate thread and passed through a blocking FIFO
+//    produced on a separate thread and passed through a blocking FIFO
 // 2. It only supports a device table with containing devices with a fixed
 //    read/write size
 // 3. Writing to the device does nothing (data is just ignored)
-// 4. The block read size must be a multiple of the frame size
+// 4. The block read size must be a multiple of the frame size, which is
+//    currently 16 (Header) + 12 (data) = 28 bytes.
 
 #include <assert.h>
 #include <errno.h>
@@ -44,6 +45,10 @@ typedef struct {
     oni_device_t dev;
     int32_t message;
     uint64_t counter;
+    uint32_t hubhwid;
+    uint32_t hubfirmver;
+    uint32_t hubclkhz;
+    uint32_t hubdelayns;
 } test_dev_t;
 
 struct oni_test_ctx_impl {
@@ -74,12 +79,12 @@ typedef struct oni_test_ctx_impl* oni_test_ctx;
 
 typedef enum oni_signal {
     NULLSIG             = (1u << 0),
-    CONFIGWACK          = (1u << 1), // Configuration write-acknowledgement
-    CONFIGWNACK         = (1u << 2), // Configuration no-write-acknowledgement
-    CONFIGRACK          = (1u << 3), // Configuration read-acknowledgement
-    CONFIGRNACK         = (1u << 4), // Configuration no-read-acknowledgement
-    DEVICEMAPACK        = (1u << 5), // Device map start acnknowledgement
-    DEVICEINST          = (1u << 6), // Deivce map instance
+    CONFIGWACK          = (1u << 1), // Configuration write-acknowledgment
+    CONFIGWNACK         = (1u << 2), // Configuration no-write-acknowledgment
+    CONFIGRACK          = (1u << 3), // Configuration read-acknowledgment
+    CONFIGRNACK         = (1u << 4), // Configuration no-read-acknowledgment
+    DEVICEMAPACK        = (1u << 5), // Device map start acknowledgment
+    DEVICEINST          = (1u << 6), // Device map instance
 } oni_signal_t;
 
 static void _fill_read_buffer(oni_test_ctx ctx,
@@ -126,6 +131,10 @@ oni_driver_ctx oni_driver_create_ctx()
         ctx->dev_table[i].dev.write_size = 32;
         ctx->dev_table[i].message = i * 42;
         ctx->dev_table[i].counter = 0;
+        ctx->dev_table[i].hubhwid = 5;
+        ctx->dev_table[i].hubfirmver = 1600;
+        ctx->dev_table[i].hubclkhz = (i + 1) * 50e6;
+        ctx->dev_table[i].hubdelayns = 628;
     }
 
     // Configuration registers
@@ -201,7 +210,7 @@ static int _send_data_signal(oni_test_ctx ctx,
 }
 
 // Generate frames
-// Second thread puts frames into FIFO whenever it reaches XX fraction of full
+// TODO: Second thread puts frames into FIFO whenever it reaches XX fraction of full
 int oni_driver_read_stream(oni_driver_ctx driver_ctx,
                            oni_read_stream_t stream,
                            void *data,
@@ -277,19 +286,48 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
             break;
         case ONI_CONFIG_TRIG: {
 
+            // Find device in table
             int i = _find_dev(ctx, ctx->conf.dev_idx);
-            if (i < 0)
-                return ONI_EDEVIDX;
+
+            int hub_mgr = 0;
+            if (i < 0) { // If no device, maybe it's a hub manager
+
+                // Find the hub if this is a hub manager
+                i = _find_hub_mgr(ctx->conf.dev_idx);
+
+                if (i < 0)
+                    return ONI_EDEVIDX;
+                else
+                    hub_mgr = 1;
+            }
 
             if (value && !ctx->conf.rw) { // read
-                if (ctx->conf.reg_addr == 1) { // Only register 1 (message) is specified for this device
+                if (hub_mgr) {
+                    switch (ctx->conf.reg_addr) {
+                        case ONIX_HUB_HARDWAREID:
+                            ctx->conf.reg_value = ctx->dev_table[i].hubhwid;
+                            break;
+                        case ONIX_HUB_FIRMWAREVER:
+                            ctx->conf.reg_value = ctx->dev_table[i].hubfirmver;
+                            break;
+                        case ONIX_HUB_CLKRATEHZ:
+                            ctx->conf.reg_value = ctx->dev_table[i].hubclkhz;
+                            break;
+                        case ONIX_HUB_DELAYNS:
+                            ctx->conf.reg_value = ctx->dev_table[i].hubdelayns;
+                            break;
+                    }
+                    _send_msg_signal(ctx, CONFIGRACK);
+                } else if (ctx->conf.reg_addr == 1) { // Only register 1 (message) is specified for this device
                     ctx->conf.reg_value = ctx->dev_table[i].message;
                     _send_msg_signal(ctx, CONFIGRACK);
                 } else {
                     _send_msg_signal(ctx, CONFIGRNACK);
                 }
             } else if (value) { // write
-                if (ctx->conf.reg_addr == 1) { // Only register 1 (message) is specified for this device
+                if (hub_mgr) {
+                    _send_msg_signal(ctx, CONFIGWNACK); // Read only
+                } else if (ctx->conf.reg_addr == 1) { // Only register 1 (message) is specified for this device
                     ctx->dev_table[i].message = (short)ctx->conf.reg_value;
                     _send_msg_signal(ctx, CONFIGWACK);
                 } else {
@@ -497,3 +535,10 @@ static int _find_dev(oni_test_ctx ctx, oni_dev_idx_t idx)
     return -1;
 }
 
+static int _find_hub_mgr(oni_dev_idx_t idx)
+{
+    if ((idx & 0x000000FF) == ONIX_HUB_DEV_IDX)
+        return ((idx & 0x0000FF00) >> 8);
+
+    return -1;
+}

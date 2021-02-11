@@ -23,11 +23,16 @@ namespace oni
             public readonly byte* data; // Multi-device raw data block
         }
 
-        protected Frame()
+        internal Frame()
         : base(true)
         {
         }
 
+        /// <summary>
+        /// Executes the code required to free native resources held by the <see cref="Frame"/>.
+        /// </summary>
+        /// <returns>True if the handle is released successfully (always the case
+        /// in this implementation)</returns>
         [ReliabilityContract(Consistency.WillNotCorruptState, Cer.Success)]
         protected override bool ReleaseHandle()
         {
@@ -66,9 +71,9 @@ namespace oni
         public ulong Clock => ((frame_t*)handle.ToPointer())->time;
 
         /// <summary>
-        /// The fully qualified <see cref="Device.Index"/> of the device within
+        /// The fully qualified <see cref="Device.Address"/> of the device within
         /// the current <see cref="Context.DeviceTable"/> that produced this frame.
         /// </summary>
-        public uint DeviceIndex => ((frame_t*)handle.ToPointer())->dev_idx;
+        public uint DeviceAddress => ((frame_t*)handle.ToPointer())->dev_idx;
     }
 }

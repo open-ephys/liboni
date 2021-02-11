@@ -452,6 +452,7 @@ int main(int argc, char *argv[])
         printf("\ts - toggle pause register & r/w thread operation\n");
         printf("\tr - read from device register\n");
         printf("\tw - write to device register\n");
+        printf("\th - get hub information about a device\n");
         printf("\ta - reset the acquisition clock counter\n");
         printf("\tx - issue a hardware reset\n");
         printf("\tq - quit\n");
@@ -535,6 +536,63 @@ int main(int argc, char *argv[])
             } else {
                 printf("%s\n", oni_error_str(rc));
             }
+        } else if (c == 'h') {
+            printf("Get information about the hub for a given device.\n");
+            printf("Enter: dev_idx\n");
+            printf(">>> ");
+
+            // Read the command
+            char *buf = NULL;
+            size_t len = 0;
+            rc = getline(&buf, &len, stdin);
+            if (rc == -1) {
+                printf("Error: bad command\n");
+                continue;
+            }
+
+            // Parse the command string
+            long values[1];
+            rc = parse_reg_cmd(buf, values, 1);
+            if (rc == -1) {
+                printf("Error: bad command\n");
+                continue;
+            }
+            free(buf);
+
+            size_t hub_idx = (size_t)values[0] & 0x0000FF00;
+
+            oni_reg_val_t hub_hw_id = 0;
+            rc = oni_read_reg(ctx,
+                              hub_idx + ONIX_HUB_DEV_IDX,
+                              ONIX_HUB_HARDWAREID,
+                              &hub_hw_id);
+            printf("Hub hardware ID: ");
+            rc ? printf("%s\n", oni_error_str(rc)) : printf("%u, %s\n", hub_hw_id, onix_hub_str(hub_hw_id));
+
+            oni_reg_val_t hub_firm_ver = 0;
+            rc = oni_read_reg(ctx,
+                              hub_idx + ONIX_HUB_DEV_IDX,
+                              ONIX_HUB_FIRMWAREVER,
+                              &hub_firm_ver);
+            printf("Hub firmware version: ");
+            rc ? printf("%s\n", oni_error_str(rc)) : printf("%u\n", hub_firm_ver);
+
+            oni_reg_val_t hub_clk_hz = 0;
+            rc = oni_read_reg(ctx,
+                              hub_idx + ONIX_HUB_DEV_IDX,
+                              ONIX_HUB_CLKRATEHZ,
+                              &hub_clk_hz);
+            printf("Hub clock frequency (Hz): ");
+            rc ? printf("%s\n", oni_error_str(rc)) : printf("%u\n", hub_clk_hz);
+
+            oni_reg_val_t hub_delay_ns = 0;
+            rc = oni_read_reg(ctx,
+                              hub_idx + ONIX_HUB_DEV_IDX,
+                              ONIX_HUB_DELAYNS,
+                              &hub_delay_ns);
+            printf("Hub transmission delay (ns): ");
+            rc ? printf("%s\n", oni_error_str(rc)) : printf("%u\n", hub_delay_ns);
+
         }
         else if (c == 's') {
 

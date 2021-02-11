@@ -12,6 +12,8 @@
     <Company>MIT &amp; Open Ephys</Company>
     <Platforms>AnyCPU;x64</Platforms>
     <OutputType>Exe</OutputType>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

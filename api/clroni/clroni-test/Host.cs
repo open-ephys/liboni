@@ -1,7 +1,7 @@
-﻿using System;
-using System.Threading;
+﻿using oni;
+using System;
 using System.Runtime.InteropServices;
-using oni;
+using System.Threading;
 
 namespace clroni_test
 {
@@ -21,14 +21,14 @@ namespace clroni_test
         public void CaptureData()
         {
             ulong counter = 0;
-           // 
-           // int rc = 0;
-           // while (rc == 0 && !quit)
-           // {
-           //     ctx.Write(8, (uint)counter);
-           //     Thread.SpinWait(100000); // Sleep(1);
-           //     counter++;
-           // }
+            // 
+            // int rc = 0;
+            // while (rc == 0 && !quit)
+            // {
+            //     ctx.Write(8, (uint)counter);
+            //     Thread.SpinWait(100000); // Sleep(1);
+            //     counter++;
+            // }
 
             int rc = 0;
             while (rc == 0 && !quit)
@@ -42,8 +42,8 @@ namespace clroni_test
                         if (display)
                         {
                             var dat = frame.Data<ushort>();
-                            var idx = frame.DeviceIndex();
-                            Console.WriteLine("\t[{0}] Dev: {1} ({2})", frame.Clock(), idx, ctx.DeviceTable[idx].Description());
+                            var idx = frame.DeviceAddress;
+                            Console.WriteLine("\t[{0}] Dev: {1} ({2})", frame.Clock, idx, ctx.DeviceTable[idx].Description);
                             Console.WriteLine("\t[{0}]", String.Join(", ", dat));
                         }
                     }
@@ -95,22 +95,24 @@ namespace clroni_test
             }
 
             // Get version
-            var ver = oni.lib.NativeMethods.LibraryVersion;
+            var ver = oni.NativeMethods.LibraryVersion;
             Console.WriteLine("Using liboni version: " + ver);
             bool running = true;
 
             try
             {
 
-                using(var ctx = new oni.Context(driver, hw_idx))
+                using (var ctx = new oni.Context(driver, hw_idx))
                 {
                     Console.WriteLine("Found the following devices:");
-                    foreach (var elem in ctx.DeviceTable.Values) {
+                    foreach (var dev in ctx.DeviceTable.Values)
+                    {
 
-                        Console.WriteLine("\t{0}) ID: {1}, Read size: {2}",
-                                          elem.idx,
-                                          elem.id,
-                                          elem.read_size);
+                        Console.WriteLine("\t{0}) ID: {1}, Read size: {2}, Write size: {3}",
+                                          dev.Address,
+                                          dev.ID,
+                                          dev.ReadSize,
+                                          dev.WriteSize);
                     }
 
                     // See how big max frames are
@@ -143,7 +145,8 @@ namespace clroni_test
                     proc_thread.Start();
 
                     int c = 's';
-                    while (c != 'q') {
+                    while (c != 'q')
+                    {
                         Console.WriteLine("Enter a command and press enter:");
                         Console.WriteLine("\tc - toggle 1/100 clock display");
                         Console.WriteLine("\td - toggle 1/100 sample display");
@@ -155,15 +158,21 @@ namespace clroni_test
                         var cmd = Console.ReadLine();
                         c = cmd[0];
 
-                        if (c == 'p') {
+                        if (c == 'p')
+                        {
                             running = !running;
-                            if (running) {
+                            if (running)
+                            {
                                 ctx.Start();
-                            } else {
+                            }
+                            else
+                            {
                                 ctx.Stop();
                                 Console.WriteLine("\tPaused.");
                             }
-                        } else if (c == 'd') {
+                        }
+                        else if (c == 'd')
+                        {
                             processor.display = !processor.display;
                         }
                         // else if (c == 'r') {
@@ -202,7 +211,9 @@ namespace clroni_test
 
                 } // ctx.Dispose() is called.
 
-            } catch (ONIException ex) {
+            }
+            catch (ONIException ex)
+            {
                 Console.Error.WriteLine("Host failed with the following error: "
                                         + ex.ToString());
                 Console.Error.WriteLine("Current errno: "

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Security.Permissions;
@@ -9,7 +10,7 @@ namespace oni
     /// <summary>
     /// Open Neuro Interface (ONI) compliant acquisition context.
     /// </summary>
-    public unsafe class Context : IDisposable
+    public unsafe partial class Context : IDisposable
     {
         // NB: These need to be redeclared unfortunately
         private enum Option : int
@@ -28,9 +29,6 @@ namespace oni
             BLOCKWRITESIZE,
             CUSTOMBEGIN,
         }
-
-        // ONIX hardware uses device 254 within each hub for the hub manager
-        private const int HUB_MGR_ADDRESS = 254;
 
         // The safe handle used for API interaction
         private readonly ContextHandle ctx;
@@ -65,8 +63,8 @@ namespace oni
 
         /// <summary>
         /// ONI specified device table containing the full device hierarchy
-        /// governed by this acquisition context. This <see cref="Dictionary"/>
-        /// maps a fully-qualified <see cref="Device.Index"/> to a
+        /// governed by this acquisition context. This <see cref="IDictionary"/>
+        /// maps a fully-qualified <see cref="Device.Address"/> to a
         /// <see cref="Device"/> instance.
         /// </summary>
         public readonly Dictionary<uint, Device> DeviceTable;
@@ -77,7 +75,7 @@ namespace oni
         /// </summary>
         /// <param name="driver">A string specifying the device driver used by
         /// the context to control hardware. This string corresponds a compiled
-        /// implementation of onidriver.h that has the name onidriver_<drv_name>.<so/dll>.
+        /// implementation of onidriver.h that has the name onidriver_&lt;drv_name&gt;.so/dll.</param>
         /// <param name="index">An index specifying the physical location within
         /// the host that the host hardware resides. A value of -1 will use the
         /// default location.</param>
@@ -93,7 +91,7 @@ namespace oni
             if (ctx.IsInvalid)
             {
                 throw new InvalidProgramException(string.Format("Failed to create an " +
-                    "acquisition context for the specified driver: {0}.", driver));
+                    "acquisition context for the specified driver: {0}.", string.IsNullOrEmpty(driver) ? "None" : driver));
             }
 
             var rc = NativeMethods.oni_init_ctx(ctx, index);
@@ -116,7 +114,7 @@ namespace oni
             for (int i = 0; i < num_devs; i++)
             {
                 var d = (Device)Marshal.PtrToStructure(table, typeof(Device));
-                DeviceTable.Add(d.Index, d);
+                DeviceTable.Add(d.Address, d);
                 table = new IntPtr((long)table + size_dev);
             }
         }
@@ -406,7 +404,7 @@ namespace oni
         /// This function is zero-copy.
         /// </summary>
         /// <returns>A device data frame.</returns>
-        /// <exception cref="ONIException"> Thrown if their is an error reading
+        /// <exception cref="ONIException"> Thrown if there is an error reading
         /// a frame.</exception>
         public Frame ReadFrame()
         {
@@ -502,9 +500,9 @@ namespace oni
         /// <param name="dev_index">Fully-qualified device index within the
         /// <see cref="Context.DeviceTable"/></param>
         /// <param name="data">Pointer to data to write to the device.</param>
-        /// <param name="data_size">Size of data pointed to by <see cref="data"/>
+        /// <param name="data_size">Size of data pointed to by <paramref name="data"/>
         /// in bytes.</param>
-        /// <exception cref="ONIException">Throw if <see cref="data_size"/>
+        /// <exception cref="ONIException">Throw if <paramref name="data_size"/>
         /// is an invalid size or the selected device does not accept write
         /// data.</exception>
         public void Write(uint dev_index, IntPtr data, int data_size)
@@ -517,24 +515,19 @@ namespace oni
         }
 
         /// <summary>
-        /// Retrieve the local clock rate for a particular hub in the
-        /// acquisition hierarchy.
+        /// Dispose this <see cref="Context">Context</see>.
         /// </summary>
-        /// <param name="hub_index">The index specifying the hub to retrieve the
-        /// clock rate for.</param>
-        /// <returns>The clock rate of the hub at <see cref="hub_index"/> in Hz.
-        /// </returns>
-        public uint HubDataClock(uint hub_index)
-        {
-            return ReadRegister(HUB_MGR_ADDRESS + hub_index, 4);
-        }
-
         public void Dispose()
         {
             Dispose(true);
             GC.SuppressFinalize(this);
         }
 
+        /// <summary>
+        /// Dispose this <see cref="Context">Context</see>. This override is required
+        /// by IDisposable.
+        /// </summary>
+        /// <param name="disposing"></param>
         [SecurityPermission(SecurityAction.Demand, UnmanagedCode = true)]
         protected virtual void Dispose(bool disposing)
         {

@@ -83,10 +83,10 @@ typedef uint32_t oni_dev_id_t; // Device IDs are 32-bit numbers
 typedef uint32_t oni_dev_idx_t; // Device idx are 32-bit, byte.byte.btye.byte addresses
 typedef uint32_t oni_reg_addr_t; // Registers use a 32-bit address
 typedef uint32_t oni_reg_val_t;  // Registers have 32-bit values
-typedef uint32_t oni_fifo_dat_t; // FIFOs use 32-bit words; // TODO: remove
-typedef uint64_t oni_fifo_time_t; // FIFO bound timers use 64-bit words; // TODO: remove
+typedef uint32_t oni_fifo_dat_t; // FIFOs use 32-bit words; // TODO: find a way to remove
+typedef uint64_t oni_fifo_time_t; // FIFO bound timers use 64-bit words; // TODO: find a way to remove
 
-#define BYTE_TO_FIFO_SHIFT 2; // TODO: remove
+#define BYTE_TO_FIFO_SHIFT 2; // TODO: find a way to remove
 
 // Register size
 #define ONI_REGSZ sizeof(oni_reg_val_t)
