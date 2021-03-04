@@ -143,7 +143,7 @@ int RIFFACALL fpga_send(fpga_t * fpga, int chnl, void * data, int len,
 				if (GetLastError() == ERROR_OPERATION_ABORTED)
 					printf("Operation timed out or was aborted\n");
 				else
-					printf("Error in GetOverlappedResult: %d\n", GetLastError());
+					printf("Error in send. Chnl: %d, offset: %d, Timeout: %d, GetOverlappedResult: %d\n", chnl, destoff, timeout, GetLastError());
                 return -1000 - wordsReturned;
 			}
 		}
@@ -155,8 +155,8 @@ int RIFFACALL fpga_send(fpga_t * fpga, int chnl, void * data, int len,
 	return wordsReturned;
 }
 
-int RIFFACALL fpga_recv(fpga_t * fpga, int chnl, void * data, int len,
-	long long timeout) {
+int inline RIFFACALL fpga_recv_topt(fpga_t * fpga, int chnl, void * data, int len,
+	long long timeout, int supressTimeoutMsg) {
 	RIFFA_FPGA_CHNL_IO io;
 	OVERLAPPED overlapStruct = {0};
 	HANDLE evt;
@@ -191,9 +191,12 @@ int RIFFACALL fpga_recv(fpga_t * fpga, int chnl, void * data, int len,
 				&wordsReturned, FALSE);
 			if(!status) {
 				if (GetLastError() == ERROR_OPERATION_ABORTED)
-					printf("Operation timed out or was aborted\n");
+				{
+					if (supressTimeoutMsg == 0)
+						printf("Operation timed out or was aborted\n");
+				}
 				else
-					printf("Error in GetOverlappedResult: %d\n", GetLastError());
+					printf("Error in recv. Chnl: %d, Timeout: %d, GetOverlappedResult: %d\n", chnl, timeout, GetLastError());
                 return -1000 - wordsReturned;
 			}
 		}
@@ -204,6 +207,18 @@ int RIFFACALL fpga_recv(fpga_t * fpga, int chnl, void * data, int len,
 	}
     CloseHandle(evt);
 	return wordsReturned;
+}
+
+int RIFFACALL fpga_recv(fpga_t* fpga, int chnl, void* data, int len,
+	long long timeout)
+{
+	fpga_recv_topt(fpga, chnl, data, len, timeout, 0);
+}
+
+int RIFFACALL fpga_recv_noTimeoutMsg(fpga_t* fpga, int chnl, void* data, int len,
+	long long timeout)
+{
+	fpga_recv_topt(fpga, chnl, data, len, timeout, 1);
 }
 
 void RIFFACALL fpga_reset(fpga_t * fpga) {

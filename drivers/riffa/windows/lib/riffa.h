@@ -127,6 +127,9 @@ RIFFAAPI int RIFFACALL fpga_send(fpga_t * fpga, int chnl, void * data, int len,
 RIFFAAPI int RIFFACALL fpga_recv(fpga_t * fpga, int chnl, void * data, int len,
 	long long timeout);
 
+RIFFAAPI int RIFFACALL fpga_recv_noTimeoutMsg(fpga_t* fpga, int chnl, void* data, int len,
+    long long timeout);
+
 /**
  * Resets the state of the FPGA and all transfers across all channels. This is
  * meant to be used as an alternative to rebooting if an error occurs while

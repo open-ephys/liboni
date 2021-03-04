@@ -214,7 +214,7 @@ int oni_driver_set_opt_callback(oni_driver_ctx driver_ctx,
         // When acquisition is disabled we need to empty the DMA buffers
         uint32_t* dummydata = malloc(ctx->block_size * sizeof(uint32_t));
         do {
-            rc = fpga_recv(ctx->fpga, RIFFA_READ, dummydata, ctx->block_size, 200);
+            rc = fpga_recv_noTimeoutMsg(ctx->fpga, RIFFA_READ, dummydata, ctx->block_size, 200);
         } while (rc >= ctx->block_size && rc > 0); // Negative rc results from timeout.
         free(dummydata);
 
