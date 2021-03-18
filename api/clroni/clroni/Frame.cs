@@ -75,5 +75,10 @@ namespace oni
         /// the current <see cref="Context.DeviceTable"/> that produced this frame.
         /// </summary>
         public uint DeviceAddress => ((frame_t*)handle.ToPointer())->dev_idx;
+
+        /// <summary>
+        /// Get the payload data size in bytes. See <see cref="Frame.Data{T}"/>.
+        /// </summary>
+        public long DataSize => ((frame_t*)handle.ToPointer())->data_sz;
     }
 }
