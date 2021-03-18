@@ -26,7 +26,6 @@ namespace oni
         /// Retrieve a human readable description of the <see cref="Device.ID"/>.
         /// </summary>
         public string Description => Marshal.PtrToStringAnsi(NativeMethods.onix_device_str(ID));
-
     }
 
     public partial class Hub

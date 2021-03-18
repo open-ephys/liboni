@@ -8,7 +8,7 @@ namespace oni
     public partial class Hub
     {
         /// <summary>
-        /// Hub sub-address of a fully qualified <seealso cref="Device.Address"/>.
+        /// Hub sub-address of a fully qualified <see cref="Device.Address"/>.
         /// </summary>
         [ReadOnly(true)]
         public byte Address { get; set; }
