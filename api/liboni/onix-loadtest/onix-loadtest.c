@@ -51,16 +51,22 @@ inline void error_exit(int rc, const char* str) {
     exit(1);
 }
 
-void reset_board() 
+void reset_board(int setwidth) 
 {
     int rc = ONI_ESUCCESS;
     oni_reg_val_t val = 1;
     rc = oni_set_opt(ctx, ONI_OPT_RESET, &val, sizeof(val));
     if (rc)
         error_exit(rc, "Error resetting board\n");
-    rc = oni_set_opt(ctx, ONI_OPT_BLOCKREADSIZE, &block_read_size, sizeof(block_read_size));
-    if (rc)
-        error_exit(rc, "Error setting block read size\n");
+
+    if (setwidth == 1) {
+        rc = oni_set_opt(ctx,
+                         ONI_OPT_BLOCKREADSIZE,
+                         &block_read_size,
+                         sizeof(block_read_size));
+        if (rc)
+            error_exit(rc, "Error setting block read size\n");
+    }
 }
 
 float bandwidth(oni_reg_val_t hz) {
@@ -82,6 +88,7 @@ int main(int argc, char* argv[])
             loadtest_size = atoi(argv[2]);
         case 2:
             block_read_size = atoi(argv[1]);
+        case 1:
             break;
         default:
         printf("Usage:\n\t %s [block_read_size] [loadtest_frame_words] [timeout_seconds] [threshold_bytes] [start_rate_hz]\n", argv[0]);
@@ -121,7 +128,7 @@ int main(int argc, char* argv[])
     }
     assert(rc == 0);
 
-    reset_board();
+    reset_board(0);
 
     // Examine device table
     size_t num_devs_sz = sizeof(num_devs);
@@ -197,7 +204,7 @@ int main(int argc, char* argv[])
         rc = oni_write_reg(ctx, loadtest->idx, 1, loadtest_div);
         if (rc)
             error_exit(rc, "Error setting load test clock divisor\n");
-        reset_board();
+        reset_board(1);
 
         //start acquiring
         val = 1;
