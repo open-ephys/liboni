@@ -143,7 +143,7 @@ int RIFFACALL fpga_send(fpga_t * fpga, int chnl, void * data, int len,
 				if (GetLastError() == ERROR_OPERATION_ABORTED)
 					printf("Operation timed out or was aborted\n");
 				else
-					printf("Error in send. Chnl: %d, offset: %d, Timeout: %d, GetOverlappedResult: %d\n", chnl, destoff, timeout, GetLastError());
+					printf("Error in send. Chnl: %d, offset: %d, Timeout: %lld, GetOverlappedResult: %d\n", chnl, destoff, timeout, GetLastError());
                 return -1000 - wordsReturned;
 			}
 		}
@@ -196,7 +196,7 @@ int inline RIFFACALL fpga_recv_topt(fpga_t * fpga, int chnl, void * data, int le
 						printf("Operation timed out or was aborted\n");
 				}
 				else
-					printf("Error in recv. Chnl: %d, Timeout: %d, GetOverlappedResult: %d\n", chnl, timeout, GetLastError());
+					printf("Error in recv. Chnl: %d, Timeout: %lld, GetOverlappedResult: %d\n", chnl, timeout, GetLastError());
                 return -1000 - wordsReturned;
 			}
 		}
@@ -212,13 +212,13 @@ int inline RIFFACALL fpga_recv_topt(fpga_t * fpga, int chnl, void * data, int le
 int RIFFACALL fpga_recv(fpga_t* fpga, int chnl, void* data, int len,
 	long long timeout)
 {
-	fpga_recv_topt(fpga, chnl, data, len, timeout, 0);
+	return fpga_recv_topt(fpga, chnl, data, len, timeout, 0);
 }
 
 int RIFFACALL fpga_recv_noTimeoutMsg(fpga_t* fpga, int chnl, void* data, int len,
 	long long timeout)
 {
-	fpga_recv_topt(fpga, chnl, data, len, timeout, 1);
+	return fpga_recv_topt(fpga, chnl, data, len, timeout, 1);
 }
 
 void RIFFACALL fpga_reset(fpga_t * fpga) {
