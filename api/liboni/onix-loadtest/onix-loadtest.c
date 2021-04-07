@@ -168,6 +168,8 @@ int main(int argc, char* argv[])
     if (rc)
         error_exit(rc, "Error reading memusage clock\n");
 
+    printf("Load tester internal clock: %u\n\n", loadtest_clk);
+
     val = 1;
     rc = oni_write_reg(ctx, loadtest->idx, 0, val);
     if (rc)
@@ -199,14 +201,13 @@ int main(int argc, char* argv[])
     oni_reg_val_t hz_step = 0;
 
     while (!done) {
-        loadtest_div = loadtest_clk / loadtest_hz;
         printf("%u Hz (%u Hz) (%.0f MB/s): ", loadtest_hz, loadtest_clk/loadtest_div, bandwidth(loadtest_clk/loadtest_div)/1048576);
         rc = oni_write_reg(ctx, loadtest->idx, 1, loadtest_div);
         if (rc)
             error_exit(rc, "Error setting load test clock divisor\n");
         reset_board(1);
 
-        //start acquiring
+         //start acquiring
         val = 1;
         rc = oni_set_opt(ctx, ONI_OPT_RUNNING, &val, sizeof(val));
         if (rc)
@@ -222,7 +223,7 @@ int main(int argc, char* argv[])
 
             if (frame->dev_idx == memusage->idx) {
                 uint16_t* data = (uint16_t *)frame->data;
-                uint32_t usage = data[4] << 16 | data[5];
+                uint32_t usage = ((uint32_t)data[4] << 16) | ((uint32_t)data[5]);
                 memvalues[step] = usage;
                 if (usage < threshold) {
                     step++;
