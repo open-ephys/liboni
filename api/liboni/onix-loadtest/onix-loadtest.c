@@ -199,8 +199,8 @@ int main(int argc, char* argv[])
     oni_reg_val_t hz_step = 0;
 
     while (!done) {
-        printf("%u Hz (%.0f MB/s): ", loadtest_hz, bandwidth(loadtest_hz)/1048576);
         loadtest_div = loadtest_clk / loadtest_hz;
+        printf("%u Hz (%u Hz) (%.0f MB/s): ", loadtest_hz, loadtest_clk/loadtest_div, bandwidth(loadtest_clk/loadtest_div)/1048576);
         rc = oni_write_reg(ctx, loadtest->idx, 1, loadtest_div);
         if (rc)
             error_exit(rc, "Error setting load test clock divisor\n");
@@ -242,7 +242,10 @@ int main(int argc, char* argv[])
             error_exit(rc, "Error stopping acquisition\n");
         
         if (step < num_steps) { //memory filled
-            printf("OVERFLOW at step %d with value %d\n", step, memvalues[step]);
+            printf("OVERFLOW at step %d values ", step);
+            for (int i = 0; i <= step; i++)
+                printf("%u ", memvalues[i]);
+            printf(" (32-bit words)\n");
             mode++;
             if (mode == 1) hz_step = loadtest_hz_last;
             else hz_step = hz_step / 10;
