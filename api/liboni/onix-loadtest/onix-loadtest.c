@@ -201,6 +201,7 @@ int main(int argc, char* argv[])
     oni_reg_val_t hz_step = 0;
 
     while (!done) {
+        loadtest_div = loadtest_clk / loadtest_hz;
         printf("%u Hz (%u Hz) (%.0f MB/s): ", loadtest_hz, loadtest_clk/loadtest_div, bandwidth(loadtest_clk/loadtest_div)/1048576);
         rc = oni_write_reg(ctx, loadtest->idx, 1, loadtest_div);
         if (rc)
