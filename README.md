@@ -17,10 +17,3 @@ main memory, and back again. This repository contains the following folders:
 - **[drivers](drivers/README.md)** device drivers used by the API at runtime.
   License depends on driver.
 
-### Documentation
-Documentation is provided on the [ONIX
-site](https://open-ephys.github.io/onix-docs/API%20Reference/index.html).
-
-### Citing
-TODO
-
