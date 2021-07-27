@@ -3,7 +3,8 @@
 for use with ONI-compliant hardware. It is focused on performance in terms of
 bandwidth and closed-loop reaction times and includes means for balancing these
 characteristics on-the-fly. When used in combination with
-[ONIX Hardware](https://github.com/jonnew/ONIX), it can be use to acquire from
+[ONIX Hardware](https://open-ephys.github.io/onix-docs/index.html), it can be 
+used to acquire from:
 
 - Tetrode headstages
 - Miniscopes
