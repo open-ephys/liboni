@@ -1,5 +1,4 @@
-`liboni` is the [Open Ephys](https://open-ephys.org/)
-[ONI](https://github.com/jonnew/ONI)-compliant API implementation
+`liboni` is the Open Ephys [ONI-compliant](https://github.com/jonnew/ONI) API implementation
 for use with ONI-compliant hardware. It is focused on performance in terms of
 bandwidth and closed-loop reaction times and includes means for balancing these
 characteristics on-the-fly. When used in combination with
