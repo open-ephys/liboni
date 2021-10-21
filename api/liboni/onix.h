@@ -48,6 +48,7 @@ enum {
     ONIX_MAX10ADCCORE       = 26,   // Max10 internal ADC device
     ONIX_LOADTEST           = 27,   // Variable load testing device
     ONIX_MEMUSAGE           = 28,   // Acquisition hardware buffer usage reporting device
+    ONIX_HARPSYNCINPUT      = 30,   // Harp synchronization data input device
 
     // NB: Final reserved device ID. Always on bottom
     ONIX_MAXDEVICEID        = MAXDEVID,
