@@ -906,8 +906,7 @@ static inline int _oni_hash32_find(oni_ctx ctx, oni_dev_idx_t x)
     for (probe = _oni_hash32(x) % ctx->dev_hash_len;
          ctx->dev_hash_table[probe].idx != ONI_DEVIDXNULL;
          probe = (probe + 1) % ctx->dev_hash_len) {
-
-        if (ctx->dev_hash_table[probe].idx) {
+        if (ctx->dev_hash_table[probe].idx == x) {
             return probe;
         }
     }
