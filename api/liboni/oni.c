@@ -131,8 +131,7 @@ oni_ctx oni_create_ctx(const char* drv_name)
         return NULL;
     }
 
-    if (oni_create_driver(drv_name, &ctx->driver))
-    {
+    if (oni_create_driver(drv_name, &ctx->driver)) {
         errno = EINVAL;
         free(ctx);
         return NULL;

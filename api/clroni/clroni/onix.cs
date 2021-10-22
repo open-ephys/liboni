@@ -79,7 +79,7 @@ namespace oni
         /// </summary>
         /// <param name="device_address">The fully specified <see cref="Device.Address"/>
         /// to retrieve the hub for.</param>
-        /// <returns>A <see cref="Hub"/>containing hub metadata.</returns>
+        /// <returns>A <see cref="Hub"/> containing hub metadata.</returns>
         public Hub GetHub(uint device_address)
         {
             var hub_address = device_address & 0x0000FF00;
