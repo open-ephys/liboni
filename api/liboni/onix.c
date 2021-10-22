@@ -97,6 +97,9 @@ const char *onix_device_str(int dev_id)
         case ONIX_MEMUSAGE: {
             return "Acquisition hardware buffer usage reporting device";
         }
+        case ONIX_HARPSYNCINPUT: {
+            return "HARP Synchronization time input";
+        }
         default:
             return "Unknown device";
     }
