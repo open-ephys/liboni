@@ -37,6 +37,12 @@ namespace oni
         public int HardwareID { get; set; }
 
         /// <summary>
+        /// ONIX hub hardware revision.
+        /// </summary>
+        [ReadOnly(true)]
+        public int HardwareRevision { get; set; }
+
+        /// <summary>
         /// ONIX hub firmware version.
         /// </summary>
         [ReadOnly(true)]
@@ -69,6 +75,7 @@ namespace oni
         private enum HubRegister : uint
         {
             HARDWAREID = 0, // Hub hardware ID
+            HARDWAREREV = 1, // Hardware revision
             FIRMWAREVER = 2, // Hub firmware version
             CLKRATEHZ = 4, // Hub clock rate in Hz
             DELAYNS = 5, // Hub to host transmission delay in nanoseconds
@@ -87,17 +94,12 @@ namespace oni
             {
                 Address = (byte)(hub_address >> 8),
                 HardwareID = (int)ReadRegister(HUB_MGR_ADDRESS + hub_address, (uint)HubRegister.HARDWAREID),
+                HardwareRevision  = (int)ReadRegister(HUB_MGR_ADDRESS + hub_address, (uint)HubRegister.HARDWAREREV),
                 FirmwareVersion = ReadRegister(HUB_MGR_ADDRESS + hub_address, (uint)HubRegister.FIRMWAREVER),
                 ClockHz = ReadRegister(HUB_MGR_ADDRESS + hub_address, (uint)HubRegister.CLKRATEHZ),
                 DelayNanoSeconds = ReadRegister(HUB_MGR_ADDRESS + hub_address, (uint)HubRegister.DELAYNS)
             };
         }
-
-        // TODO: Needed or useful?
-        //public Dictionary<uint, Device> HubDevicetTable(byte hub_address)
-        //{
-        //    // TODO
-        //}
     }
 
     // ONIX-specific API extension functions.
