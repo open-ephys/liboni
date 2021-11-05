@@ -293,8 +293,8 @@ int main(int argc, char *argv[])
 {
     printf(oe_logo_med);
 
-    oni_size_t block_read_size = 100;
-    oni_size_t block_write_size = 1024;
+    oni_size_t block_read_size = 2048;
+    oni_size_t block_write_size = 2048;
     int host_idx = -1;
     char *driver;
 
@@ -569,7 +569,17 @@ int main(int argc, char *argv[])
                               ONIX_HUB_HARDWAREID,
                               &hub_hw_id);
             printf("Hub hardware ID: ");
-            rc ? printf("%s\n", oni_error_str(rc)) : printf("%u, %s\n", hub_hw_id, onix_hub_str(hub_hw_id));
+            rc ? printf("%s\n", oni_error_str(rc)) :
+                 printf("%u, %s\n", hub_hw_id, onix_hub_str(hub_hw_id));
+
+            oni_reg_val_t hub_hw_rev = 0;
+            rc = oni_read_reg(ctx,
+                              hub_idx + ONIX_HUB_DEV_IDX,
+                              ONIX_HUB_HARDWAREREV,
+                              &hub_hw_rev);
+            printf("Hub hardware revision: ");
+            rc ? printf("%s\n", oni_error_str(rc)) :
+                 printf("%u.%u\n", (hub_hw_rev & 0xFF00) >> 8, hub_hw_rev & 0xFF);
 
             oni_reg_val_t hub_firm_ver = 0;
             rc = oni_read_reg(ctx,
@@ -577,7 +587,8 @@ int main(int argc, char *argv[])
                               ONIX_HUB_FIRMWAREVER,
                               &hub_firm_ver);
             printf("Hub firmware version: ");
-            rc ? printf("%s\n", oni_error_str(rc)) : printf("%u\n", hub_firm_ver);
+            rc ? printf("%s\n", oni_error_str(rc)) :
+                 printf("%u.%u\n",(hub_firm_ver & 0xFF00) >> 8, hub_firm_ver & 0xFF);
 
             oni_reg_val_t hub_clk_hz = 0;
             rc = oni_read_reg(ctx,
