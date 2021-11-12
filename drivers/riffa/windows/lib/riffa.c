@@ -152,6 +152,7 @@ int RIFFACALL fpga_send(fpga_t * fpga, int chnl, void * data, int len,
             return -1;
 		}
 	}
+	CloseHandle(evt);
 	return wordsReturned;
 }
 
