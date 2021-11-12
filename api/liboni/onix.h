@@ -66,6 +66,7 @@ enum {
 // Hub device register addresses
 typedef enum {
     ONIX_HUB_HARDWAREID     = 0,    // Hub hardware ID
+    ONIX_HUB_HARDWAREREV    = 1,    // Hub hardware revision
     ONIX_HUB_FIRMWAREVER    = 2,    // Hub firmware version
     ONIX_HUB_CLKRATEHZ      = 4,    // Hub clock rate in Hz
     ONIX_HUB_DELAYNS        = 5,    // Hub to host transmission delay in nanoseconds
@@ -77,11 +78,9 @@ typedef enum {
 // NB: If you add a hub here, make sure to update oni_hub_str().
 enum {
     ONIX_HUB_NULL           = 0,    // Placeholder hub
-    ONIX_HUB_FMCHOST1V4     = 1,    // Open Ephys FMC host version 1.4
-    ONIX_HUB_HS641V3        = 2,    // Open Ephys headstage-64 version 1.3
-    ONIX_HUB_HSNP1V2        = 3,    // Open Ephys headstage-neuropix version 1.2
-    ONIX_HUB_HS641V4        = 4,    // Open Ephys headstage-64 version 1.4
-    ONIX_HUB_HSNP1V3        = 5,    // Open Ephys headstage-neuropix version 1.3
+    ONIX_HUB_FMCHOST        = 1,    // Open Ephys FMC host
+    ONIX_HUB_HS64           = 2,    // Open Ephys headstage-64
+    ONIX_HUB_HSNP           = 3,    // Open Ephys headstage-neuropix1
 
     // NB: Final reserved hub ID. Always on bottom
     ONIX_HUB_MAXID          = MAXHUBID,

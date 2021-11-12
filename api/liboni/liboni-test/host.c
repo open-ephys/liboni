@@ -35,9 +35,9 @@ FILE **dump_files;
 
 // Display options
 volatile int quit = 0;
-volatile int display = 0;
-int num_frames_to_display = -1;
-int device_filter = -1; //ONIX_TS4231V1ARR
+volatile int display = 1;
+int num_frames_to_display = -1;//5;
+int device_filter = -1; //ONIX_LOADTEST; // ONIX_TS4231V1ARR
 
 // Global state
 volatile oni_ctx ctx = NULL;
@@ -96,6 +96,7 @@ void *read_loop(void *vargp)
 #endif
 {
     unsigned long counter = 0;
+    unsigned long print_count = 0;
     unsigned long this_cnt = 0;
 
     //// Pre-allocate write frame
@@ -121,7 +122,7 @@ void *read_loop(void *vargp)
 #endif
 
         if (display
-            && ((num_frames_to_display  <= 0 && counter % 1000 == 0) || (num_frames_to_display > 0 && counter < num_frames_to_display))
+            && ((num_frames_to_display  <= 0 && counter % 1000 == 0) || (num_frames_to_display > 0 && print_count < num_frames_to_display))
             && (device_filter < 0 || devices[i].id == device_filter)
             ) {
             oni_device_t this_dev = devices[i];
@@ -138,6 +139,8 @@ void *read_loop(void *vargp)
             for (i = 0; i < frame->data_sz; i += 2)
                 printf("%u ", *(uint16_t *)(frame->data + i));
             printf("]\n");
+
+            print_count++;
         }
 
          //// Feedback loop test
@@ -290,8 +293,8 @@ int main(int argc, char *argv[])
 {
     printf(oe_logo_med);
 
-    oni_size_t block_read_size = 1024;
-    oni_size_t block_write_size = 1024;
+    oni_size_t block_read_size = 2048;
+    oni_size_t block_write_size = 2048;
     int host_idx = -1;
     char *driver;
 
@@ -307,8 +310,7 @@ int main(int argc, char *argv[])
             driver = argv[1];
             break;
         default:
-            printf("usage:\n");
-            printf("\thost driver [host_index] ...\n");
+            printf("Usage: %s <driver> [host_index] [read block bytes] [write block bytes]\n", argv[0]);
             exit(1);
     }
 
@@ -567,7 +569,17 @@ int main(int argc, char *argv[])
                               ONIX_HUB_HARDWAREID,
                               &hub_hw_id);
             printf("Hub hardware ID: ");
-            rc ? printf("%s\n", oni_error_str(rc)) : printf("%u, %s\n", hub_hw_id, onix_hub_str(hub_hw_id));
+            rc ? printf("%s\n", oni_error_str(rc)) :
+                 printf("%u, %s\n", hub_hw_id, onix_hub_str(hub_hw_id));
+
+            oni_reg_val_t hub_hw_rev = 0;
+            rc = oni_read_reg(ctx,
+                              hub_idx + ONIX_HUB_DEV_IDX,
+                              ONIX_HUB_HARDWAREREV,
+                              &hub_hw_rev);
+            printf("Hub hardware revision: ");
+            rc ? printf("%s\n", oni_error_str(rc)) :
+                 printf("%u.%u\n", (hub_hw_rev & 0xFF00) >> 8, hub_hw_rev & 0xFF);
 
             oni_reg_val_t hub_firm_ver = 0;
             rc = oni_read_reg(ctx,
@@ -575,7 +587,8 @@ int main(int argc, char *argv[])
                               ONIX_HUB_FIRMWAREVER,
                               &hub_firm_ver);
             printf("Hub firmware version: ");
-            rc ? printf("%s\n", oni_error_str(rc)) : printf("%u\n", hub_firm_ver);
+            rc ? printf("%s\n", oni_error_str(rc)) :
+                 printf("%u.%u\n",(hub_firm_ver & 0xFF00) >> 8, hub_firm_ver & 0xFF);
 
             oni_reg_val_t hub_clk_hz = 0;
             rc = oni_read_reg(ctx,
