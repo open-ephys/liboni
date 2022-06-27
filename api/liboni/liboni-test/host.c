@@ -7,20 +7,18 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <math.h>
+#include <time.h>
 
 #include "oni.h"
 #include "onix.h"
 #include "oelogo.h"
+#include "ketopt.h"
 
-// Dump raw device streams to files?
-// #define DUMPFILES
+// Turn on simple feedback loop for real-time testing?
+// #define FEEDBACKLOOP
 
 // Turn on RT optimization
 #define RT
-
-#ifdef DUMPFILES
-FILE **dump_files;
-#endif
 
 // Windows- and UNIX-specific includes etc
 #ifdef _WIN32
@@ -33,17 +31,21 @@ FILE **dump_files;
 #include <pthread.h>
 #endif
 
-// Display options
-volatile int quit = 0;
-volatile int display = 1;
-int num_frames_to_display = -1;//5;
-int device_filter = -1; //ONIX_LOADTEST; // ONIX_TS4231V1ARR
+// Options
+volatile int display = 0;
+int num_frames_to_display = -1;
+int display_every_n = -1;
+int device_idx_filter = -1;
+int dump = 0;
 
 // Global state
+volatile int quit = 0;
 volatile oni_ctx ctx = NULL;
 oni_size_t num_devs = 0;
 oni_device_t *devices = NULL;
 int running = 1;
+char *dump_path;
+FILE **dump_files;
 
 #ifdef _WIN32
 HANDLE read_thread;
@@ -53,6 +55,7 @@ pthread_t read_tid;
 pthread_t write_tid;
 #endif
 
+// Parser for reading and writing device registers
 int parse_reg_cmd(const char *cmd, long *values, int len)
 {
     char *end;
@@ -99,9 +102,11 @@ void *read_loop(void *vargp)
     unsigned long print_count = 0;
     unsigned long this_cnt = 0;
 
-    //// Pre-allocate write frame
-    //oni_frame_t *w_frame = NULL;
-    //oni_create_frame(ctx, &w_frame, 8, 4);
+#ifdef FEEDBACKLOOP
+    // Pre-allocate write frame
+    oni_frame_t *w_frame = NULL;
+    oni_create_frame(ctx, &w_frame, 8, 4);
+#endif
 
     while (!quit)  {
 
@@ -117,14 +122,16 @@ void *read_loop(void *vargp)
         int i = find_dev(frame->dev_idx);
         if (i == -1) goto next;
 
-#ifdef DUMPFILES
-        fwrite(frame->data, 1, frame->data_sz, dump_files[i]);
-#endif
+        if (dump) {
+            fwrite(frame->data, 1, frame->data_sz, dump_files[i]);
+        }
 
         if (display
-            && ((num_frames_to_display  <= 0 && counter % 1000 == 0) || (num_frames_to_display > 0 && print_count < num_frames_to_display))
-            && (device_filter < 0 || devices[i].id == device_filter)
+            && (display_every_n <= 1 || counter % display_every_n == 0) 
+            && (num_frames_to_display <= 0 || print_count < num_frames_to_display)
+            && (device_idx_filter < 0 || devices[i].idx == device_idx_filter)
             ) {
+
             oni_device_t this_dev = devices[i];
 
             this_cnt++;
@@ -143,29 +150,35 @@ void *read_loop(void *vargp)
             print_count++;
         }
 
-         //// Feedback loop test
-         //if (frame->dev_idx == 7) {
-         //
-         //    int16_t sample = *(int16_t *)(frame->data + 10);
-         //
-         //    if (sample - last_sample > 500) {
-         //
-         //        memcpy(w_frame->data, &out_count, 4);
-         //        out_count++;
+#ifdef FEEDBACKLOOP
+        // Feedback loop test
+         if (frame->dev_idx == 7) {
+        
+            int16_t sample = *(int16_t *)(frame->data + 10);
+        
+            if (sample - last_sample > 500) {
+        
+                memcpy(w_frame->data, &out_count, 4);
+                out_count++;
 
-         //        int rc = oni_write_frame(ctx, w_frame);
-         //        if (rc < 0) { printf("Error: %s\n", oni_error_str(rc)); }
+                int rc = oni_write_frame(ctx, w_frame);
+                if (rc < 0) { printf("Error: %s\n", oni_error_str(rc)); }
 
-         //    }
-         //
-         //    last_sample = sample;
-         //}
+            }
+        
+            last_sample = sample;
+        }
+#endif
+
+         
 next:
         counter++;
         oni_destroy_frame(frame);
     }
 
-    //oni_destroy_frame(w_frame);
+#ifdef FEEDBACKLOOP
+    oni_destroy_frame(w_frame);
+#endif
 
     return NULL;
 }
@@ -298,21 +311,62 @@ int main(int argc, char *argv[])
     int host_idx = -1;
     char *driver;
 
-    switch (argc) {
-
-        case 5:
-            block_write_size = atoi(argv[4]);
-        case 4:
-            block_read_size = atoi(argv[3]);
-        case 3:
-            host_idx = atoi(argv[2]);
-        case 2:
-            driver = argv[1];
-            break;
-        default:
-            printf("Usage: %s <driver> [host_index] [read block bytes] [write block bytes]\n", argv[0]);
-            exit(1);
+    static ko_longopt_t longopts[] = {{"help", ko_no_argument, 301},
+                                    {"rbytes", ko_required_argument, 302},
+                                    {"wbytes", ko_required_argument, 303},
+                                    {"dumppath", ko_required_argument, 304},
+                                    {NULL, 0, 0}};
+    ketopt_t opt = KETOPT_INIT;
+    int i, c;
+    while ((c = ketopt(&opt, argc, argv, 1, "dD:n:i:", longopts)) >= 0) {
+        if (c == 'd')
+            display = 1;
+        else if (c == 'D')
+            display_every_n = atoi(opt.arg);
+        else if (c == 'n')
+            num_frames_to_display = atoi(opt.arg);
+        else if (c == 'i')
+            device_idx_filter = atoi(opt.arg);
+        else if (c == 301)
+            goto usage;
+        else if (c == 302)
+            block_read_size = atoi(opt.arg);
+        else if (c == 303)
+            block_write_size = atoi(opt.arg);
+        else if (c == 304) {
+            dump = 1;
+            dump_path = opt.arg;
+        } else if (c == '?'){
+            printf("unknown opt: -%c\n", opt.opt ? opt.opt : ':');
+        goto usage;
     }
+        else if (c == ':') {
+            printf("missing arg: -%c\n", opt.opt ? opt.opt : ':');
+            goto usage;
+        }
+    }
+
+    if (argc == opt.ind + 1) {
+        driver = argv[opt.ind];
+    } else if (argc == opt.ind + 2) {
+        driver = argv[opt.ind];
+        host_idx = atoi(argv[opt.ind + 1]);
+    } else {
+usage:
+        printf("Usage: %s <driver> [host_index] [-d] [-D <value>] [-n <value>] [-i <device index>] [--help] [--rbytes=<bytes>] [--wbytes=<bytes>] [--dumppath=<path>]\n\n",
+               argv[0]);
+
+        printf("\t -d \t\t\tSet block read size in bytes\n");
+        printf("\t -D <value> \t\tDisplay only every value-th frame. Useful for monitoring high-bandwidth data streams.\n");
+        printf("\t -n <value> \t\tDisplay at most value frames. Reset only on program restart. Useful for examining the start of the data stream.\n");
+        printf("\t -i <value> \t\tOnly display frames from device with table index value\n");
+        printf("\t --help \t\tDisplay this message and exit\n");
+        printf("\t --rbytes=<bytes> \tSet block read size in bytes\n");
+        printf("\t --wbytes=<bytes> \tSet write preallocation size in bytes\n");
+        printf("\t --dumppath=<path> \tPath to folder to dump raw device data. If not defined, no data will be written.\n");
+        exit(1);
+    }
+
 
 #if defined(_WIN32) && defined(RT)
     if (!SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS)) {
@@ -350,18 +404,43 @@ int main(int argc, char *argv[])
     if (devices == NULL) { exit(EXIT_FAILURE); }
     oni_get_opt(ctx, ONI_OPT_DEVICETABLE, devices, &devices_sz);
 
-#ifdef DUMPFILES
-    // Make room for dump files
-    dump_files = malloc(num_devs * sizeof(FILE *));
+    // Dump files, if required
+    if (dump) {
 
-    // Open dump files
-    for (size_t i = 0; i < num_devs; i++) {
-        char * buffer = malloc(100);
-        snprintf(buffer, 100, "%s_idx-%zd_id-%d.raw", "dev", i, devices[i].id);
-        dump_files[i] = fopen(buffer, "wb");
-        free(buffer);
+        // Current time
+        time_t t = time(NULL);
+        struct tm tm = *localtime(&t);
+
+        // Make room for dump files
+        dump_files = malloc(num_devs * sizeof(FILE *));
+
+        // Open dump files
+        for (size_t i = 0; i < num_devs; i++) {
+            char *buffer = malloc(500);
+            snprintf(buffer,
+                     500,
+                     "%s\\%s_idx-%zd_id-%d_%d-%02d-%02d-%02d-%02d-%02d.raw",
+                     dump_path,
+                     "dev",
+                     i,
+                     devices[i].id,
+                     tm.tm_year + 1900,
+                     tm.tm_mon + 1,
+                     tm.tm_mday,
+                     tm.tm_hour,
+                     tm.tm_min,
+                     tm.tm_sec);
+            dump_files[i] = fopen(buffer, "wb");
+
+            if (dump_files[i] == NULL) {
+                printf("Error opening %s: %s\n", buffer, strerror(errno));
+                free(buffer);
+                goto usage;
+            }
+
+            free(buffer);
+        }
     }
-#endif
 
     // Show device table
     print_dev_table(devices, num_devs);
@@ -444,11 +523,13 @@ int main(int argc, char *argv[])
 
     // Read stdin to start (s) or pause (p)
     printf("Some commands can cause hardware malfunction if issued in the wrong order!\n");
-    int c = 'x';
+    c = 'x';
     while (c != 'q') {
 
         printf("Enter a command and press enter:\n");
-        printf("\td - toggle 1/1000 display\n");
+        printf("\td - toggle frame display\n");
+        printf("\tD - change the display rate\n");
+        printf("\ti - set device index filter\n");
         printf("\tt - print device table\n");
         printf("\tp - toggle pause register\n");
         printf("\ts - toggle pause register & r/w thread operation\n");
@@ -483,6 +564,33 @@ int main(int argc, char *argv[])
         }
         else if (c == 'd') {
             display = (display == 0) ? 1 : 0;
+        } 
+        else if (c == 'D') {
+            printf("Change the number frames to collect before displaying a single frame.\n");
+            printf("Enter the number of frames to collect or -1 to display every frame\n");
+            printf(">>> ");
+
+            char *buf = NULL;
+            size_t len = 0;
+            rc = getline(&buf, &len, stdin);
+            if (rc == -1) {
+                printf("Error: bad command\n");
+                continue;
+            }
+
+            display_every_n = atoi(buf);
+        }
+        else if (c == 'i') {
+            printf("Change the device index display filter.\n");
+            printf("Enter the device index you wish to display or -1 for no filter\n");
+            printf(">>> ");
+
+            char *buf = NULL;
+            size_t len = 0;
+            rc = getline(&buf, &len, stdin);
+            if (rc == -1) { printf("Error: bad command\n"); continue; }
+
+            device_idx_filter = atoi(buf);
         }
         else if (c == 't') {
             print_dev_table(devices, num_devs);
@@ -626,12 +734,12 @@ int main(int argc, char *argv[])
 
     stop_threads();
 
-#ifdef DUMPFILES
-    // Close dump files
-    for (int dev_idx = 0; dev_idx < num_devs; dev_idx++) {
-        fclose(dump_files[dev_idx]);
+    if (dump) {
+        // Close dump files
+        for (int dev_idx = 0; dev_idx < num_devs; dev_idx++) {
+            fclose(dump_files[dev_idx]);
+        }
     }
-#endif
 
     // Stop hardware
     oni_size_t run = 0 ;
