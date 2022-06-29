@@ -666,6 +666,8 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
     // 1. index (4)
     // 2. data_sz (4)
     memcpy((void *)&iframe->private.f.time, header, ONI_RFRAMEHEADERSZ);
+    assert(iframe->private.f.data_sz > 0 && "Zero-sized frame");
+    assert(iframe->private.f.data_sz <= ctx->max_read_frame_size && "Invalid frame size");
 
     // Find read size (+ padding)
     size_t rsize = iframe->private.f.data_sz;
