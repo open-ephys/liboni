@@ -277,7 +277,9 @@ inline void oni_ft600_stop_acq(oni_ft600_ctx ctx)
 {
 	Sleep(10);
 	FT_AbortPipe(ctx->ftHandle, pipe_in);
-#ifndef _WIN32
+#ifdef _WIN32
+    FT_ClearStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in);
+#else
  //   FT_FlushPipe(ctx->ftHandle, pipe_in);
 #endif
 	oni_ft600_restart_acq(ctx);
@@ -357,7 +359,6 @@ void oni_ft600_free_ctx(oni_ft600_ctx ctx)
 		ctx->ftHandle = NULL;
 	}
 }
-
 
 int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 {
@@ -448,7 +449,7 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
     
 #ifdef _WIN32
 	CHECK_FTERR(FT_SetNotificationCallback(ctx->ftHandle, oni_ft600_usb_callback, ctx));
-	CHECK_FTERR(FT_SetStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in, ctx->inBlockSize));
+	//CHECK_FTERR(FT_SetStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in, ctx->inBlockSize));
 	CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_in, 0));
 	CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_out, 0));
 	CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_cmd, 0));
@@ -456,7 +457,8 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 
 #endif
 	//Enable GPIOs
-	CHECK_FTERR(FT_SetGPIOPull(ctx->ftHandle,0x3,0x08))
+	CHECK_FTERR(FT_SetGPIOPull(ctx->ftHandle,0x3,0x05))
+    CHECK_FTERR(FT_WriteGPIO(ctx->ftHandle, 0x01, 0x00));
 	CHECK_FTERR(FT_EnableGPIO(ctx->ftHandle, 0x01, 0x01));
 	//TODO: check that board is in normal mode and not bootloader
 	//Hardware FIFO reset
@@ -472,7 +474,6 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 		return res;
 	}
 	ctx->state = STATE_INIT;
-    
 	return ONI_ESUCCESS;
 }
 
@@ -722,6 +723,8 @@ int oni_driver_read_config(oni_driver_ctx driver_ctx, oni_config_t reg, oni_reg_
 inline void oni_ft600_start_acq(oni_ft600_ctx ctx)
 {
 #if _WIN32
+    FT_STATUS rc;
+    rc = FT_SetStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in, ctx->inBlockSize);
 	for (size_t i = 0; i < ctx->numInOverlapped; i++)
 	{
 		FT_ReadPipeEx(ctx->ftHandle, pipe_in, ctx->inBuffer + (i * ctx->inBlockSize), ctx->inBlockSize, &ctx->inTransferred[i], &ctx->inOverlapped[i]);
@@ -765,8 +768,8 @@ int oni_driver_set_opt_callback(oni_driver_ctx driver_ctx,
 			free(ctx->inBuffer);
 			ctx->inBuffer = malloc(2 * (size_t)ctx->numInOverlapped * ctx->inBlockSize);
 			if (ctx->inBuffer == NULL) return ONI_EBADALLOC;
-			FT_ClearStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in);
-			FT_SetStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in,size);
+		//	FT_ClearStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in);
+		//	FT_SetStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in,size);
 		}
 #endif
 	}
