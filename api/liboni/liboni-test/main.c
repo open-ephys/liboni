@@ -139,7 +139,6 @@ void *read_loop(void *vargp)
                 frame->time,
                 frame->dev_idx,
                 onix_device_str(this_dev.id));
-                // this_cnt);
 
             size_t i;
             printf("\tData: [");
