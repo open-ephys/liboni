@@ -8,7 +8,7 @@ CFLAGS=-O3 -Wall
 LDFLAGS=-loni -ldl
 
 .PHONY: all
-all: host cobs_test ## Build basic host and test functions
+all: liboni-test cobs-test ## Build basic liboni-test and test functions
 
 .PHONY: debug
 debug: CFLAGS += -DDEBUG -g3 ## Build with debug symbols
@@ -18,17 +18,17 @@ debug: all
 profile: LDFLAGS += -lprofiler ## Link in the perftools profiler
 profile: all
 
-cobs_test: cobs_test.c testfunc.c ## Make COBS test program
+cobs-test: cobs_test.c testfunc.c ## Make COBS test program
 	@echo Making $@
 	$(CC) $(CFLAGS) $^ -lm $(LDFLAGS) -o $@
 
-host: host.c ## Make simple host acquisition software
+liboni-test: main.c ## Make simple liboni-test acquisition software
 	@echo Making $@
 	$(CC) $(CFLAGS) $? -lm -lpthread $(LDFLAGS) -o $@
 
 .PHONY: clean
 clean: ## Clean build artifacts
-	rm ./host ./cobs_test
+	rm ./liboni-test ./cobs-test
 
 .PHONY: help
 help:
