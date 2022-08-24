@@ -266,22 +266,19 @@ inline void oni_ft600_reset_acq(oni_ft600_ctx ctx, int hard)
 //    FT_FlushPipe(ctx->ftHandle, pipe_sig);
 #endif
 	oni_ft600_reset_ctx(ctx);
-	if (hard)
-	{
-		FT_WriteGPIO(ctx->ftHandle, 0x01, 0x00);
-	}
+	FT_WriteGPIO(ctx->ftHandle, 0x01, 0x00);
 	Sleep(1);
 }
 
 inline void oni_ft600_stop_acq(oni_ft600_ctx ctx)
 {
 	Sleep(10);
-	FT_AbortPipe(ctx->ftHandle, pipe_in);
 #ifdef _WIN32
     FT_ClearStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in);
 #else
  //   FT_FlushPipe(ctx->ftHandle, pipe_in);
 #endif
+    FT_AbortPipe(ctx->ftHandle, pipe_in);
 	oni_ft600_restart_acq(ctx);
 }
 
