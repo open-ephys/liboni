@@ -26,5 +26,8 @@
     <ClInclude Include="testfunc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ketopt.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
