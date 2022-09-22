@@ -89,8 +89,9 @@
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
     <Inf>
-      <TimeStamp>6.0.1.1</TimeStamp>
+      <TimeStamp>6.0.1.2</TimeStamp>
     </Inf>
+    <DriverSign />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -101,8 +102,9 @@
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
     <Inf>
-      <TimeStamp>6.0.1.1</TimeStamp>
+      <TimeStamp>6.0.1.2</TimeStamp>
     </Inf>
+    <DriverSign />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -110,9 +112,10 @@
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
     <Inf>
-      <TimeStamp>6.0.1.0</TimeStamp>
+      <TimeStamp>6.0.1.2</TimeStamp>
       <SpecifyDriverVerDirectiveVersion>true</SpecifyDriverVerDirectiveVersion>
     </Inf>
+    <DriverSign />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -120,9 +123,10 @@
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
     <Inf>
-      <TimeStamp>6.0.1.0</TimeStamp>
+      <TimeStamp>6.0.1.2</TimeStamp>
       <SpecifyDriverVerDirectiveVersion>true</SpecifyDriverVerDirectiveVersion>
     </Inf>
+    <DriverSign />
   </ItemDefinitionGroup>
   <ItemGroup>
     <Inf Include="..\..\sys\riffa.inx" />

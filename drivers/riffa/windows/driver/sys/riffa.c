@@ -1066,7 +1066,7 @@ VOID RiffaIoctlSend(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
 			"riffa: fpga:%s, ioctl send input buffer too small to contain RIFFA_FPGA_CHNL_IO\n",
 			DevExt->Name);
-		WdfRequestCompleteWithInformation(Request, STATUS_INVALID_PARAMETER, 0);
+		WdfRequestCompleteWithInformation(Request, STATUS_BUFFER_TOO_SMALL, 0);
 		return;
 	}
 	io = (PRIFFA_FPGA_CHNL_IO)buf;
@@ -1083,7 +1083,7 @@ VOID RiffaIoctlSend(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
 			"riffa: fpga:%s, ioctl send invalid channel: %d, device only has %d channel(s)\n",
 			DevExt->Name, io->Chnl, DevExt->NumChnls);
-		WdfRequestCompleteWithInformation(Request, STATUS_INVALID_PARAMETER, 0);
+		WdfRequestCompleteWithInformation(Request, STATUS_DEVICE_DOES_NOT_EXIST, 0);
 		return;
 	}
 
@@ -1092,7 +1092,7 @@ VOID RiffaIoctlSend(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
 			"riffa: fpga:%s, ioctl send already in use on channel: %d\n",
 			DevExt->Name, io->Chnl);
-		WdfRequestCompleteWithInformation(Request, STATUS_INVALID_PARAMETER, 0);
+		WdfRequestCompleteWithInformation(Request, STATUS_DEVICE_BUSY, 0);
 		return;
 	}
 
@@ -1151,7 +1151,7 @@ VOID RiffaIoctlSend(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 		// Invalid request, results in no send
 		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
 			"riffa: fpga:%s, ioctl send invalid, no length or last\n", DevExt->Name);
-		WdfRequestCompleteWithInformation(Request, STATUS_INVALID_PARAMETER, 0);
+		WdfRequestCompleteWithInformation(Request, STATUS_INVALID_DEVICE_REQUEST, 0);
 		return;
 	}
 }
@@ -1201,7 +1201,7 @@ VOID RiffaIoctlRecv(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
 			"riffa: fpga:%s, ioctl recv input buffer too small to contain RIFFA_FPGA_CHNL_IO\n",
 			DevExt->Name);
-		WdfRequestCompleteWithInformation(Request, STATUS_INVALID_PARAMETER, 0);
+		WdfRequestCompleteWithInformation(Request, STATUS_BUFFER_TOO_SMALL, 0);
 		return;
 	}
 	io = (PRIFFA_FPGA_CHNL_IO)buf;
@@ -1212,7 +1212,7 @@ VOID RiffaIoctlRecv(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
 			"riffa: fpga:%s, ioctl recv invalid channel: %d, device only has %d channel(s)\n",
 			DevExt->Name, io->Chnl, DevExt->NumChnls);
-		WdfRequestCompleteWithInformation(Request, STATUS_INVALID_PARAMETER, 0);
+		WdfRequestCompleteWithInformation(Request, STATUS_DEVICE_DOES_NOT_EXIST, 0);
 		return;
 	}
 
@@ -1221,7 +1221,7 @@ VOID RiffaIoctlRecv(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
 			"riffa: fpga:%s, ioctl recv already in use on channel: %d\n",
 			DevExt->Name, io->Chnl);
-		WdfRequestCompleteWithInformation(Request, STATUS_INVALID_PARAMETER, 0);
+		WdfRequestCompleteWithInformation(Request, STATUS_DEVICE_BUSY, 0);
 		return;
 	}
 
@@ -1319,7 +1319,7 @@ VOID RiffaIoctlList(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
 			"riffa: fpga:%s, ioctl list input buffer too small to contain fpga id\n",
 			DevExt->Name);
-		WdfRequestCompleteWithInformation(Request, STATUS_INVALID_PARAMETER, 0);
+		WdfRequestCompleteWithInformation(Request, STATUS_BUFFER_TOO_SMALL, 0);
 		return;
 	}
 	i = *((UINT32 *)buf);
@@ -1328,7 +1328,7 @@ VOID RiffaIoctlList(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 	if (i >= RIFFA_MAX_NUM_FPGAS) {
 		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
 			"riffa: fpga:%s, ioctl list fpga id invalid\n", DevExt->Name);
-		WdfRequestCompleteWithInformation(Request, STATUS_INVALID_PARAMETER, 0);
+		WdfRequestCompleteWithInformation(Request, STATUS_DEVICE_DOES_NOT_EXIST, 0);
 		return;
 	}
 
@@ -1353,7 +1353,7 @@ VOID RiffaIoctlList(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
 			"riffa: fpga:%s, ioctl list input buffer too small to contain RIFFA_FPGA_INFO\n",
 			DevExt->Name);
-		WdfRequestCompleteWithInformation(Request, STATUS_INVALID_PARAMETER, 0);
+		WdfRequestCompleteWithInformation(Request, STATUS_BUFFER_TOO_SMALL, 0);
 		return;
 	}
 	info = (PRIFFA_FPGA_INFO)buf;
