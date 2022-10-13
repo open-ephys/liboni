@@ -100,6 +100,9 @@ const char *onix_device_str(int dev_id)
         case ONIX_HARPSYNCINPUT: {
             return "HARP Synchronization time input";
         }
+        case ONIX_RHS2116: {
+            return "Intan RHS2116 bioamplifier and stimulator";
+        }
         default:
             return "Unknown device";
     }
@@ -119,6 +122,12 @@ const char *onix_hub_str(int dev_id)
         }
         case ONIX_HUB_HSNP: {
             return "Open Ephys headstage-neuropix1";
+        }
+        case ONIX_HUB_HSRHS2116: {
+            return "Open Ephys headstage-rhs2116";
+        }
+        case ONIX_HUB_HS64S: {
+            return "Open Ephys headstage-64s";
         }
         default:
             return "Unknown hub";
