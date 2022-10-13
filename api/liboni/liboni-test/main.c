@@ -317,8 +317,10 @@ int main(int argc, char *argv[])
                                     {NULL, 0, 0}};
     ketopt_t opt = KETOPT_INIT;
     int i, c;
-    while ((c = ketopt(&opt, argc, argv, 1, "dD:n:i:", longopts)) >= 0) {
-        if (c == 'd')
+    while ((c = ketopt(&opt, argc, argv, 1, "hdD:n:i:", longopts)) >= 0) {
+        if (c == 'h')
+            goto usage;
+        else if (c == 'd')
             display = 1;
         else if (c == 'D')
             display_every_n = atoi(opt.arg);
@@ -335,12 +337,12 @@ int main(int argc, char *argv[])
         else if (c == 304) {
             dump = 1;
             dump_path = opt.arg;
-        } else if (c == '?'){
-            printf("unknown opt: -%c\n", opt.opt ? opt.opt : ':');
-        goto usage;
-    }
+        } else if (c == '?') {
+            printf("Unknown option: -%c\n", opt.opt ? opt.opt : ':');
+            goto usage;
+        }
         else if (c == ':') {
-            printf("missing arg: -%c\n", opt.opt ? opt.opt : ':');
+            printf("Missing argument: -%c\n", opt.opt ? opt.opt : ':');
             goto usage;
         }
     }
@@ -359,13 +361,12 @@ usage:
         printf("\t -D <value> \t\tDisplay only every value-th frame. Useful for monitoring high-bandwidth data streams.\n");
         printf("\t -n <value> \t\tDisplay at most value frames. Reset only on program restart. Useful for examining the start of the data stream.\n");
         printf("\t -i <value> \t\tOnly display frames from device with table index value\n");
-        printf("\t --help \t\tDisplay this message and exit\n");
+        printf("\t --help, -h \t\tDisplay this message and exit\n");
         printf("\t --rbytes=<bytes> \tSet block read size in bytes\n");
         printf("\t --wbytes=<bytes> \tSet write preallocation size in bytes\n");
         printf("\t --dumppath=<path> \tPath to folder to dump raw device data. If not defined, no data will be written.\n");
         exit(1);
     }
-
 
 #if defined(_WIN32) && defined(RT)
     if (!SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS)) {
@@ -565,8 +566,7 @@ usage:
             display = (display == 0) ? 1 : 0;
         } 
         else if (c == 'D') {
-            printf("Change the number frames to collect before displaying a single frame.\n");
-            printf("Enter the number of frames to collect or -1 to display every frame\n");
+            printf("Enter the number frames to collect for each displayed. 1 will display every frame\n");
             printf(">>> ");
 
             char *buf = NULL;
@@ -578,6 +578,7 @@ usage:
             }
 
             display_every_n = atoi(buf);
+            printf("Display rate set to %.2f%%\n", 100.0 * 1.0 /(float)display_every_n);
         }
         else if (c == 'i') {
             printf("Change the device index display filter.\n");
@@ -590,6 +591,7 @@ usage:
             if (rc == -1) { printf("Error: bad command\n"); continue; }
 
             device_idx_filter = atoi(buf);
+            printf("Only displaying frames from device at index %d\n", device_idx_filter);
         }
         else if (c == 't') {
             print_dev_table(devices, num_devs);
