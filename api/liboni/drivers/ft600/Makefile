@@ -5,8 +5,9 @@ DNAME     :=  $(NAME).so.1
 DNAMELN   :=  $(NAME).so
 SRC       :=  onidriver_ft600.c circbuffer.c
 OBJ       :=  $(SRC:.c=.o)
-CFLAGS    :=  -pedantic -Wall -W -Werror -fPIC -O2 -g $(DEFS) -I/usr/local/include
-LDFLAGS   :=  -L. -L/usr/local/lib/ftd3xx 
+FT_PATH   := ./ft3dxx/linux
+CFLAGS    :=  -pedantic -Wall -W -Werror -fPIC -O2 -g $(DEFS) -I$(FT_PATH)
+LDFLAGS   :=  -L. -L$(FT_PATH)
 LIBS      := -lftd3xx -lpthread 
 PREFIX    :=  /usr/local
 
@@ -28,6 +29,8 @@ install: $(SNAME) $(DNAME) ## Install driver. Defaults to make install PREFIX=/u
 	@[ -d $(DESTDIR)$(PREFIX)/lib ] || mkdir -p $(DESTDIR)$(PREFIX)/lib
 	@[ -d $(DESTDIR)$(PREFIX)/include ] || mkdir -p $(DESTDIR)$(PREFIX)/include
 	cp $(DNAME) $(DESTDIR)$(PREFIX)/lib/$(DNAME)
+	cp $(wildcard $(FT_PATH)/*.so*) $(DESTDIR)$(PREFIX)/lib/
+	cp $(wildcard $(FT_PATH)/*.h) $(DESTDIR)$(PREFIX)/include/
 	@[ -d $(DESTDIR)$(PREFIX)/lib/$(DNAMELN) ] || $(RM) $(DESTDIR)$(PREFIX)/lib/$(DNAMELN)
 	ln -s $(DESTDIR)$(PREFIX)/lib/$(DNAME) $(DESTDIR)$(PREFIX)/lib/$(DNAMELN)
 	ldconfig
