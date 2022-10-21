@@ -228,6 +228,19 @@ void oni_ft600_update_control(oni_ft600_ctx ctx)
 		pthread_mutex_unlock(&ctx->controlMutex);
 	}
 }
+
+void flushPipe(oni_ft600_ctx ctx, int pipe)
+{
+    FT_STATUS ftStatus;
+    unsigned char nullbuf[10];
+    ULONG transferred;
+    do 
+    {
+        ftStatus = FT_ReadPipeEx(ctx->ftHandle, pipe, nullbuf, 10, &transferred, 100);
+        if (ftStatus != FT_OK && ftStatus != FT_TIMEOUT && ftStatus != FT_IO_PENDING) break;
+    } while(transferred > 0);
+}
+
 #endif
 
 static inline oni_conf_off_t _oni_register_offset(oni_config_t reg);
@@ -275,10 +288,11 @@ inline void oni_ft600_stop_acq(oni_ft600_ctx ctx)
 	Sleep(10);
 #ifdef _WIN32
     FT_ClearStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in);
-#else
- //   FT_FlushPipe(ctx->ftHandle, pipe_in);
-#endif
     FT_AbortPipe(ctx->ftHandle, pipe_in);
+#else
+     FT_AbortPipe(ctx->ftHandle, pipe_in);
+     flushPipe(ctx, pipeid_data);
+#endif
 	oni_ft600_restart_acq(ctx);
 }
 
@@ -399,8 +413,8 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 	memset(&ftTransfer, 0, sizeof(FT_TRANSFER_CONF));
 	ftTransfer.wStructSize = sizeof(FT_TRANSFER_CONF);
 	//The spec defines that only one simultaneous call to each pipe must be done, so disable built-in thred safety for performance
-	ftTransfer.pipe[FT_PIPE_DIR_IN].fNonThreadSafeTransfer = TRUE;
-	ftTransfer.pipe[FT_PIPE_DIR_OUT].fNonThreadSafeTransfer = TRUE;
+	ftTransfer.pipe[FT_PIPE_DIR_IN].fNonThreadSafeTransfer = FALSE;
+	ftTransfer.pipe[FT_PIPE_DIR_OUT].fNonThreadSafeTransfer = FALSE;
 	CHECK_FTERR(FT_SetTransferParams(&ftTransfer, pipeid_data));
 	//And control is mutexed in the onidriver
 	CHECK_FTERR(FT_SetTransferParams(&ftTransfer, pipeid_control));
