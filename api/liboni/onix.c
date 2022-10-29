@@ -112,24 +112,24 @@ const char *onix_hub_str(int dev_id)
 {
     switch (dev_id) {
         case ONIX_HUB_NULL: {
-            return "Placeholder hub";
+            return "Placeholder Hub";
         }
         case ONIX_HUB_FMCHOST: {
-            return "Open Ephys FMC host";
+            return "Open Ephys ONIX FMC Host";
         }
         case ONIX_HUB_HS64: {
-            return "Open Ephys headstage-64";
+            return "Open Ephys ONIX Headstage-64";
         }
         case ONIX_HUB_HSNP: {
-            return "Open Ephys headstage-neuropix1";
+            return "Open Ephys ONIX Headstage-Neuropixels1.0";
         }
         case ONIX_HUB_HSRHS2116: {
-            return "Open Ephys headstage-rhs2116";
+            return "Open Ephys ONIX Headstage-RHS2116";
         }
         case ONIX_HUB_HS64S: {
-            return "Open Ephys headstage-64s";
+            return "Open Ephys ONIX Headstage-64s";
         }
         default:
-            return "Unknown hub";
+            return "Unknown Hub";
     }
 }

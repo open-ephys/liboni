@@ -5,7 +5,7 @@
 // NB: see https://semver.org/
 #define ONI_VERSION_MAJOR 4
 #define ONI_VERSION_MINOR 3
-#define ONI_VERSION_PATCH 7
+#define ONI_VERSION_PATCH 8
 
 #define ONI_MAKE_VERSION(major, minor, patch) \
     ((major) * 10000 + (minor) * 100 + (patch))
