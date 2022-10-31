@@ -6,7 +6,7 @@ implementation has the following limitations:
 - Fixed size device table
 - Fixed size data frame
 - Block read size must be set to a multiple of the frame size 
-    - 48 bytes, currently
+    - 28 bytes, currently
 - Writing frames is implemented without a visible effect: data is just ignored 
 - Data generation takes place on the read thread.
     - Side effect: ONI_OPT_RUNNING does nothing. 

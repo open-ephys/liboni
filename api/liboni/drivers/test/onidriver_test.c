@@ -96,6 +96,7 @@ static int _send_data_signal(oni_test_ctx ctx,
                              void *data,
                              size_t n);
 static int _find_dev(oni_test_ctx ctx, oni_dev_idx_t idx);
+static int _find_hub_mgr(oni_dev_idx_t idx);
 
 // TODO:
 //static const size_t write_stream_width = 4;
@@ -203,7 +204,7 @@ static int _send_data_signal(oni_test_ctx ctx,
     for (i = 0; i < packet_size + 2; i++)
        if (queue_u8_enqueue(ctx->sig_queue, dst[i]) == -1)
            return -1;
-    
+
     free(src);
 
     return packet_size + 2;
@@ -338,7 +339,7 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
 
         }
         case ONI_CONFIG_RUNNING:
-            // TODO: To do this, we need data to be produce on a separate thread
+            // TODO: To do this, we need data to be produced on a separate thread
             // and passed through a blocking FIFO
             ctx->conf.running = value;
             break;
@@ -491,7 +492,7 @@ static void _fill_read_buffer(oni_test_ctx ctx, uint32_t *data, size_t num_words
         *((data + i + 2)) = ctx->dev_table[d].dev.idx;
         *((data + i + 3)) = ctx->dev_table[d].dev.read_size;
 
-        // Data in the order it is actually produced 
+        // Data in the order it is actually produced
         // by real hardware version of this device.
         uint16_t *temp = (uint16_t *)(data + i + 4);
 
