@@ -65,7 +65,7 @@ enum {
 #define ONIX_HUB_DEV_IDX 254        // Device index
 
 // Hub device register addresses
-typedef enum {
+enum {
     ONIX_HUB_HARDWAREID     = 0,    // Hub hardware ID
     ONIX_HUB_HARDWAREREV    = 1,    // Hub hardware revision
     ONIX_HUB_FIRMWAREVER    = 2,    // Hub firmware version
