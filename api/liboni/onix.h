@@ -49,6 +49,7 @@ enum {
     ONIX_LOADTEST           = 27,   // Variable load testing device
     ONIX_MEMUSAGE           = 28,   // Acquisition hardware buffer usage reporting device
     ONIX_HARPSYNCINPUT      = 30,   // Harp synchronization data input device
+    ONIX_RHS2116            = 31,   // Intan RHS2116 bioamplifier and stimulator
 
     // NB: Final reserved device ID. Always on bottom
     ONIX_MAXDEVICEID        = MAXDEVID,
@@ -64,7 +65,7 @@ enum {
 #define ONIX_HUB_DEV_IDX 254        // Device index
 
 // Hub device register addresses
-typedef enum {
+enum {
     ONIX_HUB_HARDWAREID     = 0,    // Hub hardware ID
     ONIX_HUB_HARDWAREREV    = 1,    // Hub hardware revision
     ONIX_HUB_FIRMWAREVER    = 2,    // Hub firmware version
@@ -81,6 +82,8 @@ enum {
     ONIX_HUB_FMCHOST        = 1,    // Open Ephys FMC host
     ONIX_HUB_HS64           = 2,    // Open Ephys headstage-64
     ONIX_HUB_HSNP           = 3,    // Open Ephys headstage-neuropix1
+    ONIX_HUB_HSRHS2116      = 4,    // Open Ephys headstage-rhs2116
+    ONIX_HUB_HS64S          = 5,    // Open Ephys headstage-64s
 
     // NB: Final reserved hub ID. Always on bottom
     ONIX_HUB_MAXID          = MAXHUBID,
