@@ -1,4 +1,5 @@
 ﻿using Microsoft.Win32.SafeHandles;
+using System;
 using System.Runtime.ConstrainedExecution;
 using System.Runtime.InteropServices;
 using System.Security.Permissions;
@@ -23,9 +24,11 @@ namespace oni
             public readonly byte* data; // Multi-device raw data block
         }
 
-        internal Frame()
+        internal Frame(IntPtr handle)
         : base(true)
         {
+            SetHandle(handle);
+            GC.AddMemoryPressure(((frame_t*)handle.ToPointer())->data_sz);
         }
 
         /// <summary>
@@ -36,6 +39,7 @@ namespace oni
         [ReliabilityContract(Consistency.WillNotCorruptState, Cer.Success)]
         protected override bool ReleaseHandle()
         {
+            GC.RemoveMemoryPressure(((frame_t*)handle.ToPointer())->data_sz);
             NativeMethods.oni_destroy_frame(handle);
             return true;
         }

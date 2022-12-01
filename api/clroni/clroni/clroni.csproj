@@ -6,7 +6,7 @@
     <PackageTags>ONI Open Ephys ONIX</PackageTags>
     <TargetFramework>net472</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>4.3.7</Version>
+    <Version>4.4.0</Version>
     <Authors>Jon Newman</Authors>
     <Company>Open Ephys</Company>
     <Copyright>Copyright © Jonathan Newman 2022</Copyright>
