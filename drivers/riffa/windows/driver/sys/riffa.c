@@ -879,7 +879,7 @@ VOID RiffaEvtInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFDEVICE Device) {
 					// End the transaction early.
 					KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
 						"riffa: fpga:%s chnl:%d, recv txn done\n", devExt->Name, chnl));
-
+					
 					// Read the actual transfer length
 					tnfr = READ_REGISTER_ULONG(devExt->Bar0 + CHNL_REG(chnl, RIFFA_TX_TNFR_LEN_REG));
 					RiffaTransactionComplete(devExt, RIFFA_MAX_NUM_CHNLS + chnl, tnfr,
@@ -1390,8 +1390,8 @@ VOID RiffaIoctlReset(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request) {
 
 	// Reset all the channels
 	for (i = 0; i < DevExt->NumChnls; i++) {
-		RiffaCompleteRequest(DevExt, i, STATUS_CANCELLED, FALSE);
-		RiffaCompleteRequest(DevExt, RIFFA_MAX_NUM_CHNLS + i, STATUS_CANCELLED, FALSE);
+		RiffaCompleteRequest(DevExt, i, STATUS_CANCELLED, FALSE, TRUE);
+		RiffaCompleteRequest(DevExt, RIFFA_MAX_NUM_CHNLS + i, STATUS_CANCELLED, FALSE, TRUE);
 	}
 
 	// Reset the interrupt data
@@ -1447,7 +1447,7 @@ VOID RiffaIoctlUnlock(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request)
  * TimedOut - True if this is a timeout completion, false otherwise
  */
 VOID RiffaCompleteRequest(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl,
-	IN NTSTATUS Status, BOOLEAN TimedOut) {
+	IN NTSTATUS Status, BOOLEAN TimedOut, BOOLEAN ClearReady) {
 	WDFREQUEST request;
 	UINT64 total;
 
@@ -1468,11 +1468,11 @@ VOID RiffaCompleteRequest(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl,
 
 	// Clear the status bits
 	DevExt->Chnl[Chnl].InUse = 0;
-	DevExt->Chnl[Chnl].Ready = 0;
+	if (ClearReady == TRUE) DevExt->Chnl[Chnl].Ready = 0;
 	DevExt->Chnl[Chnl].ReqdDone = 0;
 	DevExt->Chnl[Chnl].Capacity = 0;
 	DevExt->Chnl[Chnl].Provided = 0;
-	DevExt->Chnl[Chnl].Length = 0;
+	if (ClearReady == TRUE) DevExt->Chnl[Chnl].Length = 0;
 	DevExt->Chnl[Chnl].SpillAfter = 0;
 	DevExt->Chnl[Chnl].Timeout = 0;
 
@@ -1508,7 +1508,7 @@ VOID RiffaEvtTimerFunc(IN WDFTIMER Timer) {
     devExt = RiffaGetDeviceContext(WdfIoQueueGetDevice(WdfTimerGetParentObject(Timer)));
 
 	// Cancel the request
-	RiffaCompleteRequest(devExt, timerExt->Chnl, STATUS_CANCELLED, TRUE);
+	RiffaCompleteRequest(devExt, timerExt->Chnl, STATUS_CANCELLED, TRUE, TRUE);
 }
 
 
@@ -1546,7 +1546,7 @@ VOID RiffaStartRecvTransaction(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl) {
 				length + DevExt->Chnl[Chnl].Offset, DevExt->Chnl[Chnl].Offset,
 				WdfDmaDirectionReadFromDevice);
 			if (!NT_SUCCESS(status)) {
-				RiffaCompleteRequest(DevExt, Chnl, status, FALSE);
+				RiffaCompleteRequest(DevExt, Chnl, status, FALSE, TRUE);
 			}
 		}
 		else {
@@ -1557,11 +1557,11 @@ VOID RiffaStartRecvTransaction(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl) {
 	}
 	else if (DevExt->Chnl[Chnl].Last) {
 		// Recognize zero length receive and complete
-		RiffaCompleteRequest(DevExt, Chnl, STATUS_SUCCESS, FALSE);
+		RiffaCompleteRequest(DevExt, Chnl, STATUS_SUCCESS, FALSE, FALSE);
 	}
 	else {
 		// Invalid request, should never happen
-		RiffaCompleteRequest(DevExt, Chnl, STATUS_CANCELLED, FALSE);
+		RiffaCompleteRequest(DevExt, Chnl, STATUS_CANCELLED, FALSE, TRUE);
 	}
 }
 
@@ -1778,7 +1778,7 @@ VOID RiffaTransactionComplete(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl,
 		DevExt->Chnl[Chnl].Confirmed = (((UINT64)Transferred)<<2);
 
 		// Complete the send request
-		RiffaCompleteRequest(DevExt, Chnl, Status, FALSE);
+		RiffaCompleteRequest(DevExt, Chnl, Status, FALSE, TRUE);
 	}
 	else {
 		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
@@ -1791,7 +1791,7 @@ VOID RiffaTransactionComplete(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl,
 			DevExt->Chnl[Chnl].Confirmed = (((UINT64)Transferred)<<2);
 
 			// Complete the receive request
-			RiffaCompleteRequest(DevExt, Chnl, Status, FALSE);
+			RiffaCompleteRequest(DevExt, Chnl, Status, FALSE, FALSE);
 		}
 		else {
 			// Not the "last" transaction. Save the transferred amount.
