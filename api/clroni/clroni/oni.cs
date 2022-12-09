@@ -90,14 +90,23 @@ namespace oni
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
         internal static extern int oni_write_reg(ContextHandle ctx, uint dev_idx, uint addr, uint val);
 
-        [DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
-        internal static extern int oni_read_frame(ContextHandle ctx, out Frame frame);
+        //[DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
+        //internal static extern int oni_read_frame(ContextHandle ctx, out Frame frame);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
-        internal static extern int oni_create_frame(ContextHandle ctx, out Frame frame, uint dev_idx, IntPtr data, uint data_sz);
+        internal static extern int oni_read_frame(ContextHandle ctx, out IntPtr frame);
+
+        //[DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
+        //internal static extern int oni_create_frame(ContextHandle ctx, out Frame frame, uint dev_idx, IntPtr data, uint data_sz);
+
+        //[DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
+        //internal static extern int oni_write_frame(ContextHandle ctx, Frame frame);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
-        internal static extern int oni_write_frame(ContextHandle ctx, Frame frame);
+        internal static extern int oni_create_frame(ContextHandle ctx, out IntPtr frame, uint dev_idx, IntPtr data, uint data_sz);
+
+        [DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
+        internal static extern int oni_write_frame(ContextHandle ctx, IntPtr frame);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
         [ReliabilityContract(Consistency.WillNotCorruptState, Cer.Success)]

@@ -408,9 +408,9 @@ namespace oni
         /// a frame.</exception>
         public Frame ReadFrame()
         {
-            int rc = NativeMethods.oni_read_frame(ctx, out Frame frame);
+            int rc = NativeMethods.oni_read_frame(ctx, out IntPtr data);
             if (rc < 0) { throw new ONIException(rc); }
-            return frame;
+            return new Frame(data);
         }
 
         /// <summary>
@@ -446,7 +446,7 @@ namespace oni
         public void Write<T>(uint dev_index, T[] data) where T : unmanaged
         {
             var num_bytes = Buffer.ByteLength(data);
-            Frame frame;
+            IntPtr frame;
             int rc;
 
             // NB: oni_create_frame copies this data
@@ -458,6 +458,8 @@ namespace oni
 
             rc = NativeMethods.oni_write_frame(ctx, frame);
             if (rc < 0) { throw new ONIException(rc); }
+
+            NativeMethods.oni_destroy_frame(frame);
         }
 
         //public void Write<T>(uint dev_idx, T[] data) where T : unmanaged
@@ -507,11 +509,13 @@ namespace oni
         /// data.</exception>
         public void Write(uint dev_index, IntPtr data, int data_size)
         {
-            int rc = NativeMethods.oni_create_frame(ctx, out Frame frame, dev_index, data, (uint)data_size);
+            int rc = NativeMethods.oni_create_frame(ctx, out IntPtr frame, dev_index, data, (uint)data_size);
             if (rc < 0) { throw new ONIException(rc); }
 
             rc = NativeMethods.oni_write_frame(ctx, frame);
             if (rc < 0) { throw new ONIException(rc); }
+
+            NativeMethods.oni_destroy_frame(frame);
         }
 
         /// <summary>

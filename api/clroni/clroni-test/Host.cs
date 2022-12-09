@@ -108,11 +108,17 @@ namespace clroni_test
                     foreach (var dev in ctx.DeviceTable.Values)
                     {
 
-                        Console.WriteLine("\t{0}) ID: {1}, Read size: {2}, Write size: {3}",
-                                          dev.Address,
-                                          dev.ID,
-                                          dev.ReadSize,
-                                          dev.WriteSize);
+                        try {
+
+                            var hd = ctx.GetHub(dev.Address).Description;
+
+                            Console.WriteLine("\t{0}) ID: {1}, Read size: {2}, Write size: {3}, Hub: {4}",
+                                              dev.Address,
+                                              dev.ID,
+                                              dev.ReadSize,
+                                              dev.WriteSize,
+                                              hd);
+                        } catch { }
                     }
 
                     // See how big max frames are

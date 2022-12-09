@@ -1,4 +1,8 @@
-// Hint -- "NB:..." indicates why. Other comments indicate what.
+// TODO:
+// 1. Get rid of oni_fifo_size_t and anything else
+// hardcoding fifo width at this top level driver. Or the loaded driver
+// could import this number somehow (e.g. via extern variable or context member)
+
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -8,12 +12,6 @@
 
 #include "oni.h"
 #include "onidriverloader.h"
-
-// TODO:
-// 1. Get rid of oni_fifo_size_t and anything else
-// hardcoding fifo width at this top level driver. Or the loaded driver
-// could import this number somehow (e.g. via extern variable or context member).
-// 2. FMC host rev 1.3 vs 1.4 in devices.
 
 // Device hash table overhead factor
 #define ONI_DEVHASHOVERHEAD (10.0)
@@ -102,7 +100,7 @@ typedef enum {
     DEVICEINST          = (1u << 6), // Device table instance
 } oni_signal_t;
 
-// Static helpers
+// Helpers
 static inline oni_dev_idx_t _oni_hash32(oni_dev_idx_t x);
 static inline int _oni_hash32_find(oni_ctx ctx, oni_dev_idx_t x);
 static int _oni_reset_routine(oni_ctx ctx);
@@ -707,7 +705,7 @@ int oni_create_frame(const oni_ctx ctx,
     int i = _oni_hash32_find(ctx, dev_idx);
     if (i < 0) return ONI_EDEVIDX;
 
-    // Check that the devices accepts
+    // Check that the devices accepts data
     if (ctx->dev_hash_table[i].write_size == 0)
         return ONI_ENOTWRITEDEV;
 
@@ -739,7 +737,7 @@ int oni_create_frame(const oni_ctx ctx,
 
     // Copy frame header members into start of continuous buffer, before data
     // 0. index (4)
-    // 2. data_sz (4)
+    // 1. data_sz (4)
     *((oni_fifo_dat_t *)buffer_start + 0) = iframe->private.f.dev_idx;
     *((oni_fifo_dat_t *)buffer_start + 1) = iframe->private.f.data_sz >> BYTE_TO_FIFO_SHIFT;
 

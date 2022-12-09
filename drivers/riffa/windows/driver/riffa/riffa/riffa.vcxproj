@@ -70,15 +70,19 @@
   <PropertyGroup />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -89,7 +93,7 @@
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
     <Inf>
-      <TimeStamp>6.0.1.2</TimeStamp>
+      <TimeStamp>6.0.1.3</TimeStamp>
     </Inf>
     <DriverSign />
   </ItemDefinitionGroup>
@@ -102,7 +106,7 @@
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
     <Inf>
-      <TimeStamp>6.0.1.2</TimeStamp>
+      <TimeStamp>6.0.1.3</TimeStamp>
     </Inf>
     <DriverSign />
   </ItemDefinitionGroup>
@@ -112,7 +116,7 @@
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
     <Inf>
-      <TimeStamp>6.0.1.2</TimeStamp>
+      <TimeStamp>6.0.1.3</TimeStamp>
       <SpecifyDriverVerDirectiveVersion>true</SpecifyDriverVerDirectiveVersion>
     </Inf>
     <DriverSign />
@@ -123,7 +127,7 @@
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
     <Inf>
-      <TimeStamp>6.0.1.2</TimeStamp>
+      <TimeStamp>6.0.1.3</TimeStamp>
       <SpecifyDriverVerDirectiveVersion>true</SpecifyDriverVerDirectiveVersion>
     </Inf>
     <DriverSign />
