@@ -91,4 +91,12 @@ typedef uint64_t oni_fifo_time_t; // FIFO bound timers use 64-bit words; // TODO
 // Register size
 #define ONI_REGSZ sizeof(oni_reg_val_t)
 
+typedef struct {
+    const char *name;
+    const int major;
+    const int minor;
+    const int patch;
+    const char *preRelase;
+} oni_driver_info_t;
+
 #endif

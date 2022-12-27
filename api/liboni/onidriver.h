@@ -49,7 +49,7 @@ ONI_DRIVER_EXPORT int oni_driver_set_opt(oni_driver_ctx driver_ctx, int driver_o
 ONI_DRIVER_EXPORT int oni_driver_get_opt(oni_driver_ctx driver_ctx, int driver_option, void *value, size_t* option_len);
 
 // Get a string identifying the driver
-ONI_DRIVER_EXPORT const char *oni_driver_str();
+ONI_DRIVER_EXPORT const oni_driver_info_t *oni_driver_info();
 
 #endif
 

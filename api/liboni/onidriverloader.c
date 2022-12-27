@@ -75,7 +75,7 @@ int oni_create_driver(const char* lib_name, oni_driver_t* driver)
     LOAD_FUNCTION(set_opt_callback);
     LOAD_FUNCTION(set_opt);
     LOAD_FUNCTION(get_opt);
-    LOAD_FUNCTION(str);
+    LOAD_FUNCTION(info);
 
     if (!rc) {
         driver->ctx = driver->create_ctx();
