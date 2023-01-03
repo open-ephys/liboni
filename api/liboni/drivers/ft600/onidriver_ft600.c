@@ -60,6 +60,9 @@ typedef enum
 	SIG_REG
 } oni_ft600_sigstate;
 
+const oni_driver_info_t driverInfo
+    = {.name = "ft600", .major = 1, .minor = 0, .patch = 0, .pre_relase = NULL};
+
 struct oni_ft600_ctx_impl {
 	oni_size_t inBlockSize;
 	oni_size_t outBlockSize;
@@ -812,9 +815,9 @@ int oni_driver_get_opt(oni_driver_ctx driver_ctx,
 	return ONI_EINVALOPT;
 }
 
-const char* oni_driver_str()
+const oni_driver_info_t* oni_driver_info() 
 {
-	return "ft600_usb";
+    return &driverInfo;
 }
 
 static inline oni_conf_off_t _oni_register_offset(oni_config_t reg)
