@@ -787,6 +787,11 @@ void oni_version(int *major, int *minor, int *patch)
     *patch = ONI_VERSION_PATCH;
 }
 
+const oni_driver_info_t* oni_get_driver_info(const oni_ctx ctx) 
+{
+    return ctx->driver.info();
+}
+
 const char *oni_error_str(int err)
 {
     assert(err > ONI_MINERRORNUM && "Invalid error number.");

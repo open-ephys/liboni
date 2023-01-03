@@ -29,7 +29,7 @@ typedef int(*oni_driver_set_opt_f)(oni_driver_ctx, int, const void *, size_t);
 typedef int(*oni_driver_get_opt_f)(oni_driver_ctx, int, void *, size_t *);
 typedef int(*oni_driver_set_opt_callback_f)(oni_driver_ctx, int, const void *, size_t);
 
-typedef const char*(*oni_driver_str_f)();
+typedef const oni_driver_info_t*(*oni_driver_info_f)();
 
 // Driver field with function table and driver context
 typedef struct oni_driver {
@@ -45,7 +45,7 @@ typedef struct oni_driver {
     oni_driver_set_opt_callback_f set_opt_callback;
     oni_driver_set_opt_f set_opt;
     oni_driver_get_opt_f get_opt;
-    oni_driver_str_f str;
+    oni_driver_info_f info;
 } oni_driver_t;
 
 int oni_create_driver(const char *lib_name, oni_driver_t *driver);
