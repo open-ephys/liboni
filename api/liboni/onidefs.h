@@ -96,7 +96,7 @@ typedef struct {
     const int major;
     const int minor;
     const int patch;
-    const char *preRelase;
+    const char *pre_relase;
 } oni_driver_info_t;
 
 #endif
