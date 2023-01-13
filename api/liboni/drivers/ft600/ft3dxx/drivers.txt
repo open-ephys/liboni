@@ -1,0 +1,4 @@
+download the latest drivers from https://ftdichip.com/drivers/d3xx-drivers/
+
+For windows, download the application library (DLL) and extract its contents on this folder
+For linux, follow the installation instructions

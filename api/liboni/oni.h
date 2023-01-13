@@ -78,6 +78,7 @@ ONI_EXPORT void oni_destroy_frame(oni_frame_t *frame);
 
 // Helpers
 ONI_EXPORT void oni_version(int *major, int *minor, int *patch);
+ONI_EXPORT const oni_driver_info_t* oni_get_driver_info(const oni_ctx ctx);
 ONI_EXPORT const char *oni_error_str(int err);
 
 #ifdef __cplusplus

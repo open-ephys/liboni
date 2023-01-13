@@ -15,6 +15,9 @@
 
 #define MIN(a,b) ((a<b) ? a : b)
 
+const oni_driver_info_t driverInfo
+    = {.name = "riffa", .major = 1, .minor = 0, .patch = 0, .pre_relase = NULL};
+
 struct oni_riffa_ctx_impl {
     oni_size_t block_size;
     fpga_t* fpga;
@@ -254,9 +257,9 @@ int oni_driver_get_opt(oni_driver_ctx driver_ctx,
     return ONI_EINVALOPT;
 }
 
-const char* oni_driver_str()
+const oni_driver_info_t* oni_driver_info()
 {
-    return "riffa";
+    return &driverInfo;
 }
 
 static inline oni_conf_off_t _oni_register_offset(oni_config_t reg)
