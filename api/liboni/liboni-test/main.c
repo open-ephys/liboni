@@ -16,9 +16,9 @@
 
 // Version macros for compile-time program version
 // NB: see https://semver.org/
-#define ONI_REPL_VERSION_MAJOR 0
+#define ONI_REPL_VERSION_MAJOR 1
 #define ONI_REPL_VERSION_MINOR 0
-#define ONI_REPL_VERSION_PATCH 1
+#define ONI_REPL_VERSION_PATCH 0
 
 // Turn on simple feedback loop for real-time testing?
 // #define FEEDBACKLOOP
@@ -650,7 +650,7 @@ exit:
         printf("Enter a command and press enter:\n");
         printf("\td - toggle frame display\n");
         printf("\tD - change the percent of frames displayed\n");
-        printf("\ti - Set in order to display frames only from a particular device\n");
+        printf("\ti - set a filter to display frames only from a particular device\n");
         printf("\tt - print current device table\n");
         printf("\tp - toggle running/pause register (used for interal testing)\n");
         printf("\ts - toggle running/pause register & r/w thread operation (used for internal testing)\n");
@@ -704,7 +704,7 @@ exit:
             display_rate = atof(buf);
 
             if (display_rate <= 0 || display_rate > 100) {
-                printf("Error: invalid number. Pick a within (0.0, 100.0].\n");
+                printf("Error: invalid number. Pick a value within (0.0, 100.0].\n");
                 continue;
             }
 
