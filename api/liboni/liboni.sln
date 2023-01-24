@@ -21,12 +21,18 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "riffa", "..\..\drivers\riff
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "onidriver_test", "drivers\test\onidriver_test.vcxproj", "{BF4C2065-1261-475D-8D52-021FD58411F0}"
 EndProject
-
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "hub-update", "hub-update\hub-update.vcxproj", "{16229227-3B45-4FD7-A71B-5991594C2DC3}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "latency-test", "latency-test\latency-test.vcxproj", "{886C0F32-0DB1-4D7D-B00F-75C762217DEA}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "onidriver_ft600", "drivers\ft600\onidriver_ft600.vcxproj", "{127796BA-A009-43DD-9F0B-295BE0D422B9}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "onix-loadtest", "onix-loadtest\onix-loadtest.vcxproj", "{936042A1-21E3-4AC0-B337-D8BAA212CB30}"
+	ProjectSection(ProjectDependencies) = postProject
+		{0B6B9ACA-75DE-4776-A6CA-B4123ED59F1D} = {0B6B9ACA-75DE-4776-A6CA-B4123ED59F1D}
+		{2EEE4EEA-F12C-4087-81EF-1EB27CE2036B} = {2EEE4EEA-F12C-4087-81EF-1EB27CE2036B}
+	EndProjectSection
+EndProject
 
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -85,6 +91,7 @@ Global
 		{BF4C2065-1261-475D-8D52-021FD58411F0}.Release|x86.ActiveCfg = Release|Win32
 		{BF4C2065-1261-475D-8D52-021FD58411F0}.Release|x86.Build.0 = Release|Win32
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 		{16229227-3B45-4FD7-A71B-5991594C2DC3}.Debug|x64.ActiveCfg = Debug|x64
 		{16229227-3B45-4FD7-A71B-5991594C2DC3}.Debug|x64.Build.0 = Debug|x64
@@ -111,6 +118,16 @@ Global
 		{127796BA-A009-43DD-9F0B-295BE0D422B9}.Release|x86.ActiveCfg = Release|Win32
 		{127796BA-A009-43DD-9F0B-295BE0D422B9}.Release|x86.Build.0 = Release|Win32
 >>>>>>> b564076b3342ff0d7d9994cfb9fd2cb4f2140e55
+=======
+		{936042A1-21E3-4AC0-B337-D8BAA212CB30}.Debug|x64.ActiveCfg = Debug|x64
+		{936042A1-21E3-4AC0-B337-D8BAA212CB30}.Debug|x64.Build.0 = Debug|x64
+		{936042A1-21E3-4AC0-B337-D8BAA212CB30}.Debug|x86.ActiveCfg = Debug|Win32
+		{936042A1-21E3-4AC0-B337-D8BAA212CB30}.Debug|x86.Build.0 = Debug|Win32
+		{936042A1-21E3-4AC0-B337-D8BAA212CB30}.Release|x64.ActiveCfg = Release|x64
+		{936042A1-21E3-4AC0-B337-D8BAA212CB30}.Release|x64.Build.0 = Release|x64
+		{936042A1-21E3-4AC0-B337-D8BAA212CB30}.Release|x86.ActiveCfg = Release|Win32
+		{936042A1-21E3-4AC0-B337-D8BAA212CB30}.Release|x86.Build.0 = Release|Win32
+>>>>>>> 6170661870a9343c6ee83503ae3f5d2e191f575a
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
