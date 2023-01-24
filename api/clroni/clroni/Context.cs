@@ -67,7 +67,7 @@ namespace oni
         /// maps a fully-qualified <see cref="Device.Address"/> to a
         /// <see cref="Device"/> instance.
         /// </summary>
-        public readonly Dictionary<uint, Device> DeviceTable;
+        public Dictionary<uint, Device> DeviceTable { get; private set; }
 
         /// <summary>
         /// Initializes a new instance of <see cref="Context"/> with the
@@ -103,7 +103,13 @@ namespace oni
             MaxReadFrameSize = (uint)GetIntOption((int)Option.MAXREADFRAMESIZE);
             MaxWriteFrameSize = (uint)GetIntOption((int)Option.MAXWRITEFRAMESIZE);
 
-            // Populate device table
+            PopulateDeviceTable();
+            
+        }
+
+        // Populate device table
+        private void PopulateDeviceTable()
+        {
             int num_devs = GetIntOption((int)Option.NUMDEVICES);
             DeviceTable = new Dictionary<uint, Device>(num_devs);
             int size_dev = Marshal.SizeOf(new Device());
@@ -117,6 +123,15 @@ namespace oni
                 DeviceTable.Add(d.Address, d);
                 table = new IntPtr((long)table + size_dev);
             }
+        }
+
+        /// <summary>
+        /// Issues a reset command to the hardware and refreshes the device table.
+        /// </summary>
+        public void Refresh()
+        {
+            SetIntOption((int)Option.RESET, 1);
+            PopulateDeviceTable();
         }
 
         // GetOption
