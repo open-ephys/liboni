@@ -6,17 +6,17 @@
     <PackageTags>ONI Open Ephys ONIX</PackageTags>
     <TargetFramework>net472</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>4.4.1</Version>
+    <Version>4.5.1</Version>
     <Authors>Jon Newman</Authors>
     <Company>Open Ephys</Company>
-    <Copyright>Copyright © Jonathan Newman 2022</Copyright>
+    <Copyright>Copyright © Jonathan Newman</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
     <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
     <Platforms>AnyCPU;x64</Platforms>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <AssemblyVersion>4.4.1.0</AssemblyVersion>
-    <FileVersion>4.4.1.0</FileVersion>
+    <AssemblyVersion>4.5.1.0</AssemblyVersion>
+    <FileVersion>4.5.1.0</FileVersion>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RepositoryUrl>https://github.com/open-ephys/liboni</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
