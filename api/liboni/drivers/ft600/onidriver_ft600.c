@@ -134,7 +134,7 @@ enum ft600_pipeid
 };
 #endif
 
-inline void fill_control_buffers(oni_ft600_ctx ctx, ULONG transferred)
+void fill_control_buffers(oni_ft600_ctx ctx, ULONG transferred)
 {
 	size_t index = 0;
 	size_t lastIndex = 0;

@@ -44,8 +44,10 @@ static inline void* get_driver_function(lib_handle_t handle, const char* functio
 
 int oni_create_driver(const char* lib_name, oni_driver_t* driver)
 {
-#ifdef _WIN32
+#if defined(_WIN32)
     const char* extension = ".dll";
+#elif defined(__APPLE__)
+    const char* extension = ".dylib";
 #else
     const char* extension = ".so";
 #endif
@@ -57,11 +59,12 @@ int oni_create_driver(const char* lib_name, oni_driver_t* driver)
 
     char* full_lib_name = malloc(len + 1);
     sprintf(full_lib_name, "%s%s%s", prefix, lib_name, extension);
+printf("Trying to load %s\n",full_lib_name);
     handle = open_library(full_lib_name);
     free(full_lib_name);
 
     if (!handle) {
-        // fprintf(stderr, "Failed to load driver: %s\n", dlerror());
+        fprintf(stderr, "Failed to load driver: %s\n", dlerror());
         return -1;
     }
 
