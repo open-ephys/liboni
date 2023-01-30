@@ -9,7 +9,7 @@
     <Version>5.0.0</Version>
     <Authors>Jon Newman</Authors>
     <Company>Open Ephys</Company>
-    <Copyright>Copyright © Jonathan Newman 2022</Copyright>
+    <Copyright>Copyright © Jonathan Newman</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
     <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
