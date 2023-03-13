@@ -30,6 +30,9 @@
 
 #define MIN(a,b) ((a<b) ? a : b)
 
+const oni_driver_info_t driverInfo
+    = {.name = "test", .major = 1, .minor = 0, .patch = 0, .pre_relase = NULL};
+
 struct conf_reg {
     uint32_t dev_idx;
     uint32_t reg_addr;
@@ -468,9 +471,9 @@ int oni_driver_get_opt(oni_driver_ctx driver_ctx,
     return ONI_EINVALOPT;
 }
 
-const char *oni_driver_str()
+const oni_driver_info_t *oni_driver_info()
 {
-    return "test";
+    return &driverInfo;
 }
 
 static void _fill_read_buffer(oni_test_ctx ctx, uint32_t *data, size_t num_words)
