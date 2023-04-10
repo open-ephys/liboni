@@ -50,6 +50,7 @@ enum {
     ONIX_MEMUSAGE           = 28,   // Acquisition hardware buffer usage reporting device
     ONIX_HARPSYNCINPUT      = 30,   // Harp synchronization data input device
     ONIX_RHS2116            = 31,   // Intan RHS2116 bioamplifier and stimulator
+    ONIX_RHS2116TRIGGER     = 32,   // Multi Intan RHS2116 stimulation trigger
 
     // NB: Final reserved device ID. Always on bottom
     ONIX_MAXDEVICEID        = MAXDEVID,

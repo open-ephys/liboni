@@ -89,7 +89,7 @@ const char *onix_device_str(int dev_id)
                    "stations";
         }
         case ONIX_MAX10ADCCORE: {
-            return "Max10 internal ADC device";
+            return "Intel MAX10 internal ADC device";
         }
         case ONIX_LOADTEST: {
             return "Variable load testing device";
@@ -102,6 +102,9 @@ const char *onix_device_str(int dev_id)
         }
         case ONIX_RHS2116: {
             return "Intan RHS2116 bioamplifier and stimulator";
+        }
+        case ONIX_RHS2116TRIGGER: {
+            return "Multi Intan RHS2116 stimulation trigger";
         }
         default:
             return "Unknown device";
