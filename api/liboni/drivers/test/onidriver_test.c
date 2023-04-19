@@ -1,7 +1,7 @@
 // This is a very simple ONI-compliant hardware emulator. It has some
 // limitations:
 //
-// 1. ONI_OPT_RUNNING does nothing. To make it work, data would need to be
+// 1. ONI_OPT_RUNNING does not enable/disable data. To make it work, data would need to be
 //    produced on a separate thread and passed through a blocking FIFO
 // 2. It only supports a device table with containing devices with a fixed
 //    read/write size
@@ -22,6 +22,8 @@
 #include "../../onix.h"
 #include "../../liboni-test/testfunc.h"
 #include "queue_u8.h"
+
+#define NUMTESTDEVICES 4
 
 #define UNUSED(x) (void)(x)
 
@@ -46,6 +48,7 @@ struct conf_reg {
 
 typedef struct {
     oni_device_t dev;
+    int32_t stream_enabled;
     int32_t message;
     uint64_t counter;
     uint32_t hubhwid;
@@ -75,7 +78,11 @@ struct oni_test_ctx_impl {
 
     // Device table is a single device
     int num_devs;
-    test_dev_t dev_table[4];
+    test_dev_t dev_table[NUMTESTDEVICES];
+
+    // Enabled devices
+    int num_enabled;
+    int enabled_idx[NUMTESTDEVICES];
 };
 
 typedef struct oni_test_ctx_impl* oni_test_ctx;
@@ -125,6 +132,9 @@ oni_driver_ctx oni_driver_create_ctx()
     // Create devices, each on their own hub
     ctx->num_devs = sizeof(ctx->dev_table) / sizeof(test_dev_t);
 
+    // All devices default to enabled
+    ctx->num_enabled = ctx->num_devs;
+
     int i;
     for (i = 0; i < ctx->num_devs; i++) {
 
@@ -133,12 +143,15 @@ oni_driver_ctx oni_driver_create_ctx()
         ctx->dev_table[i].dev.version = 1;
         ctx->dev_table[i].dev.read_size = 12;
         ctx->dev_table[i].dev.write_size = 32;
+        ctx->dev_table[i].stream_enabled = 1;
         ctx->dev_table[i].message = i * 42;
         ctx->dev_table[i].counter = 0;
         ctx->dev_table[i].hubhwid = 5;
         ctx->dev_table[i].hubfirmver = 1600;
         ctx->dev_table[i].hubclkhz = (i + 1) * 50e6;
         ctx->dev_table[i].hubdelayns = 628;
+
+        ctx->enabled_idx[i] = i;
     }
 
     // Configuration registers
@@ -322,8 +335,14 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
                             break;
                     }
                     _send_msg_signal(ctx, CONFIGRACK);
-                } else if (ctx->conf.reg_addr == 1) { // Only register 1 (message) is specified for this device
+                } else if (ctx->conf.reg_addr == 0) { // Register 0 (enable)
+                    ctx->conf.reg_value = ctx->dev_table[i].stream_enabled;
+                    _send_msg_signal(ctx, CONFIGRACK);
+                } else if (ctx->conf.reg_addr == 1) { // Register 1 (message)
                     ctx->conf.reg_value = ctx->dev_table[i].message;
+                    _send_msg_signal(ctx, CONFIGRACK);
+                } else if (ctx->conf.reg_addr == 2) { // Register 2 (number of test words following message)
+                    ctx->conf.reg_value = 0;
                     _send_msg_signal(ctx, CONFIGRACK);
                 } else {
                     _send_msg_signal(ctx, CONFIGRNACK);
@@ -331,7 +350,10 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
             } else if (value) { // write
                 if (hub_mgr) {
                     _send_msg_signal(ctx, CONFIGWNACK); // Read only
-                } else if (ctx->conf.reg_addr == 1) { // Only register 1 (message) is specified for this device
+                } else if (ctx->conf.reg_addr == 0) { // Register 0 (enable)
+                    ctx->dev_table[i].stream_enabled = (short)ctx->conf.reg_value;
+                    _send_msg_signal(ctx, CONFIGWACK);
+                } else if (ctx->conf.reg_addr == 1) { // Register 1 (message)
                     ctx->dev_table[i].message = (short)ctx->conf.reg_value;
                     _send_msg_signal(ctx, CONFIGWACK);
                 } else {
@@ -345,6 +367,21 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
             // TODO: To do this, we need data to be produced on a separate thread
             // and passed through a blocking FIFO
             ctx->conf.running = value;
+
+            // Lock in the devices that are enabled
+            if (value) {
+
+                 int i, k = 0;
+                 for (i = 0; i < ctx->num_devs; i++) {
+
+                    if (ctx->dev_table[i].stream_enabled) {
+                        ctx->enabled_idx[k] = i;
+                        k++;
+                    }
+                 }
+                 ctx->num_enabled = k;
+            }
+
             break;
         case ONI_CONFIG_RESET: {
 
@@ -478,16 +515,17 @@ const oni_driver_info_t *oni_driver_info()
 
 static void _fill_read_buffer(oni_test_ctx ctx, uint32_t *data, size_t num_words)
 {
+
     // Here we are dealing with uint32_t data
     // 1. index (1)
     // 2. data_sz (1)
     // 3. timer (2)
     // 4. Data ([8: counter, 4: message])
     size_t i;
-    int d = rand() % ctx->num_devs;
+    int d = ctx->enabled_idx[rand() % ctx->num_enabled]; // Select a randome device (that is generating data)
     for (i = 0;
          i < num_words;
-         d = rand() % ctx->num_devs,
+         d = ctx->enabled_idx[rand() % ctx->num_enabled],
          i += (ONI_FRAMEHEADERSZ + ctx->dev_table[d].dev.read_size) >> 2) {
 
         // Header

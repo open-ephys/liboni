@@ -157,7 +157,7 @@ void *read_loop(void *vargp)
         int i = find_dev(frame->dev_idx);
         if (i == -1) goto next;
 
-        if (dump) {
+        if (dump && devices[i].id != ONIX_NULL) {
             fwrite(frame->data, 1, frame->data_sz, dump_files[i]);
         }
 
@@ -527,29 +527,31 @@ exit:
 
         // Open dump files
         for (size_t i = 0; i < num_devs; i++) {
-            char *buffer = malloc(500);
-            snprintf(buffer,
-                     500,
-                     "%s\\%s_idx-%zd_id-%d_%d-%02d-%02d-%02d-%02d-%02d.raw",
-                     dump_path,
-                     "dev",
-                     i,
-                     devices[i].id,
-                     tm.tm_year + 1900,
-                     tm.tm_mon + 1,
-                     tm.tm_mday,
-                     tm.tm_hour,
-                     tm.tm_min,
-                     tm.tm_sec);
-            dump_files[i] = fopen(buffer, "wb");
+            if (devices[i].id != ONIX_NULL) { 
+                char *buffer = malloc(500);
+                snprintf(buffer,
+                         500,
+                         "%s\\%s_idx-%zd_id-%d_%d-%02d-%02d-%02d-%02d-%02d.raw",
+                         dump_path,
+                         "dev",
+                         i,
+                         devices[i].id,
+                         tm.tm_year + 1900,
+                         tm.tm_mon + 1,
+                         tm.tm_mday,
+                         tm.tm_hour,
+                         tm.tm_min,
+                         tm.tm_sec);
+                dump_files[i] = fopen(buffer, "wb");
 
-            if (dump_files[i] == NULL) {
-                printf("Error opening %s: %s\n", buffer, strerror(errno));
+                if (dump_files[i] == NULL) {
+                    printf("Error opening %s: %s\n", buffer, strerror(errno));
+                    free(buffer);
+                    goto usage;
+                }
+
                 free(buffer);
-                goto usage;
             }
-
-            free(buffer);
         }
     }
 
@@ -793,7 +795,7 @@ exit:
             size_t len = 0;
             rc = getline(&buf, &len, stdin);
             if (rc == -1) {
-                printf("Error: bad command\n");
+                printf("Error: bad command.\n");
                 continue;
             }
 
@@ -801,7 +803,7 @@ exit:
             long values[1];
             rc = parse_reg_cmd(buf, values, 1);
             if (rc == -1) {
-                printf("Error: bad command\n");
+                printf("Error: bad command.\n");
                 continue;
             }
             free(buf);
@@ -846,8 +848,10 @@ exit:
 
     if (dump) {
         // Close dump files
-        for (int dev_idx = 0; dev_idx < num_devs; dev_idx++) {
-            fclose(dump_files[dev_idx]);
+        for (int i = 0; i < num_devs; i++) {
+            if (devices[i].id != ONIX_NULL) {
+                fclose(dump_files[i]);
+            }
         }
     }
 

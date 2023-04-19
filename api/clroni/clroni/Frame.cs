@@ -83,6 +83,6 @@ namespace oni
         /// <summary>
         /// Get the payload data size in bytes. See <see cref="Frame.Data{T}"/>.
         /// </summary>
-        public long DataSize => ((frame_t*)handle.ToPointer())->data_sz;
+        public uint DataSize => ((frame_t*)handle.ToPointer())->data_sz;
     }
 }
