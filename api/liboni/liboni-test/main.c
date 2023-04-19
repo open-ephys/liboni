@@ -18,7 +18,7 @@
 // NB: see https://semver.org/
 #define ONI_REPL_VERSION_MAJOR 1
 #define ONI_REPL_VERSION_MINOR 0
-#define ONI_REPL_VERSION_PATCH 0
+#define ONI_REPL_VERSION_PATCH 1
 
 // Turn on simple feedback loop for real-time testing?
 // #define FEEDBACKLOOP
@@ -35,6 +35,7 @@
 #else
 #include <unistd.h>
 #include <pthread.h>
+#define Sleep(x) usleep((x)*1000)
 #endif
 
 // Options
@@ -140,12 +141,13 @@ void *read_loop(void *vargp)
     oni_frame_t *w_frame = NULL;
     oni_create_frame(ctx, &w_frame, 8, 4);
 #endif
-
+    
     while (!quit)  {
 
         int rc = 0;
         oni_frame_t *frame = NULL;
         rc = oni_read_frame(ctx, &frame);
+        //printf("frame %d\n", frame->dev_idx);
         if (rc < 0) {
             printf("Error: %s\n", oni_error_str(rc));
             quit = 1;
@@ -176,7 +178,7 @@ void *read_loop(void *vargp)
             size_t i;
             printf("\tData: [");
             for (i = 0; i < frame->data_sz; i += 2)
-                printf("%u ", *(uint16_t *)(frame->data + i));
+                printf("%x ", *(uint16_t *)(frame->data + i));
             printf("]\n");
 
             print_count++;
@@ -616,6 +618,10 @@ exit:
     //assert(!rc && "Register read failure.");
     //printf("Hardware address: 0x%08x\n", reg);
 
+    // Start reading and writing threads
+    start_threads();
+    Sleep(500);
+
     rc = oni_get_opt(ctx, ONI_OPT_RUNNING, &reg, &reg_sz);
     if (rc) {printf("Error: %s\n", oni_error_str(rc)); }
     assert(!rc && "Register read failure.");
@@ -639,8 +645,7 @@ exit:
     //rc = oni_set_opt(ctx, ONI_OPT_RUNNING, &reg, sizeof(oni_size_t));
     //if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
 
-    // Start reading and writing threads
-    start_threads();
+    
 
     // Read stdin to start (s) or pause (p)
     printf("Some commands can cause hardware malfunction if issued in the wrong order!\n");
