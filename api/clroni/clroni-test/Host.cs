@@ -41,7 +41,7 @@ namespace clroni_test
                     {
                         if (display)
                         {
-                            var dat = frame.Data<ushort>();
+                            var dat = frame.GetData<ushort>();
                             var idx = frame.DeviceAddress;
                             Console.WriteLine("\t[{0}] Dev: {1} ({2})", frame.Clock, idx, ctx.DeviceTable[idx].Description);
                             Console.WriteLine("\t[{0}]", String.Join(", ", dat));
