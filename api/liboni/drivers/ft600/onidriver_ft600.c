@@ -378,10 +378,30 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 	CTX_CAST;
 	DWORD numDevs = 0;
 	FT_STATUS ftStatus;
-	char serialNumber[SERIAL_LEN];
+	int tries = 0;
 	int devIdx = 0;
 
-	serialNumber[0] = 0;
+#ifndef _WIN32
+    FT_TRANSFER_CONF ftTransfer;
+    memset(&ftTransfer, 0, sizeof(FT_TRANSFER_CONF));
+    ftTransfer.wStructSize = sizeof(FT_TRANSFER_CONF);
+    // The spec defines that only one simultaneous call to each pipe must be
+    // done, so disable built-in thred safety for performance
+    ftTransfer.pipe[FT_PIPE_DIR_IN].fNonThreadSafeTransfer = FALSE;
+    ftTransfer.pipe[FT_PIPE_DIR_OUT].fNonThreadSafeTransfer = FALSE;
+    CHECK_FTERR(FT_SetTransferParams(&ftTransfer, pipeid_data));
+    // And control is mutexed in the onidriver
+    CHECK_FTERR(FT_SetTransferParams(&ftTransfer, pipeid_control));
+
+    // unused pipes
+    memset(&ftTransfer, 0, sizeof(FT_TRANSFER_CONF));
+    ftTransfer.wStructSize = sizeof(FT_TRANSFER_CONF);
+    ftTransfer.pipe[FT_PIPE_DIR_IN].fPipeNotUsed = TRUE;
+    ftTransfer.pipe[FT_PIPE_DIR_OUT].fPipeNotUsed = TRUE;
+    CHECK_FTERR(FT_SetTransferParams(&ftTransfer, 2));
+    CHECK_FTERR(FT_SetTransferParams(&ftTransfer, 3));
+#endif
+
 	ftStatus = FT_CreateDeviceInfoList(&numDevs);
 	if (ftStatus != FT_OK || numDevs == 0) return ONI_EDEVID;
 	FT_DEVICE_LIST_INFO_NODE* devInfo = (FT_DEVICE_LIST_INFO_NODE*)malloc(sizeof(FT_DEVICE_LIST_INFO_NODE) * numDevs);
@@ -399,43 +419,26 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 		{
 			if (!(devInfo[dev].Flags & FT_FLAGS_OPENED))
 			{
-				if (host_idx < 0 || devIdx == host_idx)
-				{
-					strncpy(serialNumber, devInfo[dev].SerialNumber, SERIAL_LEN);
-					break;
-				}
+                if (host_idx < 0 || devIdx == host_idx) {
+                tries++;
+                ftStatus = FT_Create(devInfo[dev].SerialNumber,
+                                     FT_OPEN_BY_SERIAL_NUMBER,
+                                     &ctx->ftHandle);
+                if (ftStatus != FT_OK)
+                    ctx->ftHandle = NULL;
+                else
+                    break;
+                }
 			}
 			devIdx++;
 		}
 	}
 	free(devInfo);
-	if (serialNumber[0] == 0) return ONI_EDEVIDX;
-#ifndef _WIN32
-   FT_TRANSFER_CONF ftTransfer;
-	memset(&ftTransfer, 0, sizeof(FT_TRANSFER_CONF));
-	ftTransfer.wStructSize = sizeof(FT_TRANSFER_CONF);
-	//The spec defines that only one simultaneous call to each pipe must be done, so disable built-in thred safety for performance
-	ftTransfer.pipe[FT_PIPE_DIR_IN].fNonThreadSafeTransfer = FALSE;
-	ftTransfer.pipe[FT_PIPE_DIR_OUT].fNonThreadSafeTransfer = FALSE;
-	CHECK_FTERR(FT_SetTransferParams(&ftTransfer, pipeid_data));
-	//And control is mutexed in the onidriver
-	CHECK_FTERR(FT_SetTransferParams(&ftTransfer, pipeid_control));
-
-	//unused pipes
-	memset(&ftTransfer, 0, sizeof(FT_TRANSFER_CONF));
-	ftTransfer.wStructSize = sizeof(FT_TRANSFER_CONF);
-	ftTransfer.pipe[FT_PIPE_DIR_IN].fPipeNotUsed = TRUE;
-	ftTransfer.pipe[FT_PIPE_DIR_OUT].fPipeNotUsed = TRUE;
-	CHECK_FTERR(FT_SetTransferParams(&ftTransfer, 2));
-	CHECK_FTERR(FT_SetTransferParams(&ftTransfer, 3));
-#endif
+    if (tries == 0)
+        return ONI_EDEVIDX;
+    else if (ctx->ftHandle == NULL)
+        return ONI_EINIT;
     
-	ftStatus = FT_Create(serialNumber, FT_OPEN_BY_SERIAL_NUMBER, &ctx->ftHandle);
-	if (ftStatus != FT_OK)
-	{
-		ctx->ftHandle = NULL;
-		return ONI_EINIT;
-	}
 #ifdef _WIN32
 	FT_InitializeOverlapped(ctx->ftHandle, &ctx->outOverlapped);
 	FT_InitializeOverlapped(ctx->ftHandle, &ctx->sigOverlapped);
