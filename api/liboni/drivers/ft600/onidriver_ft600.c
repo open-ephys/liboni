@@ -71,7 +71,7 @@ struct oni_ft600_ctx_impl {
 	uint8_t* auxBuffer;
 	size_t auxSize;
 	uint32_t prioValue;
-	oni_ft600_state state;
+	volatile oni_ft600_state state;
 	oni_ft600_sigstate sigState;
 	unsigned short sigOffset;
 	unsigned short sigError;
@@ -180,18 +180,26 @@ void oni_ft600_usb_callback(PVOID context, E_FT_NOTIFICATION_CALLBACK_TYPE type,
 	if (!info) return;
 	oni_ft600_ctx ctx = (oni_ft600_ctx)context;
 	ULONG transferred;
+    ULONG total = 0;
 	
 	
+	do {
+        FT_ReadPipe(ctx->ftHandle,
+                    info->ucEndpointNo,
+                    ctx->auxBuffer + total,
+                    info->ulRecvNotificationLength - total,
+                    &transferred,
+                    &ctx->sigOverlapped);
+        ftStatus = FT_GetOverlappedResult(
+            ctx->ftHandle, &ctx->sigOverlapped, &transferred, TRUE);
+        if (ftStatus != FT_OK) {
+        ctx->sigError = 1;
+        return;
+        }
+        total += transferred;
+    } while (total < info->ulRecvNotificationLength);
 
-	FT_ReadPipe(ctx->ftHandle, info->ucEndpointNo, ctx->auxBuffer, info->ulRecvNotificationLength, &transferred, &ctx->sigOverlapped);
-	ftStatus = FT_GetOverlappedResult(ctx->ftHandle, &ctx->sigOverlapped, &transferred, TRUE);
-	if (ftStatus != FT_OK)
-	{
-		ctx->sigError = 1;
-		return;
-	}
-
-	if (transferred > 0)
+	if (total > 0)
 	{
 		fill_control_buffers(ctx, transferred);
 	}
@@ -529,6 +537,8 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 	} 
 	else if (stream == ONI_READ_STREAM_DATA)
 	{
+        while (ctx->state != STATE_RUNNING)
+            ;
 		size_t remaining = ((size >> 2) << 2);//round to 32bit boundaries;
 		FT_STATUS ftStatus;
 		int read = 0;
@@ -549,37 +559,55 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 			dstPtr += to_read;
 			read += to_read;
 		}
-		while (remaining > 0)
-		{
-			unsigned int simIndex = ctx->nextReadIndex % ctx->numInOverlapped;
-			unsigned int nextIndex = (ctx->nextReadIndex + ctx->numInOverlapped) % (2 * ctx->numInOverlapped);
-			ULONG transferred;
-			ftStatus = FT_GetOverlappedResult(ctx->ftHandle, &ctx->inOverlapped[simIndex], &ctx->inTransferred[simIndex], TRUE);
-			if (ftStatus != FT_OK)
-			{
-				printf("Read failure %d\n", ftStatus);
-				return ONI_EREADFAILURE;
-			}
-			transferred = ctx->inTransferred[simIndex];
-			//read in the next part of the double buffer
-			FT_ReadPipeEx(ctx->ftHandle, pipe_in, ctx->inBuffer + ((size_t)nextIndex * ctx->inBlockSize), ctx->inBlockSize,
-				&ctx->inTransferred[simIndex], &ctx->inOverlapped[simIndex]);
-			srcPtr = ctx->inBuffer + ctx->inBlockSize * (size_t)ctx->nextReadIndex;
-			to_read = MIN(remaining, transferred);
-			memcpy(dstPtr, srcPtr, to_read);
-			//	for (int i = 0; i < to_read; i++) printf("%x ", *(dstPtr + i));
-			remaining -= to_read;
-			dstPtr += to_read;
-			read += to_read;
-			ctx->nextReadIndex = (ctx->nextReadIndex + 1) % (2 * ctx->numInOverlapped);
-			if (to_read < transferred)
-			{
-				ctx->lastReadRead = transferred;
-				ctx->lastReadOffset = to_read;
-			}
-			else
-				ctx->lastReadOffset = 0;
-		}
+        while (remaining > 0) {
+            unsigned int simIndex = ctx->nextReadIndex % ctx->numInOverlapped;
+            unsigned int nextIndex = (ctx->nextReadIndex + ctx->numInOverlapped)
+                                     % (2 * ctx->numInOverlapped);
+            ULONG transferred;
+            ftStatus = FT_GetOverlappedResult(ctx->ftHandle,
+                                              &ctx->inOverlapped[simIndex],
+                                              &ctx->inTransferred[simIndex],
+                                              TRUE);
+            if (ftStatus != FT_OK) {
+                printf("Read failure %d\n", ftStatus);
+                return ONI_EREADFAILURE;
+            }
+            transferred = ctx->inTransferred[simIndex];
+            // read in the next part of the double buffer
+            FT_ReadPipeEx(ctx->ftHandle,
+                          pipe_in,
+                          ctx->inBuffer
+                              + ((size_t)nextIndex * ctx->inBlockSize),
+                          ctx->inBlockSize,
+                          &ctx->inTransferred[simIndex],
+                          &ctx->inOverlapped[simIndex]);
+          //   printf("R: %d\n", nextIndex);
+            srcPtr
+                = ctx->inBuffer + ctx->inBlockSize * (size_t)ctx->nextReadIndex;
+            to_read = MIN(remaining, transferred);
+            /* printf("\n%d - %d - %d - %d\n",
+                        ctx->nextReadIndex,
+                        nextIndex,
+                        simIndex,
+                        to_read);*/
+            memcpy(dstPtr, srcPtr, to_read);
+            /* for (int i = 0; i < to_read; i++)
+            printf("%x ", *(dstPtr + i));
+                printf("\n");
+                for (int i = 0; i < to_read; i++) printf("%x ", *(srcPtr +
+            i));*/
+            remaining -= to_read;
+            dstPtr += to_read;
+            read += to_read;
+            ctx->nextReadIndex
+                = (ctx->nextReadIndex + 1) % (2 * ctx->numInOverlapped);
+            if (to_read < transferred) {
+                ctx->lastReadRead = transferred;
+                ctx->lastReadOffset = to_read;
+            } else {
+                ctx->lastReadOffset = 0;
+            }
+        }
 #else	
 		ULONG transferred;
         uint8_t* dstPtr = (uint8_t*)data;
@@ -738,12 +766,13 @@ int oni_driver_read_config(oni_driver_ctx driver_ctx, oni_config_t reg, oni_reg_
 
 inline void oni_ft600_start_acq(oni_ft600_ctx ctx)
 {
-#if _WIN32
+ #if _WIN32
     FT_STATUS rc;
     rc = FT_SetStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in, ctx->inBlockSize);
 	for (size_t i = 0; i < ctx->numInOverlapped; i++)
 	{
 		FT_ReadPipeEx(ctx->ftHandle, pipe_in, ctx->inBuffer + (i * ctx->inBlockSize), ctx->inBlockSize, &ctx->inTransferred[i], &ctx->inOverlapped[i]);
+        //printf("R: %d\n", i);
 	}
 #endif
 	ctx->state = STATE_RUNNING;

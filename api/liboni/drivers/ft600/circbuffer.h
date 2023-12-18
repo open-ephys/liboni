@@ -6,8 +6,8 @@
 //This buffer and its functions should be thread safe as long as only one thread
 //writes and only one thread reads
 typedef struct {
-	size_t read;
-	size_t write;
+	volatile size_t read;
+    volatile size_t write;
 	size_t size;
 	uint8_t* buffer;
 } circ_buffer_t;
