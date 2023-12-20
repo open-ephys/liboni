@@ -53,9 +53,10 @@ enum {
     ONI_ENOTWRITEDEV = -25, // Frame allocation attempted for a non-writable device
     ONI_EDEVIDXREPEAT = -26, // Device table contains repeated device indices
     ONI_EPROTCONFIG = -27, // Attempted to directly read or write a protected configuration option
+    ONI_EBADFRAME = -28, // Received malformed frame
 
     // NB: Always at bottom
-    ONI_MINERRORNUM = -28
+    ONI_MINERRORNUM = -29
 };
 
 // Registers available in the specification

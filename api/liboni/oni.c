@@ -667,6 +667,10 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
     assert(iframe->private.f.data_sz > 0 && "Zero-sized frame");
     assert(iframe->private.f.data_sz <= ctx->max_read_frame_size && "Invalid frame size");
 
+    if (iframe->private.f.data_sz == 0
+        || iframe->private.f.data_sz > ctx->max_read_frame_size)
+        return ONI_EBADFRAME; 
+
     // Find read size (+ padding)
     size_t rsize = iframe->private.f.data_sz;
     rsize += rsize % sizeof(oni_fifo_dat_t);
@@ -889,6 +893,10 @@ const char *oni_error_str(int err)
         case ONI_EPROTCONFIG : {
             return "Attempted to directly read or write a protected "
                    "configuration option";
+        }
+        case ONI_EBADFRAME: 
+        {
+            return "Received malformed frame";
         }
         default:
             return "Unknown error";
@@ -1201,6 +1209,8 @@ static int _oni_read_buffer(oni_ctx ctx, void **data, size_t size, int allow_ref
         remaining = ctx->shared_rbuf->end_pos - ctx->shared_rbuf->read_pos;
     else
         remaining = 0;
+
+    assert(remaining >= 0 && "buffer inversion");
 
     // TODO: Is there a way to get rid of allow_refill?
     // NB: Frames must reference a single buffer, so we must refill if less
