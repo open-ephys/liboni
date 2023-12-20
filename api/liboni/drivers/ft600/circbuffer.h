@@ -20,3 +20,4 @@ int circBufferCanRead(circ_buffer_t* buffer, size_t size);
 //These do not check. Check before calling them
 void circBufferWrite(circ_buffer_t* buffer, uint8_t* src, size_t size);
 void circBufferRead(circ_buffer_t* buffer, uint8_t* dst, size_t size);
+
