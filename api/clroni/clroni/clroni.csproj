@@ -6,10 +6,10 @@
     <PackageTags>ONI Open Ephys ONIX</PackageTags>
     <TargetFramework>net472</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>6.0.0</Version>
+    <Version>6.0.1</Version>
     <Authors>Jon Newman</Authors>
-    <Company>Open Ephys</Company>
-    <Copyright>Copyright © Jonathan Newman</Copyright>
+    <Company>Open Ephys, Inc.</Company>
+    <Copyright>©Open Ephys, Inc.</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
     <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>

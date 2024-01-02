@@ -16,7 +16,7 @@ namespace oni
     public static unsafe partial class NativeMethods
     {
         /// <summary>
-        /// <see href="http://stackoverflow.com">Semantic version</see> of this library.
+        /// <see href="https://semver.org/">Semantic version</see> of this library.
         /// </summary>
         public static readonly Version LibraryVersion;
 

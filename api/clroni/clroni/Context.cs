@@ -83,7 +83,7 @@ namespace oni
         /// specified driver cannot be found or is invalid.</exception>
         /// <exception cref="ONIException">Thrown when there is an error during
         /// hardware initialization (e.g. an invalid device table).</exception>
-        public Context(string driver, int index)
+        public Context(string driver, int index = -1)
         {
             // Create context
             ctx = NativeMethods.oni_create_ctx(driver);
