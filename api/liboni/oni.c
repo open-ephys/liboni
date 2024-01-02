@@ -667,16 +667,19 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
     assert(iframe->private.f.data_sz > 0 && "Zero-sized frame");
     assert(iframe->private.f.data_sz <= ctx->max_read_frame_size && "Invalid frame size");
 
+    // TODO: max_read_frame_size contains the header as well so the upper bound
+    // check is too relaxed.
     if (iframe->private.f.data_sz == 0
         || iframe->private.f.data_sz > ctx->max_read_frame_size)
         return ONI_EBADFRAME; 
 
     // Find read size (+ padding)
+    // TODO:https://github.com/open-ephys/ONI/issues/3
     size_t rsize = iframe->private.f.data_sz;
     rsize += rsize % sizeof(oni_fifo_dat_t);
     total_size += rsize;
 
-    // Read data
+    // Direct frame data's view into the pre-collected buffer
     rc = _oni_read_buffer(ctx, (void **)&iframe->private.f.data, rsize, 0);
     if (rc) return rc;
 
