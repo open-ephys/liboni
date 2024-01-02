@@ -147,7 +147,7 @@
     <ClInclude Include="queue_u8.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\liboni-test\testfunc.c" />
+    <ClCompile Include="..\..\oni-repl\testfunc.c" />
     <ClCompile Include="onidriver_test.c" />
     <ClCompile Include="queue_u8.c" />
   </ItemGroup>
