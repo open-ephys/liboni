@@ -103,6 +103,9 @@ namespace ClrOniRepl
                 {
                     using (var ctx = new Context(o.Driver, o.Slot))
                     {
+                        Console.WriteLine(string.Format("Loaded driver: {0} v{1}.{2}.{3}-{4}",
+                            ctx.Driver.Name, ctx.Driver.Major, ctx.Driver.Minor, ctx.Driver.Patch, ctx.Driver.PreRelease));
+
                         // Show device table
                         Console.WriteLine("Found the following devices:");
                         Console.Write(Helpers.DeviceTableString(ctx));
