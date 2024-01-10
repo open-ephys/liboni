@@ -33,6 +33,12 @@ namespace oni
         // The safe handle used for API interaction
         private readonly ContextHandle ctx;
 
+
+        /// <summary>
+        /// Information about the hardware device driver that is being used the by the context.
+        /// </summary>
+        public DriverInfo Driver { get; private set; }
+
         // Constructor initialized
         /// <summary>
         /// Host system clock frequency in Hz. This describes the frequency of
@@ -96,6 +102,8 @@ namespace oni
 
             var rc = NativeMethods.oni_init_ctx(ctx, index);
             if (rc != 0) { throw new ONIException(rc); }
+
+            Driver = new DriverInfo(NativeMethods.oni_get_driver_info(ctx));
 
             PopulateDeviceTable();
             

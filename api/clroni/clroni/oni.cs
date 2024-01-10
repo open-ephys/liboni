@@ -13,7 +13,7 @@ namespace oni
     /// and <seealso cref="ONIException"/>.
     /// </summary>
     [SuppressUnmanagedCodeSecurity] // NB: Call into native code without incurring the performance loss of a run-time security check when doing so
-    public static unsafe partial class NativeMethods
+    public static partial class NativeMethods
     {
         /// <summary>
         /// <see href="https://semver.org/">Semantic version</see> of this library.
@@ -47,6 +47,9 @@ namespace oni
                         requiredVersion));
         }
 
+
+
+
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
         internal static extern void oni_version(out int major, out int minor, out int patch);
 
@@ -71,6 +74,9 @@ namespace oni
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
         internal static extern int oni_set_opt(ContextHandle ctx, int option, string val, int size);
+
+        [DllImport(LibraryName, CallingConvention = CCCdecl)]
+        internal static extern IntPtr oni_get_driver_info(ContextHandle ctx);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
         internal static extern int oni_get_driver_opt(ContextHandle ctx, int option, IntPtr val, IntPtr size);
