@@ -60,7 +60,7 @@ typedef enum
 } oni_ft600_sigstate;
 
 const oni_driver_info_t driverInfo
-    = {.name = "ft600", .major = 1, .minor = 0, .patch = 0, .pre_relase = NULL};
+    = {.name = "ft600", .major = 1, .minor = 0, .patch = 0, .pre_release = NULL};
 
 struct oni_ft600_ctx_impl {
 	oni_size_t inBlockSize;

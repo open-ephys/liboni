@@ -29,7 +29,7 @@
 #define MIN(a,b) ((a<b) ? a : b)
 
 const oni_driver_info_t driverInfo
-    = {.name = "test", .major = 1, .minor = 0, .patch = 0, .pre_relase = NULL};
+    = {.name = "test", .major = 2, .minor = 0, .patch = 0, .pre_release = NULL};
 
 struct conf_reg {
     uint32_t dev_idx;

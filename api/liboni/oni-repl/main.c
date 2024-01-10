@@ -18,7 +18,7 @@
 // NB: see https://semver.org/
 #define ONI_REPL_VERSION_MAJOR 1
 #define ONI_REPL_VERSION_MINOR 0
-#define ONI_REPL_VERSION_PATCH 1
+#define ONI_REPL_VERSION_PATCH 2
 
 // Turn on simple feedback loop for real-time testing?
 // #define FEEDBACKLOOP
@@ -494,6 +494,23 @@ exit:
     // Generate context
     ctx = oni_create_ctx(driver);
     if (!ctx) { printf("Failed to create context\n"); exit(EXIT_FAILURE); }
+
+    // Print the driver translator informaiton
+    oni_driver_info_t *di = oni_get_driver_info(ctx);
+    if (di->pre_release == NULL) {
+        printf("Loaded driver: %s v%d.%d.%d\n",
+               di->name,
+               di->major,
+               di->minor,
+               di->patch);
+    } else {
+        printf("Loaded driver: %s v%d.%d.%d-%s\n",
+               di->name,
+               di->major,
+               di->minor,
+               di->patch,
+               di->pre_release);
+    }
 
     // Initialize context and discover hardware
     rc = oni_init_ctx(ctx, host_idx);
