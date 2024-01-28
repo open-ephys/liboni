@@ -21,7 +21,13 @@ static inline lib_handle_t open_library(const char* name)
 #else
     // Clear errors
     dlerror();
-    return dlopen(name, RTLD_NOW | RTLD_LOCAL);
+    lib_handle_t lib = dlopen(name, RTLD_NOW | RTLD_LOCAL);
+#ifndef NDEBUG
+    char *e = dlerror();
+    if (e != NULL)
+        fprintf(stderr, "%s\n", dlerror());
+#endif
+    return lib;
 #endif
 }
 
@@ -31,7 +37,13 @@ static inline void* get_driver_function(lib_handle_t handle, const char* functio
     return (void*)GetProcAddress(handle, function_name);
 #else
     dlerror();
-    return (void*)dlsym(handle, function_name);
+    void *f = (void*)dlsym(handle, function_name);
+#ifndef NDEBUG
+    char *e = dlerror();
+    if (e != NULL)
+        fprintf(stderr, "%s\n", dlerror());
+#endif
+    return f;
 #endif
 }
 
@@ -56,7 +68,7 @@ int oni_create_driver(const char* lib_name, oni_driver_t* driver)
     size_t len = strlen(extension) + strlen(lib_name) + strlen(prefix);
 
     char* full_lib_name = malloc(len + 1);
-    sprintf(full_lib_name, "%s%s%s", prefix, lib_name, extension);
+    snprintf(full_lib_name, len + 1, "%s%s%s", prefix, lib_name, extension);
     handle = open_library(full_lib_name);
     free(full_lib_name);
 

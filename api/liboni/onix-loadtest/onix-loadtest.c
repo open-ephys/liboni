@@ -10,7 +10,6 @@
 
 #include "oni.h"
 #include "onix.h"
-#include "oelogo.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -42,7 +41,7 @@ int num_steps = DEF_MEM_STEPS_TIMEOUT;
 oni_reg_val_t start_rate = DEF_LOADTEST_START_RATE;
 
 inline void error_exit(int rc, const char* str) {
-    printf(str);
+    puts(str);
     printf("Error: %s (%d)\n", oni_error_str(rc), rc);
     if (devices != NULL)
         free(devices);
@@ -98,7 +97,6 @@ int main(int argc, char* argv[])
     if (threshold == 0)
         threshold = 100 * loadtest_size;
 
-    printf(oe_logo_med);
     printf("Bandwdith tester. Usage:\n\t %s [block_read_size] "
            "[loadtest_frame_words] [timeout_seconds] [threshold_32bit_words] [start_rate_hz]\n",
            argv[0]);
@@ -277,7 +275,7 @@ int main(int argc, char* argv[])
                 done = 1;
         } 
         if (loadtest_hz_tmp > loadtest_clk) {
-            printf("Unable to continue. Next value of %llu Hz is faster than the "
+            printf("Unable to continue. Next value of %lu Hz is faster than the "
                    "device capabilities. Please adjust threshold and/or "
                    "timeout\n", loadtest_hz_tmp);
             done = 1;

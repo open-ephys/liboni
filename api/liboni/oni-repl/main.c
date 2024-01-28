@@ -18,7 +18,10 @@
 // NB: see https://semver.org/
 #define ONI_REPL_VERSION_MAJOR 1
 #define ONI_REPL_VERSION_MINOR 0
-#define ONI_REPL_VERSION_PATCH 2
+#define ONI_REPL_VERSION_PATCH 4
+
+#define DEFAULT_BLK_READ_BYTES 2048
+#define DEFAULT_BLK_WRITE_BYTES 2048
 
 // Turn on simple feedback loop for real-time testing?
 // #define FEEDBACKLOOP
@@ -40,10 +43,12 @@
 
 // Options
 volatile int display = 0;
-int num_frames_to_display = -1;
+unsigned int num_frames_to_display = 0;
 int display_every_n = 1000;
-int device_idx_filter = -1;
+unsigned int device_idx_filter = 0;
+int device_idx_filter_en = 0;
 int dump = 0;
+char *print_fmt = "%04X ";
 
 // Global state
 volatile int quit = 0;
@@ -115,8 +120,7 @@ int write_reg_file(FILE *file) {
 // Simple & slow device lookup
 int find_dev(oni_dev_idx_t idx)
 {
-    int i;
-    for (i = 0; i < num_devs; i++)
+    for (size_t i = 0; i < num_devs; i++)
         if (devices[i].idx == idx)
             return i;
 
@@ -128,10 +132,13 @@ uint32_t out_count = 0;
 
 #ifdef _WIN32
 DWORD WINAPI read_loop(LPVOID lpParam)
+{
 #else
 void *read_loop(void *vargp)
-#endif
 {
+    (void)vargp;
+#endif
+
     unsigned long counter = 0;
     unsigned long print_count = 0;
     unsigned long this_cnt = 0;
@@ -141,7 +148,7 @@ void *read_loop(void *vargp)
     oni_frame_t *w_frame = NULL;
     oni_create_frame(ctx, &w_frame, 8, 4);
 #endif
-    
+
     while (!quit)  {
 
         int rc = 0;
@@ -163,14 +170,14 @@ void *read_loop(void *vargp)
 
         if (display
             && (display_every_n <= 1 || counter % display_every_n == 0)
-            && (num_frames_to_display <= 0 || print_count < num_frames_to_display)
-            && (device_idx_filter < 0 || devices[i].idx == device_idx_filter)
+            && (num_frames_to_display == 0 || print_count < num_frames_to_display)
+            && (!device_idx_filter_en || devices[i].idx == device_idx_filter)
             ) {
 
             oni_device_t this_dev = devices[i];
 
             this_cnt++;
-            printf("\t[%llu] Dev: %zu (%s) \n",
+            printf("\t[%lu] Dev: %u (%s) \n",
                 frame->time,
                 frame->dev_idx,
                 onix_device_str(this_dev.id));
@@ -178,7 +185,7 @@ void *read_loop(void *vargp)
             size_t i;
             printf("\tData: [");
             for (i = 0; i < frame->data_sz; i += 2)
-                printf("%x ", *(uint16_t *)(frame->data + i));
+                printf(print_fmt, *(uint16_t *)(frame->data + i));
             printf("]\n");
 
             print_count++;
@@ -319,7 +326,7 @@ void print_version()
             ONI_REPL_VERSION_PATCH, major, minor, patch);
 }
 
-void print_dev_table(oni_device_t *devices, int num_devs)
+void print_dev_table(oni_device_t *devices, size_t num_devs)
 {
     // Show device table
     printf("   +--------------------+-------+-------+-------+-------+---------------------\n");
@@ -332,7 +339,7 @@ void print_dev_table(oni_device_t *devices, int num_devs)
 
         const char *dev_str = onix_device_str(devices[dev_idx].id);
 
-        printf("%02zd |%05zd: 0x%02x.0x%02x\t|%d\t|%d\t|%u\t|%u\t|%s\n",
+        printf("%02zd |%05u: 0x%02x.0x%02x\t|%d\t|%d\t|%u\t|%u\t|%s\n",
                dev_idx,
                devices[dev_idx].idx,
                (uint8_t)(devices[dev_idx].idx >> 8),
@@ -386,26 +393,26 @@ void print_hub_info(size_t hub_idx)
 int main(int argc, char *argv[])
 {
 
-    oni_size_t block_read_size = 2048;
-    oni_size_t block_write_size = 2048;
+    oni_size_t block_read_size = DEFAULT_BLK_READ_BYTES;
+    oni_size_t block_write_size = DEFAULT_BLK_WRITE_BYTES;
     int host_idx = -1;
     char *driver;
-    int reg_init = 0;
-    char *reg_path;
+    char *reg_path = NULL;
 
     static ko_longopt_t longopts[] = {{"help", ko_no_argument, 301},
                                       {"rbytes", ko_required_argument, 302},
                                       {"wbytes", ko_required_argument, 303},
-                                      {"dumppath", ko_required_argument, 304},
-                                      {"regpath", ko_required_argument, 305},
-                                      {"version", ko_no_argument, 306},
+                                      {"dformat", ko_required_argument, 304},
+                                      {"dumppath", ko_required_argument, 305},
+                                      {"regpath", ko_required_argument, 306},
+                                      {"version", ko_no_argument, 307},
                                       {NULL, 0, 0}};
     ketopt_t opt = KETOPT_INIT;
-    int i, c;
+    int c;
     while ((c = ketopt(&opt, argc, argv, 1, "hvdD:n:i:", longopts)) >= 0) {
         if (c == 'h' || c == 301)
             goto usage;
-        if (c == 'v' || c == 306) {
+        if (c == 'v' || c == 307) {
             print_version();
             goto exit;
         } else if (c == 'd')
@@ -419,19 +426,27 @@ int main(int argc, char *argv[])
             display_every_n = (int)(100.0 / percent);
         } else if (c == 'n')
             num_frames_to_display = atoi(opt.arg);
-        else if (c == 'i')
-            device_idx_filter = atoi(opt.arg);
-        else if (c == 301)
+        else if (c == 'i') {
+            int idx = atoi(opt.arg);
+            device_idx_filter_en = idx < 0 ? 0 : 1;
+            device_idx_filter = (size_t)idx;
+        } else if (c == 301)
             goto usage;
         else if (c == 302)
             block_read_size = atoi(opt.arg);
         else if (c == 303)
             block_write_size = atoi(opt.arg);
         else if (c == 304) {
+            if (strcmp(opt.arg, "hex") == 0)
+                print_fmt = "%04X ";
+            else if (strcmp(opt.arg, "dec") == 0)
+                print_fmt = "%hu ";
+            else
+                goto usage;
+        } else if (c == 305) {
             dump = 1;
             dump_path = opt.arg;
-        } else if (c == 305) {
-            reg_init = 1;
+        } else if (c == 306) {
             reg_path = opt.arg;
         } else if (c == '?') {
             printf("Unknown option: -%c\n", opt.opt ? opt.opt : ':');
@@ -451,16 +466,17 @@ int main(int argc, char *argv[])
     } else {
 
 usage:
-        printf("Usage: %s <driver> [slot] [-d] [-D <value>] [-n <value>] [-i <device index>] [--rbytes=<bytes>] [--wbytes=<bytes>] [--dumppath=<path>] [-h,--help] [-v,--version]\n\n", argv[0]);
+        printf("Usage: %s <driver> [slot] [-d] [-D <value>] [-n <value>] [-i <device index>] [--rbytes=<bytes>] [--wbytes=<bytes>] [--dformat=<hex,dec>] [--dumppath=<path>] [-h,--help] [-v,--version]\n\n", argv[0]);
 
         printf("\t driver \t\tHardware driver to dynamically link (e.g. riffa, ft600, test, etc.)\n");
         printf("\t slot \t\t\tIndex specifiying the physical slot occupied by hardare being controlled. If none is provided, the driver-defined default will be used.\n");
         printf("\t -d \t\t\tDisplay frames. If specified, frames produced by the oni hardware will be printed to the console.\n");
         printf("\t -D <percent> \t\tThe percent of frames printed to the console if frames are displayed. Percent should be a value in (0, 100.0].\n");
-        printf("\t -n <count> \t\tDisplay at most count frames. Reset only on program restart. Useful for examining the start of the data stream.\n");
+        printf("\t -n <count> \t\tDisplay at most count frames. Reset only on program restart. Useful for examining the start of the data stream. If set to 0, then this option is ignored.\n");
         printf("\t -i <index> \t\tOnly display frames from device with specified index value.\n");
-        printf("\t --rbytes=<bytes> \tSet block read size in bytes.\n");
-        printf("\t --wbytes=<bytes> \tSet write preallocation size in bytes.\n");
+        printf("\t --rbytes=<bytes> \tSet block read size in bytes. (default: %d bytes)\n", DEFAULT_BLK_READ_BYTES);
+        printf("\t --wbytes=<bytes> \tSet write preallocation size in bytes. (default: %d bytes)\n", DEFAULT_BLK_WRITE_BYTES);
+        printf("\t --dformat=<hex,dec> \tSet the format of frame data printed to the console to hexidecimal (default) or decimal.\n");
         printf("\t --dumppath=<path> \tPath to folder to dump raw device data. \
 If not defined, no data will be written. A flat binary file with name <index>_idx-<id>_id-<datetime>.raw will be created for each device in the device table that produces streaming \
 data. The bit-wise frame definition in the ONI device datasheet (as required by the ONI spec) will describe frame data is organized in each file.\n");
@@ -496,7 +512,7 @@ exit:
     if (!ctx) { printf("Failed to create context\n"); exit(EXIT_FAILURE); }
 
     // Print the driver translator informaiton
-    oni_driver_info_t *di = oni_get_driver_info(ctx);
+    const oni_driver_info_t *di = oni_get_driver_info(ctx);
     if (di->pre_release == NULL) {
         printf("Loaded driver: %s v%d.%d.%d\n",
                di->name,
@@ -544,7 +560,7 @@ exit:
 
         // Open dump files
         for (size_t i = 0; i < num_devs; i++) {
-            if (devices[i].id != ONIX_NULL) { 
+            if (devices[i].id != ONIX_NULL) {
                 char *buffer = malloc(500);
                 snprintf(buffer,
                          500,
@@ -573,7 +589,7 @@ exit:
     }
 
     // Initialize, registers if required
-    if (reg_init) {
+    if (reg_path != NULL) {
 
         FILE *reg_file = fopen(reg_path, "r");
 
@@ -601,7 +617,9 @@ exit:
     if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
     assert(!rc && "Failure to set block read size");
 
-    oni_get_opt(ctx, ONI_OPT_BLOCKREADSIZE, &block_read_size, &block_size_sz);
+    oni_size_t temp;
+    oni_get_opt(ctx, ONI_OPT_BLOCKREADSIZE, &temp, &block_size_sz);
+    assert(temp == block_read_size && "Setting block read size was unsucessful.");
     printf("Block read size: %u bytes\n", block_read_size);
 
     printf("Setting write pre-allocation buffer to: %u bytes\n", block_write_size);
@@ -609,14 +627,12 @@ exit:
     rc = oni_set_opt(ctx, ONI_OPT_BLOCKWRITESIZE, &block_write_size, block_size_sz);
     if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
 
-    oni_get_opt(ctx, ONI_OPT_BLOCKWRITESIZE, &block_write_size, &block_size_sz);
+    oni_get_opt(ctx, ONI_OPT_BLOCKWRITESIZE, &temp, &block_size_sz);
+    assert(temp == block_write_size && "Setting block write pre-allocation size was unsucessful.");
+    assert(!rc && "Register read failure.");
     printf("Write pre-allocation size: %u bytes\n", block_write_size);
 
-    // Try to write to base clock freq, which is write only
-    oni_size_t reg = (oni_size_t)10e6;
-    rc = oni_set_opt(ctx, ONI_OPT_SYSCLKHZ, &reg, sizeof(oni_size_t));
-    assert(rc == ONI_EREADONLY && "Successful write to read-only register.");
-
+    oni_size_t reg = (oni_size_t)0;
     size_t reg_sz = sizeof(reg);
     rc = oni_get_opt(ctx, ONI_OPT_SYSCLKHZ, &reg, &reg_sz);
     if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
@@ -658,15 +674,7 @@ exit:
     assert(reg == 1 && "ONI_OPT_RUNNING should be 1.");
     printf("Hardware run state: %d\n", reg);
 
-    //// Start acquisition
-    //quit = 0;
-    //reg = 1; // Reset clock
-    //rc = oni_set_opt(ctx, ONI_OPT_RUNNING, &reg, sizeof(oni_size_t));
-    //if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
-
-    
-
-    // Read stdin to start (s) or pause (p)
+    // Enter REPL
     printf("Some commands can cause hardware malfunction if issued in the wrong order!\n");
     c = 'x';
     while (c != 'q') {
@@ -676,8 +684,8 @@ exit:
         printf("\tD - change the percent of frames displayed\n");
         printf("\ti - set a filter to display frames only from a particular device\n");
         printf("\tt - print current device table\n");
-        printf("\tp - toggle running/pause register (used for interal testing)\n");
-        printf("\ts - toggle running/pause register & r/w thread operation (used for internal testing)\n");
+        printf("\tp - toggle running/pause register (used for interal testing; may cause issues)\n");
+        printf("\ts - toggle running/pause register & r/w thread operation (used for internal testing; may cause issues)\n");
         printf("\tr - read from device register\n");
         printf("\tw - write to device register\n");
         printf("\th - get hub information about a device\n");
@@ -745,8 +753,14 @@ exit:
             rc = getline(&buf, &len, stdin);
             if (rc == -1) { printf("Error: bad command\n"); continue; }
 
-            device_idx_filter = atoi(buf);
-            printf("Only displaying frames from device at index %d\n", device_idx_filter);
+            int idx = atoi(buf);
+            device_idx_filter_en = idx < 0 ? 0 : 1;
+            device_idx_filter = (size_t)idx;
+
+            if (device_idx_filter_en)
+                printf("Only displaying frames from device at index %d\n", device_idx_filter);
+            else
+                puts("Dislaying frames from all devices");
         }
         else if (c == 't') {
             print_dev_table(devices, num_devs);
@@ -835,7 +849,7 @@ exit:
             print_hub_info(0);
             printf("\n");
 
-            for (int i = 0; i < num_devs; i++) {
+            for (size_t i = 0; i < num_devs; i++) {
                 size_t hub = (devices + i)->idx & 0x0000FF00;
                 if (hub != last_hub && (devices + i)->id != ONIX_NULL) {
                     print_hub_info(hub);
@@ -865,7 +879,7 @@ exit:
 
     if (dump) {
         // Close dump files
-        for (int i = 0; i < num_devs; i++) {
+        for (size_t i = 0; i < num_devs; i++) {
             if (devices[i].id != ONIX_NULL) {
                 fclose(dump_files[i]);
             }

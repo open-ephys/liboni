@@ -3,7 +3,7 @@ SHELL     :=  /bin/bash
 NAME      :=  libonidriver_test
 DNAME     :=  $(NAME).so.1
 DNAMELN   :=  $(NAME).so
-SRC       :=  onidriver_test.c queue_u8.c ../../liboni-test/testfunc.c
+SRC       :=  onidriver_test.c queue_u8.c ../../oni-repl/testfunc.c
 OBJ       :=  $(SRC:.c=.o)
 CFLAGS    :=  -pedantic -Wall -W -Werror -fPIC -O3 $(DEFS)
 LDFLAGS   :=  -L.
@@ -39,7 +39,7 @@ uninstall: ## Remove driver from installation directory.
 
 $(DNAME): LDFLAGS += -shared
 $(DNAME): $(OBJ)
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $(LDFLAGS) $^ -lm -o $@
 
 .PHONY: clean
 clean: ## Remove local build objects

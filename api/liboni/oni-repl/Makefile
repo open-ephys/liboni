@@ -1,14 +1,14 @@
-# Examples:
-# make 			// Makes all test programs
-# make debug 	// Makes all test programs with debug symbols
-# make profile 	// Makes all test programs and links in the gperftool's profiler
-
-CC=cc
-CFLAGS=-O3 -Wall
-LDFLAGS=-loni -ldl
+# "make help" prints help.
+SHELL     :=  /bin/bash
+NAME      :=  oni-repl
+SRC       :=  main.c
+OBJ       :=  $(SRC:.c=.o)
+CFLAGS    :=  -pedantic -Wall -W -Werror -fPIC -O3 $(DEFS)
+LDFLAGS   :=  -lm -lpthread -loni -ldl
+PREFIX    :=  /usr/local
 
 .PHONY: all
-all: oni-repl cobs-test ## Build basic oni-repl and test functions
+all: $(NAME)
 
 .PHONY: debug
 debug: CFLAGS += -DDEBUG -g3 ## Build with debug symbols
@@ -18,17 +18,22 @@ debug: all
 profile: LDFLAGS += -lprofiler ## Link in the perftools profiler
 profile: all
 
-cobs-test: cobs_test.c testfunc.c ## Make COBS test program
+$(NAME): $(SRC) ## Make simple oni-repl acquisition software
 	@echo Making $@
-	$(CC) $(CFLAGS) $^ -lm $(LDFLAGS) -o $@
-
-oni-repl: main.c ## Make simple oni-repl acquisition software
-	@echo Making $@
-	$(CC) $(CFLAGS) $? -lm -lpthread $(LDFLAGS) -o $@
+	$(CC) $(CFLAGS) $? $(LDFLAGS) -o $@
 
 .PHONY: clean
 clean: ## Clean build artifacts
-	rm ./oni-repl ./cobs-test
+	rm ./$(NAME)
+
+.PHONY: install
+install: $(NAME) ## Install the program. Defaults to make install PREFIX=/usr/local.
+	@[ -d $(DESTDIR)$(PREFIX)/bin ] || mkdir -p $(DESTDIR)$(PREFIX)/bin
+	cp $(NAME) $(DESTDIR)$(PREFIX)/bin/$(NAME)
+
+.PHONY: uninstall
+uninstall: ## Remove driver from installation directory.
+	$(RM) $(DESTDIR)$(PREFIX)/bin/$(NAME)
 
 .PHONY: help
 help:

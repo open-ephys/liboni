@@ -16,7 +16,7 @@
 #include "../../oni.h"
 #include "../../onidriver.h"
 #include "../../onix.h"
-#include "../../oni-repl/testfunc.h"
+#include "../../test/testfunc.h"
 #include "queue_u8.h"
 
 #define NUMTESTDEVICES 4
@@ -73,7 +73,7 @@ struct oni_test_ctx_impl {
     // Internal read stream buffer
     size_t max_frame_size; // Max single frame size including header
     size_t buff_pos;       // Read position must be saved between buffer fills
-    byte *read_buff; // Buffer that will fit worst case amount of frames
+    char *read_buff; // Buffer that will fit worst case amount of frames
 
     // Configuration registers
     struct conf_reg conf;
@@ -501,7 +501,7 @@ int oni_driver_set_opt_callback(oni_driver_ctx driver_ctx,
         //} else {
 
             ctx->block_read_size = *(oni_size_t *)value;
-            ctx->read_buff = (uint32_t *)realloc(ctx->read_buff,
+            ctx->read_buff = (char *)realloc(ctx->read_buff,
                           ctx->block_read_size + ctx->max_frame_size);
         //}
     }

@@ -143,11 +143,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\liboni-test\testfunc.h" />
+    <ClInclude Include="..\..\test\testfunc.h" />
     <ClInclude Include="queue_u8.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\oni-repl\testfunc.c" />
+    <ClCompile Include="..\..\test\testfunc.c" />
     <ClCompile Include="onidriver_test.c" />
     <ClCompile Include="queue_u8.c" />
   </ItemGroup>

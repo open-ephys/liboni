@@ -15,22 +15,19 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="queue_u8.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\test\testfunc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
+    <ClCompile Include="cobs_test.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="testfunc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\onidriverloader.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="onidriver_test.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="queue_u8.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\test\testfunc.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
+    <ClInclude Include="testfunc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -15,18 +15,18 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="testfunc.c">
+    <ClCompile Include="main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="main.c">
+    <ClCompile Include="..\test\testfunc.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="testfunc.h">
+    <ClInclude Include="ketopt.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ketopt.h">
+    <ClInclude Include="oelogo.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

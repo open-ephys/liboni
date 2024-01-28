@@ -64,7 +64,7 @@ double randn(double mu, double sigma)
 void usleep(__int64 usec)
 {
     HANDLE timer;
-    LARGE_INTEGER ft;
+    LARGE_INTEGER ft = {0};
 
     ft.QuadPart = -(10 * usec); // Convert to 100 nanosecond interval, negative
                                 // value indicates relative time
