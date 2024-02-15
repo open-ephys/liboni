@@ -19,7 +19,9 @@
 #include "../../test/testfunc.h"
 #include "queue_u8.h"
 
-#define NUMTESTDEVICES 4
+#define NUMTESTDEVICESPERHUB 4 
+#define NUMTESTHUBS 4
+#define NUMTESTDEVICES (NUMTESTDEVICESPERHUB * NUMTESTHUBS)
 
 #define UNUSED(x) (void)(x)
 
@@ -29,7 +31,7 @@
 #define MIN(a,b) ((a<b) ? a : b)
 
 const oni_driver_info_t driverInfo
-    = {.name = "test", .major = 2, .minor = 0, .patch = 0, .pre_release = NULL};
+    = {.name = "test", .major = 2, .minor = 1, .patch = 0, .pre_release = NULL};
 
 struct conf_reg {
     uint32_t dev_idx;
@@ -140,29 +142,34 @@ oni_driver_ctx oni_driver_create_ctx()
     // Start at zero and update in the loop below
     ctx->max_frame_size = 0;
 
-    int i;
-    for (i = 0; i < ctx->num_devs; i++) {
+    assert(ctx->num_devs % NUMTESTDEVICESPERHUB == 0);  // Equal number of devices per hub
 
-        ctx->dev_table[i].dev.idx = i << 8; // All dev_idx 0 on different hubs
-        ctx->dev_table[i].dev.id = ONIX_TEST0;
-        ctx->dev_table[i].dev.version = 1;
-        ctx->dev_table[i].dev.read_size = 8 + 2 + 2 * (2 * i + 1); // [8: hub counter, 2: message word, 2 * (i + 1): dummy counter words]
-        ctx->dev_table[i].dev.write_size = 32;
-        ctx->dev_table[i].stream_enabled = 1;
-        ctx->dev_table[i].message = (uint16_t)(i * 42);
-        ctx->dev_table[i].dummy_words = 2 * i + 1; // This needs to be odd to enfornce 32-bit boundaries on frame data
-        ctx->dev_table[i].counter = 0;
-        ctx->dev_table[i].hubhwid = 5;
-        ctx->dev_table[i].hubfirmver = 1600;
-        ctx->dev_table[i].hubclkhz = (i + 1) * 50e6;
-        ctx->dev_table[i].hubdelayns = 628;
+    int i, j, ind;
+    for (i = 0; i < ctx->num_devs / NUMTESTDEVICESPERHUB; i++) {
+        for (j = 0; j < NUMTESTDEVICESPERHUB; j++) {
+            ind = i * NUMTESTDEVICESPERHUB + j;
 
-        ctx->enabled_idx[i] = i;
+            ctx->dev_table[ind].dev.idx = (i << 8) + j; // All dev_idx 0 to n on different hubs
+            ctx->dev_table[ind].dev.id = ONIX_TEST0;
+            ctx->dev_table[ind].dev.version = 2;
+            ctx->dev_table[ind].dev.read_size = 8 + 2 + 2 * (2 * i + 1); // [8: hub counter, 2: message word, 2 * (i + 1): dummy counter words]
+            ctx->dev_table[ind].dev.write_size = 32;
+            ctx->dev_table[ind].stream_enabled = 1;
+            ctx->dev_table[ind].message = (uint16_t)(i * 42);
+            ctx->dev_table[ind].dummy_words = 2 * i + 1; // This needs to be odd to enfornce 32-bit boundaries on frame data
+            ctx->dev_table[ind].counter = 0;
+            ctx->dev_table[ind].hubhwid = 5;
+            ctx->dev_table[ind].hubfirmver = 1600;
+            ctx->dev_table[ind].hubclkhz = (i + 1) * 50e6;
+            ctx->dev_table[ind].hubdelayns = 628;
 
-        ctx->max_frame_size
-            = ctx->max_frame_size < ctx->dev_table[i].dev.read_size ?
-                  ctx->dev_table[i].dev.read_size :
-                  ctx->max_frame_size;
+            ctx->enabled_idx[ind] = ind;
+
+            ctx->max_frame_size
+                = ctx->max_frame_size < ctx->dev_table[ind].dev.read_size ?
+                      ctx->dev_table[ind].dev.read_size :
+                      ctx->max_frame_size;
+        }
     }
 
     // Configuration registers
@@ -224,7 +231,7 @@ static int _send_data_signal(oni_test_ctx ctx,
 
     // Src and dst buffers
     uint8_t *src = malloc(packet_size);
-    uint8_t dst[256] = {0}; // Maximal packet size including delimeter
+    uint8_t dst[256] = {0}; // Maximal packet size including delimiter
 
     // Concatenate signal type and data
     memcpy(src, &type, sizeof(type));
