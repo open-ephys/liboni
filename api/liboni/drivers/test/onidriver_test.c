@@ -19,7 +19,7 @@
 #include "../../test/testfunc.h"
 #include "queue_u8.h"
 
-#define NUMTESTDEVICESPERHUB 4 
+#define NUMTESTDEVICESPERHUB 4
 #define NUMTESTHUBS 4
 #define NUMTESTDEVICES (NUMTESTDEVICESPERHUB * NUMTESTHUBS)
 
@@ -133,8 +133,8 @@ oni_driver_ctx oni_driver_create_ctx()
     // Counters
     ctx->frame_num = 0;
 
-    // Create devices, each on their own hub
-    ctx->num_devs = sizeof(ctx->dev_table) / sizeof(test_dev_t);
+    // Create devices, with an equal number of devices per hub
+    ctx->num_devs = NUMTESTDEVICES;
 
     // All devices default to enabled
     ctx->num_enabled = ctx->num_devs;
@@ -142,32 +142,29 @@ oni_driver_ctx oni_driver_create_ctx()
     // Start at zero and update in the loop below
     ctx->max_frame_size = 0;
 
-    assert(ctx->num_devs % NUMTESTDEVICESPERHUB == 0);  // Equal number of devices per hub
+    for (int i = 0; i < ctx->num_devs / NUMTESTDEVICESPERHUB; i++) {
+        for (int j = 0; j < NUMTESTDEVICESPERHUB; j++) {
+            int k = i * NUMTESTDEVICESPERHUB + j;
 
-    int i, j, ind;
-    for (i = 0; i < ctx->num_devs / NUMTESTDEVICESPERHUB; i++) {
-        for (j = 0; j < NUMTESTDEVICESPERHUB; j++) {
-            ind = i * NUMTESTDEVICESPERHUB + j;
+            ctx->dev_table[k].dev.idx = (i << 8) + j; // All dev_idx 0 to n on different hubs
+            ctx->dev_table[k].dev.id = ONIX_TEST0;
+            ctx->dev_table[k].dev.version = 2;
+            ctx->dev_table[k].dev.read_size = 8 + 2 + 2 * (2 * i + 1); // [8: hub counter, 2: message word, 2 * (i + 1): dummy counter words]
+            ctx->dev_table[k].dev.write_size = 32;
+            ctx->dev_table[k].stream_enabled = 1;
+            ctx->dev_table[k].message = (uint16_t)(i * 42);
+            ctx->dev_table[k].dummy_words = 2 * i + 1; // This needs to be odd to enfornce 32-bit boundaries on frame data
+            ctx->dev_table[k].counter = 0;
+            ctx->dev_table[k].hubhwid = 5;
+            ctx->dev_table[k].hubfirmver = 1600;
+            ctx->dev_table[k].hubclkhz = (i + 1) * 50e6;
+            ctx->dev_table[k].hubdelayns = 628;
 
-            ctx->dev_table[ind].dev.idx = (i << 8) + j; // All dev_idx 0 to n on different hubs
-            ctx->dev_table[ind].dev.id = ONIX_TEST0;
-            ctx->dev_table[ind].dev.version = 2;
-            ctx->dev_table[ind].dev.read_size = 8 + 2 + 2 * (2 * i + 1); // [8: hub counter, 2: message word, 2 * (i + 1): dummy counter words]
-            ctx->dev_table[ind].dev.write_size = 32;
-            ctx->dev_table[ind].stream_enabled = 1;
-            ctx->dev_table[ind].message = (uint16_t)(i * 42);
-            ctx->dev_table[ind].dummy_words = 2 * i + 1; // This needs to be odd to enfornce 32-bit boundaries on frame data
-            ctx->dev_table[ind].counter = 0;
-            ctx->dev_table[ind].hubhwid = 5;
-            ctx->dev_table[ind].hubfirmver = 1600;
-            ctx->dev_table[ind].hubclkhz = (i + 1) * 50e6;
-            ctx->dev_table[ind].hubdelayns = 628;
-
-            ctx->enabled_idx[ind] = ind;
+            ctx->enabled_idx[k] = k;
 
             ctx->max_frame_size
-                = ctx->max_frame_size < ctx->dev_table[ind].dev.read_size ?
-                      ctx->dev_table[ind].dev.read_size :
+                = ctx->max_frame_size < ctx->dev_table[k].dev.read_size ?
+                      ctx->dev_table[k].dev.read_size :
                       ctx->max_frame_size;
         }
     }
