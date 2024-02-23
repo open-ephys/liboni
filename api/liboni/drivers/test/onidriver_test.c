@@ -499,15 +499,9 @@ int oni_driver_set_opt_callback(oni_driver_ctx driver_ctx,
 
     if (oni_option == ONI_OPT_BLOCKREADSIZE)
     {
-        // NB: Block size must be a multiple of a full data frame
-        //if (*(oni_size_t *)value % (ONI_FRAMEHEADERSZ + ctx->dev_table[0].dev.read_size) != 0) {
-            //return ONI_EINVALARG;
-        //} else {
-
             ctx->block_read_size = *(oni_size_t *)value;
             ctx->read_buff = (char *)realloc(ctx->read_buff,
                           ctx->block_read_size + ctx->max_frame_size);
-        //}
     }
 
     return ONI_ESUCCESS;
@@ -574,7 +568,6 @@ static void _fill_read_buffer(oni_test_ctx ctx, void *data, size_t size)
         // Dummy Counter
         for (int16_t j = 0, k = 0; j < ctx->dev_table[d].dummy_words; j++, k+=2)
             *((int16_t *)(ctx->read_buff + ctx->buff_pos + 26 + k)) = j;
-
     }
 
     // Copy buffer and store remainder
