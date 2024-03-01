@@ -60,7 +60,7 @@ typedef enum
 } oni_ft600_sigstate;
 
 const oni_driver_info_t driverInfo
-    = {.name = "ft600", .major = 1, .minor = 0, .patch = 0, .pre_release = NULL};
+    = {.name = "ft600", .major = 1, .minor = 0, .patch = 2, .pre_release = NULL};
 
 struct oni_ft600_ctx_impl {
 	oni_size_t inBlockSize;
@@ -852,16 +852,38 @@ int oni_driver_set_opt(oni_driver_ctx driver_ctx,
 	return ONI_EINVALOPT;
 }
 
+// option 0: driver version
+// option 1: library version
 int oni_driver_get_opt(oni_driver_ctx driver_ctx,
 	int driver_option,
 	void* value,
 	size_t* option_len)
 {
-	UNUSED(driver_ctx);
-	UNUSED(driver_option);
-	UNUSED(value);
-	UNUSED(option_len);
-	return ONI_EINVALOPT;
+    CTX_CAST;
+	
+	if (!ctx->ftHandle)
+	{
+        return ONI_EINVALSTATE;
+	}
+
+	if (driver_option == 0)
+	{
+        if (*option_len < sizeof(int32_t))
+            return ONI_EBUFFERSIZE;
+        if (FT_GetDriverVersion(ctx->ftHandle, value) == FT_OK)
+            return ONI_ESUCCESS;
+        else
+            return ONI_ESEEKFAILURE;
+	}
+    else if (driver_option == 1) {
+        if (*option_len < sizeof(uint32_t))
+            return ONI_EBUFFERSIZE;
+        if (FT_GetLibraryVersion(ctx->ftHandle, value) == FT_OK)
+            return ONI_ESUCCESS;
+        else
+            return ONI_ESEEKFAILURE;
+    } else
+		return ONI_EINVALOPT;
 }
 
 const oni_driver_info_t* oni_driver_info() 
