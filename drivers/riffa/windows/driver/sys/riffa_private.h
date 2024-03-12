@@ -67,6 +67,7 @@ typedef struct CHNL_DIR_STATE {
 	LONG					Ready;
 	LONG					InUse;
 	LONG					ReqdDone;
+	LONG					ExpectDone;
 	UINT64					Length;
 	UINT64					Offset;
 	UINT32					Last;
@@ -157,6 +158,9 @@ EVT_WDF_FILE_CLEANUP RiffaFileCleanup;
 EVT_WDF_INTERRUPT_ISR RiffaEvtInterruptIsr;
 EVT_WDF_INTERRUPT_DPC RiffaEvtInterruptDpc;
 BOOLEAN RiffaProcessInterrupt(IN PDEVICE_EXTENSION DevExt, IN UINT32 Offset, IN UINT32 Vect);
+
+VOID RiffaRecvDone(PDEVICE_EXTENSION devExt, UINT32 chnl);
+VOID RiffaSendDone(PDEVICE_EXTENSION devExt, UINT32 chnl);
 
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL  RiffaEvtIoDeviceControl;
 VOID RiffaIoctlSend(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,

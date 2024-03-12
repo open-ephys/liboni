@@ -2,7 +2,7 @@
 [Version]
 Signature="$WINDOWS NT$"
 Class=FPGA
-ClassGuid={78A1C341-4539-11d3-B88D-00C04FAD5171}
+ClassGuid={93C0913E-E188-4DA3-8062-BEF24D410867}
 Provider=%UCSD%
 DriverVer=03/20/2003,6.00.3790
 CatalogFile=riffa.cat
