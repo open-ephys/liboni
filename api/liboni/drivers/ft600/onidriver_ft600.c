@@ -7,11 +7,14 @@
 #include "../../onidriver.h"
 #include "circbuffer.h"
 
+#define DRIVER_1308_WORKAROUND 1
+
 #ifdef _WIN32
 #include<Windows.h>
-#define DEFAULT_OVERLAPPED 3
+#define DEFAULT_OVERLAPPED 4
 #define SERIAL_LEN 16
 #define FTD3XX_STATIC
+
 #else
 #include <unistd.h>
 #include <pthread.h>
@@ -21,6 +24,11 @@
 #define SERIAL_LEN 32
 #endif
 #include <FTD3XX.h>
+
+#if defined(_WIN32) && defined(DRIVER_1308_WORKAROUND)
+#define FT_ReadPipeEx FT_ReadPipe
+#endif 
+
 
 #define DEFAULT_AUXSIZE 8192
 #define DEFAULT_BLOCKREAD 4096
@@ -60,7 +68,7 @@ typedef enum
 } oni_ft600_sigstate;
 
 const oni_driver_info_t driverInfo
-    = {.name = "ft600", .major = 1, .minor = 0, .patch = 2, .pre_release = NULL};
+    = {.name = "ft600", .major = 1, .minor = 0, .patch = 3, .pre_release = NULL};
 
 struct oni_ft600_ctx_impl {
 	oni_size_t inBlockSize;
