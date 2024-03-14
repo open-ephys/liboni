@@ -93,7 +93,7 @@
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
     <Inf>
-      <TimeStamp>6.0.1.3</TimeStamp>
+      <TimeStamp>6.1.0.2</TimeStamp>
     </Inf>
     <DriverSign />
   </ItemDefinitionGroup>
@@ -106,7 +106,7 @@
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
     <Inf>
-      <TimeStamp>6.0.1.4</TimeStamp>
+      <TimeStamp>6.1.0.2</TimeStamp>
     </Inf>
     <DriverSign />
     <DriverSign>
@@ -119,7 +119,7 @@
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
     <Inf>
-      <TimeStamp>6.0.1.3</TimeStamp>
+      <TimeStamp>6.1.0.2</TimeStamp>
       <SpecifyDriverVerDirectiveVersion>true</SpecifyDriverVerDirectiveVersion>
     </Inf>
     <DriverSign />
@@ -130,7 +130,7 @@
       <TreatWarningAsError>false</TreatWarningAsError>
     </ClCompile>
     <Inf>
-      <TimeStamp>6.0.1.4</TimeStamp>
+      <TimeStamp>6.1.0.2</TimeStamp>
       <SpecifyDriverVerDirectiveVersion>true</SpecifyDriverVerDirectiveVersion>
     </Inf>
     <DriverSign />
@@ -156,6 +156,9 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\..\sys\riffa.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="openephys.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

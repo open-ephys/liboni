@@ -1,11 +1,12 @@
 
 [Version]
 Signature="$WINDOWS NT$"
-Class=FPGA
-ClassGuid={93C0913E-E188-4DA3-8062-BEF24D410867}
+Class=OE_ONI_PCIE
+ClassGuid={5D65AB98-8325-4560-A5BD-DDDE765518E7}
 Provider=%UCSD%
 DriverVer=03/20/2003,6.00.3790
 CatalogFile=riffa.cat
+PnPLockdown=1
 
 [DestinationDirs]
 DefaultDestDir = 12
@@ -13,11 +14,11 @@ DefaultDestDir = 12
 ; ================= Class section =====================
 
 [ClassInstall32]
-Addreg=FPGAClassReg     
+Addreg=PCIeONIClassReg 
 
-[FPGAClassReg]
+[PCIeONIClassReg]
 HKR,,,0,%ClassName%
-HKR,,Icon,,-5
+HKR,,IconPath,0x00010000,"%12%\open-ephys-icons.dll,-104"
 HKR,,DeviceCharacteristics,0x10001,0x100     ;Use same security checks on relative opens
 HKR,,Security,,"D:P(A;;GA;;;WD)" ;Allow generic all access to all. 
 ;HKR,,Security,,"D:P(A;;GA;;;SY)(A;;GA;;;BA)" ;Allow generic all access to system and built-in Admin. 
@@ -32,6 +33,7 @@ ExcludeFromSelect=*
 
 [SourceDisksFiles]
 riffa.sys=1
+open-ephys-icons.dll=1
 
 [SourceDisksNames]
 1=%DISK_NAME%,
@@ -40,21 +42,26 @@ riffa.sys=1
 [UCSD]
 ; DisplayName                        Section           DeviceId           CompatibleId
 ; -----------                        -------           --------           ------------
-%RIFFA.XILINXDESC%%RIFFA.DEBUG%=     RIFFA_Inst,       PCI\VEN_10EE,      PCI\VEN_10EE
-%RIFFA.ALTERADESC%%RIFFA.DEBUG%=     RIFFA_Inst,       PCI\VEN_1172,      PCI\VEN_1172
+%RIFFA.DEBUG%%RIFFA.XILINXDESC%=     RIFFA_Inst,       PCI\VEN_10EE,      PCI\VEN_10EE
+%RIFFA.DEBUG%%RIFFA.ALTERADESC%=     RIFFA_Inst,       PCI\VEN_1172,      PCI\VEN_1172
 
 ; For XP and later
 [UCSD.NT$ARCH$]
 ; DisplayName                        Section           DeviceId           CompatibleId
 ; -----------                        -------           --------           ------------
-%RIFFA.XILINXDESC%%RIFFA.DEBUG%=     RIFFA_Inst,       PCI\VEN_10EE,      PCI\VEN_10EE
-%RIFFA.ALTERADESC%%RIFFA.DEBUG%=     RIFFA_Inst,       PCI\VEN_1172,      PCI\VEN_1172
+%RIFFA.DEBUG%%RIFFA.XILINXDESC%=     RIFFA_Inst,       PCI\VEN_10EE,      PCI\VEN_10EE
+%RIFFA.DEBUG%%RIFFA.ALTERADESC%=     RIFFA_Inst,       PCI\VEN_1172,      PCI\VEN_1172
 
 [RIFFA_Inst.NT]
 CopyFiles=RIFFA.CopyFiles
+AddProperty = DeviceIconProperty
+
+[DeviceIconProperty]
+DeviceIcon,,,,"%11%\setupapi.dll,-9"  
 
 [RIFFA.CopyFiles]
 riffa.sys
+open-ephys-icons.dll
 
 [RIFFA_Inst.NT.HW]
 AddReg=RIFFA.HwReg 
@@ -99,10 +106,10 @@ KmdfLibraryVersion = $KMDFVERSION$
 
 [Strings]
 UCSD = "University of California, San Diego / Open-Ephys"
-ClassName = "RIFFA Devices"
+ClassName = "Open Ephys ONI PCIe Devices"
 RIFFA.SVCDESC = "Driver Service for RIFFA FPGAs"
-RIFFA.XILINXDESC = "Xilinx(R) FPGA"
-RIFFA.ALTERADESC = "Altera(R) FPGA"
-RIFFA.DEBUG = " Riffa Driver"
+RIFFA.XILINXDESC = " for Xilinx(R) FPGA"
+RIFFA.ALTERADESC = " for Altera(R) FPGA"
+RIFFA.DEBUG = "Riffa PCIe Driver"
 DISK_NAME = "RIFFA Install Disk"
-
+ONI = "Open Ephys ONI "

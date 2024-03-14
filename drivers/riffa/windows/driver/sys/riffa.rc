@@ -40,5 +40,7 @@ BEGIN
     END
 END
 
+IDI_ICON1               ICON                    "..\\riffa\\riffa\\openephys.ico"
+
 
 
