@@ -69,7 +69,7 @@ namespace ClrOniRepl
     {
         public class Options
         {
-            [Value(0, MetaName = "Driver", HelpText = "Device driver string (e.g. riffa, test, etc.).")]
+            [Value(0, MetaName = "Driver", Required = true, HelpText = "Device driver string (e.g. riffa, test, etc.).")]
             public string Driver { get; set; }
 
             [Value(1, MetaName = "Slot", Default = -1, Required = false, HelpText = "Slot index (e.g. 0, 1, 2, etc.). If not specified, the driver-defined default index will be attempted.")]
