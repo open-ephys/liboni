@@ -44,9 +44,11 @@ enum {
     ONIX_MAX10ADCCORE       = 26,   // Max10 internal ADC device
     ONIX_LOADTEST           = 27,   // Variable load testing device
     ONIX_MEMUSAGE           = 28,   // Acquisition hardware buffer usage reporting device
+                                    // Accidentally skipped
     ONIX_HARPSYNCINPUT      = 30,   // Harp synchronization data input device
     ONIX_RHS2116            = 31,   // Intan RHS2116 bioamplifier and stimulator
     ONIX_RHS2116TRIGGER     = 32,   // Multi Intan RHS2116 stimulation trigger
+    ONIX_NRIC1384           = 33    // IMEC NRIC1384 384-channel bioaquisition chip
 };
 
 // Each hub has a "hidden" information device with a fixed device index and 
@@ -72,6 +74,13 @@ enum {
     ONIX_HUB_HSNP           = 3,    // Open Ephys headstage-neuropix1
     ONIX_HUB_HSRHS2116      = 4,    // Open Ephys headstage-rhs2116
     ONIX_HUB_HS64S          = 5,    // Open Ephys headstage-64s
+    ONIX_HUB_HSNP1ET        = 6,    // Open Ephys headstage-neuropix1e-te
+    ONIX_HUB_HSNP2EB        = 7,    // Open Ephys headstage-neuropix2e-beta
+    ONIX_HUB_HSNP2E         = 8,    // Open Ephys headstage-neuropix2e
+    ONIX_HUB_HSNRIC1384     = 9,    // Open Ephys headstage-nric1384
+    ONIX_HUB_HSNP1EH        = 10,   // Open Ephys headstage-neuropix1e-hirose
+    ONIX_HUB_RHYTHM         = 11    // Open Ephys Acquisition Board Rhythm wrapper
+
 };
 
 // ONIX Specific configuration registers

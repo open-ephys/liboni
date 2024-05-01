@@ -106,6 +106,9 @@ const char *onix_device_str(int dev_id)
         case ONIX_RHS2116TRIGGER: {
             return "Multi Intan RHS2116 stimulation trigger";
         }
+        case ONIX_NRIC1384: {
+            return "IMEC NRIC1384 384-channel bioaquisition chip";
+        }
         default:
             return "Unknown device";
     }
@@ -131,6 +134,24 @@ const char *onix_hub_str(int dev_id)
         }
         case ONIX_HUB_HS64S: {
             return "Open Ephys ONIX Headstage-64s";
+        }
+        case ONIX_HUB_HSNP1ET: {
+            return "Open Ephys ONIX Headstage-Neuropixels1.0e-TE";
+        }
+        case ONIX_HUB_HSNP2EB: {
+            return "Open Ephys ONIX Headstage-Neuropixels2.0e-Beta";
+        }
+        case ONIX_HUB_HSNP2E: {
+            return "Open Ephys ONIX Headstage-Neuropixels2.0e";
+        }
+        case ONIX_HUB_HSNRIC1384: {
+            return "Open Ephys ONIX Headstage-NRIC1384";
+        }
+        case ONIX_HUB_HSNP1EH: {
+            return "Open Ephys ONIX Headstage-Neuropixels1.0e-Hirose";
+        }
+        case ONIX_HUB_RHYTHM: {
+            return "Open Ephys Acquisition Board Rhythm wrapper";
         }
         default:
             return "Unknown Hub";
