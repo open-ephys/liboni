@@ -10,14 +10,18 @@ namespace ClrOniRepl
 
         public static string HubTableString(Context ctx)
         {
-            var hubs = ctx.DeviceTable.Select(d => ctx.GetHub(d.Value.Address)).Distinct();
+            var hubs = ctx.DeviceTable.Where(d => d.Value.ID != 0)
+                .Select(d => ctx
+                .GetHub(d.Value.Address))
+                .GroupBy(h => h.Address)
+                .Select(g => g
+                .First());
+
             var builder = new StringBuilder();
 
-            foreach (var hub in hubs)
+            foreach (var hub in hubs )
             {
-                builder.AppendLine(string.Format("\tHub {0}) {1}",
-                                   hub.Address,
-                                   hub.Description));
+                builder.AppendLine($"\tHub { hub.Address}) {hub.Description}");
             }
 
             return builder.ToString();
@@ -29,12 +33,7 @@ namespace ClrOniRepl
 
             foreach (var dev in ctx.DeviceTable.Values)
             {
-                builder.AppendLine(string.Format("\t{0}) ID: {1}, Read size: {2}, Write size: {3}, Hub: {4}",
-                                  dev.Address,
-                                  dev.ID,
-                                  dev.ReadSize,
-                                  dev.WriteSize,
-                                  ctx.GetHub(dev.Address).Description));
+                builder.AppendLine($"\t{dev.Address}) ID: {dev.ID}, Read size: {dev.ReadSize}, Write size: {dev.WriteSize}, {dev.Description}");
             }
 
             return builder.ToString();
