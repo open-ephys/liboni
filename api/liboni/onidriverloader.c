@@ -17,7 +17,7 @@ static inline void close_library(lib_handle_t handle) {
 static inline lib_handle_t open_library(const char* name)
 {
 #ifdef _WIN32
-    return LoadLibrary(name);
+    return LoadLibraryEx(name, NULL, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
 #else
     // Clear errors
     dlerror();
