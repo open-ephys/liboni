@@ -6,7 +6,7 @@ DNAMELN   :=  $(NAME).so
 SRC       :=  onidriver_ft600.c circbuffer.c
 OBJ       :=  $(SRC:.c=.o)
 FT_PATH   := ./ft3dxx/linux
-CFLAGS    :=  -pedantic -Wall -W -Werror -fPIC -O2 -g $(DEFS) -I$(FT_PATH)
+CFLAGS    :=  -pedantic -Wall -W -Werror -fPIC -O2 $(DEFS) -I$(FT_PATH)
 LDFLAGS   :=  -L. -L$(FT_PATH)
 LIBS      := -lftd3xx -lpthread 
 PREFIX    :=  /usr/local

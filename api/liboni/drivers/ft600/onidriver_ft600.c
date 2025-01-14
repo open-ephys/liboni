@@ -16,7 +16,6 @@
 
 #else
 #include <unistd.h>
-#include <pthread.h>
 #define Sleep(x) usleep((x)*1000)
 #define TRUE true
 #define FALSE false
@@ -92,9 +91,7 @@ struct oni_ft600_ctx_impl {
 	unsigned int numInOverlapped;
 	OVERLAPPED* inOverlapped;
 	ULONG* inTransferred;
-#ifndef _WIN32
-	pthread_mutex_t controlMutex;
-#else 
+#ifdef _WIN32
 	OVERLAPPED cmdOverlapped;
 	OVERLAPPED sigOverlapped;
 	OVERLAPPED outOverlapped;
@@ -161,7 +158,7 @@ inline void fill_control_buffers(oni_ft600_ctx ctx, ULONG transferred)
 			break;
 		case SIG_SIGNAL:
 			lastIndex = index;
-			while (index < transferred && ctx->auxBuffer[index] != 0) { /*printf("ii %ld t %d\n",index,transferred);*/ index++; }
+			while (index < transferred && ctx->auxBuffer[index] != 0) { index++; }
 			if (index >= transferred) index--;
 			while (!circBufferCanWrite(&ctx->signalBuffer, index - lastIndex + 1));
 			circBufferWrite(&ctx->signalBuffer, ctx->auxBuffer + lastIndex, index - lastIndex + 1);
@@ -228,38 +225,6 @@ void oni_ft600_usb_callback(PVOID context, E_FT_NOTIFICATION_CALLBACK_TYPE type,
 
 }
 
-void oni_ft600_update_control(oni_ft600_ctx ctx)
-#if 0
-{
-	FT_STATUS ftStatus;
-	DWORD toread = 1;///ctx->auxSize;
-	ULONG transferred;
-
-	if (pthread_mutex_trylock(&ctx->controlMutex) == 0)
-	{
-
-        printf("tr: %d\n",toread);
-        ftStatus = FT_ReadPipeEx(ctx->ftHandle, pipeid_control, ctx->auxBuffer, toread, &transferred,0);
-        printf("st: %d t %d\n",ftStatus,transferred);
-            if (ftStatus != FT_OK && ftStatus != FT_TIMEOUT && ftStatus != FT_IO_PENDING)
-            {
-                ctx->sigError = 1;
-                pthread_mutex_unlock(&ctx->controlMutex);
-                return;
-            }
-            if (ftStatus == FT_OK && transferred > 0)
-            {
-                fill_control_buffers(ctx, transferred);
-            }
-		pthread_mutex_unlock(&ctx->controlMutex);
-	}
-}
-#else
-{
-UNUSED(ctx);
-}
-#endif
-
 static inline oni_conf_off_t _oni_register_offset(oni_config_t reg);
 
 inline void oni_ft600_restart_acq(oni_ft600_ctx ctx)
@@ -290,7 +255,6 @@ inline void oni_ft600_reset_acq(oni_ft600_ctx ctx, int hard)
 //	FT_AbortPipe(ctx->ftHandle, pipe_cmd);
 //	FT_AbortPipe(ctx->ftHandle, pipe_sig);
 #ifndef _WIN32
-	printf("f1\n");
         FT_FlushPipe(ctx->ftHandle, pipe_in);
         FT_FlushPipe(ctx->ftHandle, pipe_out);
 //    FT_FlushPipe(ctx->ftHandle, pipe_cmd);
@@ -327,7 +291,6 @@ inline int oni_ft600_sendcmd(oni_ft600_ctx ctx, uint8_t* buffer, size_t size)
 		if (ftStatus != FT_OK) return ONI_ESEEKFAILURE;
 #else
 		ftStatus = FT_WritePipeEx(ctx->ftHandle, pipeid_control, buffer + total, size - total, &transferred, 1000);
-		printf("cmdw s:%d t: %d\n",ftStatus,transferred);
 		if (ftStatus != FT_OK && ftStatus != FT_TIMEOUT && ftStatus != FT_IO_PENDING) return ONI_ESEEKFAILURE;
 #endif
 		if (ftStatus == FT_OK) 
@@ -380,8 +343,6 @@ void oni_ft600_free_ctx(oni_ft600_ctx ctx)
 		}
 		if (ctx->inTransferred != NULL) free(ctx->inTransferred);
 #ifndef _WIN32
-		pthread_mutex_destroy(&ctx->controlMutex);
-		printf("f2\n");
 		FT_FlushPipe(ctx->ftHandle, pipe_in);
 		FT_FlushPipe(ctx->ftHandle, pipe_out);
 		FT_FlushPipe(ctx->ftHandle, pipe_cmd);
@@ -473,13 +434,6 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 	CHECK_NULL(ctx->inTransferred);
 	ctx->inBuffer = malloc(2 * (size_t)ctx->numInOverlapped * ctx->inBlockSize);
 	CHECK_NULL(ctx->inBuffer);
-#ifndef _WIN32
-	if (pthread_mutex_init(&ctx->controlMutex, NULL) != 0)
-	{
-		oni_ft600_free_ctx(ctx);
-		return ONI_EINIT;
-	}
-#endif
 	CHECK_ERR(circBufferInit(&ctx->signalBuffer));
 	CHECK_ERR(circBufferInit(&ctx->regBuffer));
 	ctx->auxBuffer = malloc(ctx->auxSize);
@@ -537,9 +491,6 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 	{
 		while (!circBufferCanRead(&ctx->signalBuffer, size))
 		{
-#ifndef _WIN32
-			oni_ft600_update_control(ctx);
-#endif 
 			if (ctx->sigError)
 			{
 				ctx->sigError = 0;
@@ -558,7 +509,6 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 		FT_STATUS ftStatus;
 		int read = 0;
 		if (remaining < ctx->inBlockSize) return ONI_EINVALREADSIZE;
-       // printf("read: %d\n", remaining);
 		size_t to_read;
 		uint8_t* dstPtr = data;
 		uint8_t* srcPtr;
@@ -569,17 +519,9 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 			to_read = ctx->lastReadRead - ctx->lastReadOffset;
 			srcPtr = ctx->inBuffer + ctx->inBlockSize * (size_t)lastIndex + ctx->lastReadOffset;
 			memcpy(dstPtr, srcPtr, to_read);
-          //printf("%d - %d - %d\n", lastIndex, to_read, ctx->lastReadOffset);
-            /* printf("cD: ");
-            for (int i = 0; i < to_read; i++)
-                printf("%x ", *(dstPtr + i));
-            printf("\n cS: ");
-            for (int i = 0; i < to_read; i++)
-                printf("%x ", *(srcPtr + i));*/
 			remaining -= to_read;
 			dstPtr += to_read;
 			read += to_read;
-          //  printf("r %d rem %d\n", to_read, remaining);
 		}
         while (remaining > 0) {
 			unsigned int simIndex = ctx->nextReadIndex % ctx->numInOverlapped;
@@ -606,18 +548,7 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 #endif
 			srcPtr = ctx->inBuffer + ctx->inBlockSize * (size_t)ctx->nextReadIndex;
 			to_read = MIN(remaining, transferred);
-            /* printf("\n%d - %d - %d - %d - %d\n",
-                        ctx->nextReadIndex,
-                        nextIndex,
-                        simIndex,
-                        to_read, transferred);*/
 			memcpy(dstPtr, srcPtr, to_read);
-         /* printf("D: ");
-            for (int i = 0; i < to_read; i++)
-                printf("%x ", *(dstPtr + i));
-            printf("\n S: ");
-            for (int i = 0; i < to_read; i++)
-                printf("%x ", *(srcPtr + i));*/
 			remaining -= to_read;
 			dstPtr += to_read;
 			read += to_read;
@@ -625,14 +556,12 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
             ctx->nextReadIndex
                 = (ctx->nextReadIndex + 1) % (2 * ctx->numInOverlapped);
             if (to_read < transferred) {
-             //   printf("t %d r %d - %d\n", transferred, to_read, ctx->nextReadIndex);
 				ctx->lastReadRead = transferred;
 				ctx->lastReadOffset = to_read;
             } else {
                 ctx->lastReadOffset = 0;
 			}
 		}
-   //     printf("rr: %d a %p\n", read,data);
 		return read;
 
 	}
@@ -740,12 +669,10 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
 
 	if (reg == ONI_CONFIG_RESET && value != 0) 
 	{
-	    printf("init reset sequence\n");
 	    oni_ft600_stop_acq(ctx);
 	}
 	int res = oni_ft600_sendcmd(ctx, buffer, size);
 	if (res != ONI_ESUCCESS) return res;
-	printf("cmdsent: %d\n",reg);
 	return ONI_ESUCCESS;
 }
 
@@ -760,9 +687,6 @@ int oni_driver_read_config(oni_driver_ctx driver_ctx, oni_config_t reg, oni_reg_
 
 	while (!circBufferCanRead(&ctx->regBuffer, sizeof(oni_reg_val_t))) 
 	{
-#ifndef _WIN32
-		oni_ft600_update_control(ctx);
-#endif 
 		if (ctx->sigError)
 		{
 			ctx->sigError = 0;
