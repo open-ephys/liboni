@@ -4,14 +4,16 @@
 #include <string.h>
 #include <stdint.h>
 
-
-#include <onidriver.h>
+#include "../../onidriver.h"
 #include "circbuffer.h"
+
+#define DRIVER_1308_WORKAROUND 1
 
 #ifdef _WIN32
 #include<Windows.h>
 #define SERIAL_LEN 16
 #define FTD3XX_STATIC
+
 #else
 #include <unistd.h>
 #include <pthread.h>
@@ -21,6 +23,13 @@
 #define SERIAL_LEN 32
 #endif
 #include <FTD3XX.h>
+
+
+#if defined(_WIN32) && defined(DRIVER_1308_WORKAROUND)
+#define FT_ReadPipeEx FT_ReadPipe
+#endif 
+
+
 #define DEFAULT_OVERLAPPED 4
 #define DEFAULT_AUXSIZE 8192
 #define DEFAULT_BLOCKREAD 4096
@@ -60,7 +69,7 @@ typedef enum
 } oni_ft600_sigstate;
 
 const oni_driver_info_t driverInfo
-    = {.name = "ft600", .major = 1, .minor = 0, .patch = 0, .pre_relase = NULL};
+    = {.name = "ft600", .major = 1, .minor = 0, .patch = 3, .pre_release = NULL};
 
 struct oni_ft600_ctx_impl {
 	oni_size_t inBlockSize;
@@ -71,11 +80,12 @@ struct oni_ft600_ctx_impl {
 	uint8_t* auxBuffer;
 	size_t auxSize;
 	uint32_t prioValue;
-	oni_ft600_state state;
+	volatile oni_ft600_state state;
 	oni_ft600_sigstate sigState;
 	unsigned short sigOffset;
 	unsigned short sigError;
 	unsigned int nextReadIndex;
+    unsigned int lastReadIndex;
 	size_t lastReadOffset;
 	size_t lastReadRead;
 	uint8_t* inBuffer;
@@ -180,18 +190,26 @@ void oni_ft600_usb_callback(PVOID context, E_FT_NOTIFICATION_CALLBACK_TYPE type,
 	if (!info) return;
 	oni_ft600_ctx ctx = (oni_ft600_ctx)context;
 	ULONG transferred;
+    ULONG total = 0;
 	
 	
-
-	FT_ReadPipe(ctx->ftHandle, info->ucEndpointNo, ctx->auxBuffer, info->ulRecvNotificationLength, &transferred, &ctx->sigOverlapped,0);
-	ftStatus = FT_GetOverlappedResult(ctx->ftHandle, &ctx->sigOverlapped, &transferred, TRUE);
-	if (ftStatus != FT_OK)
-	{
+	do {
+        FT_ReadPipe(ctx->ftHandle,
+                    info->ucEndpointNo,
+                    ctx->auxBuffer + total,
+                    info->ulRecvNotificationLength - total,
+                    &transferred,
+                    &ctx->sigOverlapped);
+        ftStatus = FT_GetOverlappedResult(
+            ctx->ftHandle, &ctx->sigOverlapped, &transferred, TRUE);
+        if (ftStatus != FT_OK) {
 		ctx->sigError = 1;
 		return;
 	}
+        total += transferred;
+    } while (total < info->ulRecvNotificationLength);
 
-	if (transferred > 0)
+	if (total > 0)
 	{
 		fill_control_buffers(ctx, transferred);
 	}
@@ -210,17 +228,17 @@ void oni_ft600_update_control(oni_ft600_ctx ctx)
         printf("tr: %d\n",toread);
         ftStatus = FT_ReadPipeEx(ctx->ftHandle, pipeid_control, ctx->auxBuffer, toread, &transferred,0);
         printf("st: %d t %d\n",ftStatus,transferred);
-        if (ftStatus != FT_OK && ftStatus != FT_TIMEOUT && ftStatus != FT_IO_PENDING)
-        {
-            ctx->sigError = 1;
-            pthread_mutex_unlock(&ctx->controlMutex);
-            return;
-        }
-        if (ftStatus == FT_OK && transferred > 0)
-        {
-            fill_control_buffers(ctx, transferred);
-        }
-	pthread_mutex_unlock(&ctx->controlMutex);
+            if (ftStatus != FT_OK && ftStatus != FT_TIMEOUT && ftStatus != FT_IO_PENDING)
+            {
+                ctx->sigError = 1;
+                pthread_mutex_unlock(&ctx->controlMutex);
+                return;
+            }
+            if (ftStatus == FT_OK && transferred > 0)
+            {
+                fill_control_buffers(ctx, transferred);
+            }
+		pthread_mutex_unlock(&ctx->controlMutex);
 	}
 }
 
@@ -231,6 +249,7 @@ static inline oni_conf_off_t _oni_register_offset(oni_config_t reg);
 inline void oni_ft600_restart_acq(oni_ft600_ctx ctx)
 {
 	ctx->nextReadIndex = 0;
+    ctx->lastReadIndex = 0;
 	ctx->lastReadOffset = 0;
 	ctx->lastReadRead = 0;
 	ctx->state = STATE_INIT;
@@ -258,8 +277,8 @@ inline void oni_ft600_reset_acq(oni_ft600_ctx ctx, int hard)
 	printf("f1\n");
         FT_FlushPipe(ctx->ftHandle, pipe_in);
         FT_FlushPipe(ctx->ftHandle, pipe_out);
-//        FT_FlushPipe(ctx->ftHandle, pipe_cmd);
-//        FT_FlushPipe(ctx->ftHandle, pipe_sig);
+//    FT_FlushPipe(ctx->ftHandle, pipe_cmd);
+//    FT_FlushPipe(ctx->ftHandle, pipe_sig);
 #endif
 	oni_ft600_reset_ctx(ctx);
 	FT_WriteGPIO(ctx->ftHandle, 0x01, 0x00);
@@ -268,6 +287,7 @@ inline void oni_ft600_reset_acq(oni_ft600_ctx ctx, int hard)
 
 inline void oni_ft600_stop_acq(oni_ft600_ctx ctx)
 {
+    ctx->state = STATE_INIT;
 	Sleep(10);
 
     FT_ClearStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in);
@@ -362,10 +382,30 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 	CTX_CAST;
 	DWORD numDevs = 0;
 	FT_STATUS ftStatus;
-	char serialNumber[SERIAL_LEN];
+	int tries = 0;
 	int devIdx = 0;
 
-	serialNumber[0] = 0;
+#ifndef _WIN32
+    FT_TRANSFER_CONF ftTransfer;
+    memset(&ftTransfer, 0, sizeof(FT_TRANSFER_CONF));
+    ftTransfer.wStructSize = sizeof(FT_TRANSFER_CONF);
+    // The spec defines that only one simultaneous call to each pipe must be
+    // done, so disable built-in thred safety for performance
+    ftTransfer.pipe[FT_PIPE_DIR_IN].fNonThreadSafeTransfer = FALSE;
+    ftTransfer.pipe[FT_PIPE_DIR_OUT].fNonThreadSafeTransfer = FALSE;
+    CHECK_FTERR(FT_SetTransferParams(&ftTransfer, pipeid_data));
+    // And control is mutexed in the onidriver
+    CHECK_FTERR(FT_SetTransferParams(&ftTransfer, pipeid_control));
+
+    // unused pipes
+    memset(&ftTransfer, 0, sizeof(FT_TRANSFER_CONF));
+    ftTransfer.wStructSize = sizeof(FT_TRANSFER_CONF);
+    ftTransfer.pipe[FT_PIPE_DIR_IN].fPipeNotUsed = TRUE;
+    ftTransfer.pipe[FT_PIPE_DIR_OUT].fPipeNotUsed = TRUE;
+    CHECK_FTERR(FT_SetTransferParams(&ftTransfer, 2));
+    CHECK_FTERR(FT_SetTransferParams(&ftTransfer, 3));
+#endif
+
 	ftStatus = FT_CreateDeviceInfoList(&numDevs);
 	if (ftStatus != FT_OK || numDevs == 0) return ONI_EDEVID;
 	FT_DEVICE_LIST_INFO_NODE* devInfo = (FT_DEVICE_LIST_INFO_NODE*)malloc(sizeof(FT_DEVICE_LIST_INFO_NODE) * numDevs);
@@ -383,9 +423,14 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 		{
 			if (!(devInfo[dev].Flags & FT_FLAGS_OPENED))
 			{
-				if (host_idx < 0 || devIdx == host_idx)
-				{
-					strncpy(serialNumber, devInfo[dev].SerialNumber, SERIAL_LEN);
+                if (host_idx < 0 || devIdx == host_idx) {
+                tries++;
+                ftStatus = FT_Create(devInfo[dev].SerialNumber,
+                                     FT_OPEN_BY_SERIAL_NUMBER,
+                                     &ctx->ftHandle);
+                if (ftStatus != FT_OK)
+                    ctx->ftHandle = NULL;
+                else
 					break;
 				}
 			}
@@ -393,33 +438,11 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 		}
 	}
 	free(devInfo);
-	if (serialNumber[0] == 0) return ONI_EDEVIDX;
-#ifndef _WIN32
-   	FT_TRANSFER_CONF ftTransfer;
-	memset(&ftTransfer, 0, sizeof(FT_TRANSFER_CONF));
-	ftTransfer.wStructSize = sizeof(FT_TRANSFER_CONF);
-	//The spec defines that only one simultaneous call to each pipe must be done, so disable built-in thred safety for performance
-	ftTransfer.pipe[FT_PIPE_DIR_IN].fNonThreadSafeTransfer = true;
-	ftTransfer.pipe[FT_PIPE_DIR_OUT].fNonThreadSafeTransfer = true;
-	CHECK_FTERR(FT_SetTransferParams(&ftTransfer, pipeid_data));
-	//And control is mutexed in the onidriver
-	CHECK_FTERR(FT_SetTransferParams(&ftTransfer, pipeid_control));
-
-	//unused pipes
-	memset(&ftTransfer, 0, sizeof(FT_TRANSFER_CONF));
-	ftTransfer.wStructSize = sizeof(FT_TRANSFER_CONF);
-	ftTransfer.pipe[FT_PIPE_DIR_IN].fPipeNotUsed = TRUE;
-	ftTransfer.pipe[FT_PIPE_DIR_OUT].fPipeNotUsed = TRUE;
-	CHECK_FTERR(FT_SetTransferParams(&ftTransfer, 2));
-	CHECK_FTERR(FT_SetTransferParams(&ftTransfer, 3));
-#endif
+    if (tries == 0)
+        return ONI_EDEVIDX;
+    else if (ctx->ftHandle == NULL)
+        return ONI_EINIT;
     
-	ftStatus = FT_Create(serialNumber, FT_OPEN_BY_SERIAL_NUMBER, &ctx->ftHandle);
-	if (ftStatus != FT_OK)
-	{
-		ctx->ftHandle = NULL;
-		return ONI_EINIT;
-	}
 
 #ifdef _WIN32
 	FT_InitializeOverlapped(ctx->ftHandle, &ctx->outOverlapped);
@@ -512,33 +535,45 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 	} 
 	else if (stream == ONI_READ_STREAM_DATA)
 	{
+        while (ctx->state != STATE_RUNNING)
+            ;
 		size_t remaining = ((size >> 2) << 2);//round to 32bit boundaries;
 		FT_STATUS ftStatus;
 		int read = 0;
 		if (remaining < ctx->inBlockSize) return ONI_EINVALREADSIZE;
+       // printf("read: %d\n", remaining);
 		size_t to_read;
 		uint8_t* dstPtr = data;
 		uint8_t* srcPtr;
 		unsigned int lastIndex;
 		if (ctx->lastReadOffset != 0)
 		{
-			lastIndex = (ctx->nextReadIndex - 1) % (2 * ctx->numInOverlapped);
+            lastIndex = ctx->lastReadIndex;
 			to_read = ctx->lastReadRead - ctx->lastReadOffset;
 			srcPtr = ctx->inBuffer + ctx->inBlockSize * (size_t)lastIndex + ctx->lastReadOffset;
 			memcpy(dstPtr, srcPtr, to_read);
-			//	for (int i = 0; i < to_read; i++) printf("%x ", *(srcPtr + i));
+          //printf("%d - %d - %d\n", lastIndex, to_read, ctx->lastReadOffset);
+            /* printf("cD: ");
+            for (int i = 0; i < to_read; i++)
+                printf("%x ", *(dstPtr + i));
+            printf("\n cS: ");
+            for (int i = 0; i < to_read; i++)
+                printf("%x ", *(srcPtr + i));*/
 			remaining -= to_read;
 			dstPtr += to_read;
 			read += to_read;
+          //  printf("r %d rem %d\n", to_read, remaining);
 		}
-		while (remaining > 0)
-		{
+        while (remaining > 0) {
 			unsigned int simIndex = ctx->nextReadIndex % ctx->numInOverlapped;
-			unsigned int nextIndex = (ctx->nextReadIndex + ctx->numInOverlapped) % (2 * ctx->numInOverlapped);
+            unsigned int nextIndex = (ctx->nextReadIndex + ctx->numInOverlapped)
+                                     % (2 * ctx->numInOverlapped);
 			ULONG transferred;
-			ftStatus = FT_GetOverlappedResult(ctx->ftHandle, &ctx->inOverlapped[simIndex], &ctx->inTransferred[simIndex], TRUE);
-			if (ftStatus != FT_OK)
-			{
+            ftStatus = FT_GetOverlappedResult(ctx->ftHandle,
+                                              &ctx->inOverlapped[simIndex],
+                                              &ctx->inTransferred[simIndex],
+                                              TRUE);
+            if (ftStatus != FT_OK) {
 				printf("Read failure %d\n", ftStatus);
 				return ONI_EREADFAILURE;
 			}
@@ -554,20 +589,33 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 #endif
 			srcPtr = ctx->inBuffer + ctx->inBlockSize * (size_t)ctx->nextReadIndex;
 			to_read = MIN(remaining, transferred);
+            /* printf("\n%d - %d - %d - %d - %d\n",
+                        ctx->nextReadIndex,
+                        nextIndex,
+                        simIndex,
+                        to_read, transferred);*/
 			memcpy(dstPtr, srcPtr, to_read);
-			//	for (int i = 0; i < to_read; i++) printf("%x ", *(dstPtr + i));
+         /* printf("D: ");
+            for (int i = 0; i < to_read; i++)
+                printf("%x ", *(dstPtr + i));
+            printf("\n S: ");
+            for (int i = 0; i < to_read; i++)
+                printf("%x ", *(srcPtr + i));*/
 			remaining -= to_read;
 			dstPtr += to_read;
 			read += to_read;
-			ctx->nextReadIndex = (ctx->nextReadIndex + 1) % (2 * ctx->numInOverlapped);
-			if (to_read < transferred)
-			{
+            ctx->lastReadIndex = ctx->nextReadIndex;
+            ctx->nextReadIndex
+                = (ctx->nextReadIndex + 1) % (2 * ctx->numInOverlapped);
+            if (to_read < transferred) {
+             //   printf("t %d r %d - %d\n", transferred, to_read, ctx->nextReadIndex);
 				ctx->lastReadRead = transferred;
 				ctx->lastReadOffset = to_read;
+            } else {
+                ctx->lastReadOffset = 0;
 			}
-			else
-				ctx->lastReadOffset = 0;
 		}
+   //     printf("rr: %d a %p\n", read,data);
 		return read;
 
 	}
@@ -782,15 +830,37 @@ int oni_driver_set_opt(oni_driver_ctx driver_ctx,
 	return ONI_EINVALOPT;
 }
 
+// option 0: driver version
+// option 1: library version
 int oni_driver_get_opt(oni_driver_ctx driver_ctx,
 	int driver_option,
 	void* value,
 	size_t* option_len)
 {
-	UNUSED(driver_ctx);
-	UNUSED(driver_option);
-	UNUSED(value);
-	UNUSED(option_len);
+    CTX_CAST;
+	
+	if (!ctx->ftHandle)
+	{
+        return ONI_EINVALSTATE;
+	}
+
+	if (driver_option == 0)
+	{
+        if (*option_len < sizeof(int32_t))
+            return ONI_EBUFFERSIZE;
+        if (FT_GetDriverVersion(ctx->ftHandle, value) == FT_OK)
+            return ONI_ESUCCESS;
+        else
+            return ONI_ESEEKFAILURE;
+	}
+    else if (driver_option == 1) {
+        if (*option_len < sizeof(uint32_t))
+            return ONI_EBUFFERSIZE;
+        if (FT_GetLibraryVersion(ctx->ftHandle, value) == FT_OK)
+            return ONI_ESUCCESS;
+        else
+            return ONI_ESEEKFAILURE;
+    } else
 	return ONI_EINVALOPT;
 }
 

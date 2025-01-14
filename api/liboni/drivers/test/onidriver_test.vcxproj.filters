@@ -18,7 +18,7 @@
     <ClInclude Include="queue_u8.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\liboni-test\testfunc.h">
+    <ClInclude Include="..\..\test\testfunc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -29,7 +29,7 @@
     <ClCompile Include="queue_u8.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\liboni-test\testfunc.c">
+    <ClCompile Include="..\..\test\testfunc.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

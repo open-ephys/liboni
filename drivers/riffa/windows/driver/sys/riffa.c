@@ -369,25 +369,25 @@ NTSTATUS RiffaEvtDevicePrepareHardware(WDFDEVICE Device, WDFCMRESLIST Resources,
 	devExt->NumChnls = (info & 0xF);
 	devExt->MaxNumScatterGatherElems = RIFFA_MIN_NUM_SG_ELEMS*((info>>19) & 0xF);
 
-	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
 		"riffa: found FPGA with name: %s\n", devExt->Name);
-	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
 		"riffa: vendor id: 0x%04X\n", devExt->VendorId);
-	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
 		"riffa: device id: 0x%04X\n", devExt->DeviceId);
-	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
 		"riffa: number of channels: %d\n", (info & 0xF));
-	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
 		"riffa: bus interface width: %d\n", ((info>>19) & 0xF)<<5);
-	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
 		"riffa: bus master enabled: %d\n", ((info>>4) & 0x1));
-	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
 		"riffa: negotiated link width: %d\n", ((info>>5) & 0x3F));
-	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
 		"riffa: negotiated link rate: %d MTs\n", ((info>>11) & 0x3)*2500);
-	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
 		"riffa: max downstream payload: %d bytes\n", 128<<((info>>13) & 0x7));
-	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL,
 		"riffa: max upstream payload: %d bytes\n", 128<<((info>>16) & 0x7));
 
 	// Check for bus master enabled
@@ -824,14 +824,11 @@ BOOLEAN RiffaProcessInterrupt(IN PDEVICE_EXTENSION DevExt, IN UINT32 Offset,
  */
 VOID RiffaEvtInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFDEVICE Device) {
 	NTSTATUS status;
-	BOOLEAN txnComplete;
 	BOOLEAN cont;
 	PDEVICE_EXTENSION devExt;
 	INTR_CHNL_DIR_DATA intrData[2 * RIFFA_MAX_NUM_CHNLS];
 	UINT32 chnl;
-	UINT32 tnfr;
 	UINT64 length;
-	LONG doneReqd;
 	WDFREQUEST request;
 
 	UNREFERENCED_PARAMETER(Device);
@@ -859,36 +856,10 @@ VOID RiffaEvtInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFDEVICE Device) {
 
 		// Finished with upstream transfer.
 		if (intrData[RIFFA_MAX_NUM_CHNLS + chnl].Done == TRUE) {
-			// Check if we've requested a done (in the event of a split transaction)
-			doneReqd = InterlockedExchange(&devExt->Chnl[RIFFA_MAX_NUM_CHNLS + chnl].ReqdDone, 0);
-			// Check if this DMA operation has completed. We might need to start
-			// another transfer if there is still data to be transfered in the request.
-			txnComplete = WdfDmaTransactionDmaCompleted(
-				devExt->Chnl[RIFFA_MAX_NUM_CHNLS + chnl].DmaTransaction, &status);
-			if (txnComplete) {
-				KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
-					"riffa: fpga:%s chnl:%d, recv txn done\n", devExt->Name, chnl));
-
-				// Read the actual transfer length
-				tnfr = READ_REGISTER_ULONG(devExt->Bar0 + CHNL_REG(chnl, RIFFA_TX_TNFR_LEN_REG));
-				RiffaTransactionComplete(devExt, RIFFA_MAX_NUM_CHNLS + chnl, tnfr, status);
-			}
-			else {
-				if (doneReqd == 0) {
-					// Not complete and not expecting a done signal. Must be an error.
-					// End the transaction early.
-					KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
-						"riffa: fpga:%s chnl:%d, recv txn done\n", devExt->Name, chnl));
-					
-					// Read the actual transfer length
-					tnfr = READ_REGISTER_ULONG(devExt->Bar0 + CHNL_REG(chnl, RIFFA_TX_TNFR_LEN_REG));
-					RiffaTransactionComplete(devExt, RIFFA_MAX_NUM_CHNLS + chnl, tnfr,
-						STATUS_TRANSACTION_ABORTED);
-				}
-				else {
-					KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
-						"riffa: fpga:%s chnl:%d, recv txn split, registers remapped\n", devExt->Name, chnl));
-				}
+			if (InterlockedExchange(&devExt->Chnl[RIFFA_MAX_NUM_CHNLS + chnl].ExpectDone, 1) == 2)
+			{
+				InterlockedExchange(&devExt->Chnl[RIFFA_MAX_NUM_CHNLS + chnl].ExpectDone, 0);
+				RiffaRecvDone(devExt, RIFFA_MAX_NUM_CHNLS + chnl);
 			}
 		}
 
@@ -925,7 +896,63 @@ VOID RiffaEvtInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFDEVICE Device) {
 
 		// Finished with downstream transfer.
 		if (intrData[chnl].Done == TRUE) {
+			if (InterlockedExchange(&devExt->Chnl[chnl].ExpectDone, 1) == 2)
+			{
+				InterlockedExchange(&devExt->Chnl[chnl].ExpectDone, 0);
+				RiffaSendDone(devExt, chnl);
+			}
+		}
+	}
+}
+
+VOID RiffaRecvDone(PDEVICE_EXTENSION devExt, UINT32 chnl)
+{
+	BOOLEAN txnComplete;
+	LONG doneReqd;
+	UINT32 tnfr;
+	NTSTATUS status;
+
 			// Check if we've requested a done (in the event of a split transaction)
+			doneReqd = InterlockedExchange(&devExt->Chnl[chnl].ReqdDone, 0);
+			// Check if this DMA operation has completed. We might need to start
+			// another transfer if there is still data to be transfered in the request.
+			txnComplete = WdfDmaTransactionDmaCompleted(
+				devExt->Chnl[chnl].DmaTransaction, &status);
+			if (txnComplete) {
+				KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+					"riffa: fpga:%s chnl:%d, recv txn done\n", devExt->Name, chnl));
+
+				// Read the actual transfer length
+				tnfr = READ_REGISTER_ULONG(devExt->Bar0 + CHNL_REG(chnl, RIFFA_TX_TNFR_LEN_REG));
+				RiffaTransactionComplete(devExt, chnl, tnfr, status);
+			}
+			else {
+				if (doneReqd == 0) {
+					// Not complete and not expecting a done signal. Must be an error.
+					// End the transaction early.
+					KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+						"riffa: fpga:%s chnl:%d, recv txn done\n", devExt->Name, chnl));
+					
+					// Read the actual transfer length
+					tnfr = READ_REGISTER_ULONG(devExt->Bar0 + CHNL_REG(chnl, RIFFA_TX_TNFR_LEN_REG));
+					RiffaTransactionComplete(devExt, chnl, tnfr,
+						STATUS_TRANSACTION_ABORTED);
+				}
+				else {
+					KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+						"riffa: fpga:%s chnl:%d, recv txn split, registers remapped\n", devExt->Name, chnl));
+				}
+			}
+}
+
+VOID RiffaSendDone(PDEVICE_EXTENSION devExt, UINT32 chnl)
+{
+	BOOLEAN txnComplete;
+	LONG doneReqd;
+	UINT32 tnfr;
+	NTSTATUS status;
+
+	// Check if we've requested a done (in the event of a split transaction)
 			doneReqd = InterlockedExchange(&devExt->Chnl[chnl].ReqdDone, 0);
 			// Indicate this DMA operation has completed. This may result in
 			// another transfer if there is still data to be transfered in the request.
@@ -951,10 +978,7 @@ VOID RiffaEvtInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFDEVICE Device) {
 						"riffa: fpga:%s chnl:%d, send txn split, registers remapped\n", devExt->Name, chnl));
 				}
 			}
-		}
-	}
 }
-
 
 
 /******************************************************************************
@@ -1113,6 +1137,7 @@ VOID RiffaIoctlSend(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 		DevExt->Chnl[io->Chnl].Confirmed = 0;
 		DevExt->Chnl[io->Chnl].ConfirmedPrev = 0;
 		DevExt->Chnl[io->Chnl].ReqdDone = 0;
+		DevExt->Chnl[io->Chnl].ExpectDone = 0;
 
 		// Get the user space memory.
 		status = WdfRequestRetrieveOutputWdmMdl(Request, &DevExt->Chnl[io->Chnl].Mdl);
@@ -1240,6 +1265,7 @@ VOID RiffaIoctlRecv(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 	DevExt->Chnl[RIFFA_MAX_NUM_CHNLS + io->Chnl].Confirmed = 0;
 	DevExt->Chnl[RIFFA_MAX_NUM_CHNLS + io->Chnl].ConfirmedPrev = 0;
 	DevExt->Chnl[RIFFA_MAX_NUM_CHNLS + io->Chnl].ReqdDone = 0;
+	DevExt->Chnl[RIFFA_MAX_NUM_CHNLS + io->Chnl].ExpectDone = 0;
 
 	// Get the user space memory.
 	status = WdfRequestRetrieveOutputWdmMdl(Request,
@@ -1470,6 +1496,7 @@ VOID RiffaCompleteRequest(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl,
 	DevExt->Chnl[Chnl].InUse = 0;
 	if (ClearReady == TRUE) DevExt->Chnl[Chnl].Ready = 0;
 	DevExt->Chnl[Chnl].ReqdDone = 0;
+	DevExt->Chnl[Chnl].ExpectDone = 0;
 	DevExt->Chnl[Chnl].Capacity = 0;
 	DevExt->Chnl[Chnl].Provided = 0;
 	if (ClearReady == TRUE) DevExt->Chnl[Chnl].Length = 0;
@@ -1595,7 +1622,7 @@ NTSTATUS RiffaStartDmaTransaction(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl,
     PVOID vaddr;
     UINT64 length;
 
-	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
 		"riffa: fpga:%s chnl:%d, starting txn (len:%lld, off:%lld, isSend?:%d)\n",
 		DevExt->Name, (Chnl < RIFFA_MAX_NUM_CHNLS ? Chnl : Chnl - RIFFA_MAX_NUM_CHNLS),
 		Length>>2, Offset, DmaDirection == WdfDmaDirectionWriteToDevice);
@@ -1743,6 +1770,23 @@ VOID RiffaProgramScatterGather(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl) {
 	// Start the timer (if necessary)
 	if (DevExt->Chnl[Chnl].Timeout > 0)
 		WdfTimerStart(DevExt->Chnl[Chnl].Timer, WDF_REL_TIMEOUT_IN_MS(DevExt->Chnl[Chnl].Timeout));
+
+
+	if (i == 0) //no scater-gather elements left, so transaction, partial or total, done.
+	{
+		if (InterlockedExchange(&DevExt->Chnl[Chnl].ExpectDone, 2) == 1)
+		{
+			InterlockedExchange(&DevExt->Chnl[Chnl].ExpectDone, 0);
+			if (Chnl < RIFFA_MAX_NUM_CHNLS)
+			{
+				RiffaSendDone(DevExt, Chnl);
+			}
+			else
+			{
+				RiffaRecvDone(DevExt, Chnl);
+			}
+		}
+	}
 }
 
 
@@ -1771,7 +1815,7 @@ VOID RiffaTransactionComplete(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl,
 	WdfDmaTransactionRelease(DevExt->Chnl[Chnl].DmaTransaction);
 
 	if (Chnl < RIFFA_MAX_NUM_CHNLS) {
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
 			"riffa: fpga:%s chnl:%d, words transferred: %lu\n", DevExt->Name, Chnl, Transferred);
 
 		// Update the total confirmed data
@@ -1781,7 +1825,7 @@ VOID RiffaTransactionComplete(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl,
 		RiffaCompleteRequest(DevExt, Chnl, Status, FALSE, TRUE);
 	}
 	else {
-		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
 			"riffa: fpga:%s chnl:%d, words transferred: %lu\n", DevExt->Name,
 			Chnl - RIFFA_MAX_NUM_CHNLS, Transferred);
 

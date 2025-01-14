@@ -299,4 +299,5 @@ FakesAssemblies/
 
 !windows/driver/Prebuilt/**
 !windows/driver/riffa/riffa/*.pfx
+!windows/driver/riffa/riffa/open-ephys-icons.dll
 

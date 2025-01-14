@@ -45,10 +45,12 @@ namespace oni
         }
 
         /// <summary>
-        /// Retrieve a managed copy of the <see cref="Frame"/> data.
+        /// Retrieves a managed copy of the <see cref="Frame"/> data.
         /// </summary>
-        /// <returns>Array containing the <see cref="Frame"/> data.</returns>
-        public T[] Data<T>() where T : unmanaged
+        /// <returns>
+        /// A managed array containing a copy of the <see cref="Frame"/> data.
+        /// </returns>
+        public T[] GetData<T>() where T : unmanaged
         {
             var frame = (frame_t*)handle.ToPointer();
             var output = new T[frame->data_sz / sizeof(T)];
@@ -68,7 +70,7 @@ namespace oni
         }
 
         /// <summary>
-        /// Retrieve the host acquisition clock counter value at frame creation.
+        /// The host acquisition clock counter value at frame creation.
         /// See <see cref="Context.AcquisitionClockHz"/> and
         /// <see cref="Context.ResetFrameClock"/>.
         /// </summary>
@@ -81,8 +83,13 @@ namespace oni
         public uint DeviceAddress => ((frame_t*)handle.ToPointer())->dev_idx;
 
         /// <summary>
-        /// Get the payload data size in bytes. See <see cref="Frame.Data{T}"/>.
+        /// The payload data size in bytes.
         /// </summary>
-        public long DataSize => ((frame_t*)handle.ToPointer())->data_sz;
+        public uint DataSize => ((frame_t*)handle.ToPointer())->data_sz;
+
+        /// <summary>
+        /// A pointer to the payload data.
+        /// </summary>
+        public IntPtr Data => (IntPtr)((frame_t*)handle.ToPointer())->data;
     }
 }

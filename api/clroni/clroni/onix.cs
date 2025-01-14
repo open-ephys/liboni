@@ -67,7 +67,7 @@ namespace oni
         public string Description => Marshal.PtrToStringAnsi(NativeMethods.onix_hub_str(HardwareID));
     }
 
-    public unsafe partial class Context : IDisposable
+    public partial class Context : IDisposable
     {
         // ONIX hardware uses device 254 within each hub for the hub manager
         private const uint HUB_MGR_ADDRESS = 254;
