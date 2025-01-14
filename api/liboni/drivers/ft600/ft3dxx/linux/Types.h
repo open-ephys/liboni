@@ -1,7 +1,5 @@
-#ifndef __WINDOWS_TYPES__
-#define __WINDOWS_TYPES__
-
-#define WINAPI
+#ifndef __LINUX_TYPES__
+#define __LINUX_TYPES__
 
 typedef unsigned int            DWORD;
 typedef unsigned int            ULONG;
@@ -56,7 +54,7 @@ typedef struct _SECURITY_ATTRIBUTES {
 } SECURITY_ATTRIBUTES , *LPSECURITY_ATTRIBUTES;
 
 #include <pthread.h>
-// Substitute for HANDLE returned by Windows CreateEvent API.
+// Substitute for HANDLE returned by LINUX CreateEvent API.
 // FT_SetEventNotification expects parameter 3 to be the address
 // of one of these structures.
 typedef struct _EVENT_HANDLE
@@ -151,4 +149,4 @@ typedef struct timeval FILETIME;
 #define INVALID_HANDLE_VALUE 0xFFFFFFFF
 #endif
 
-#endif /* __WINDOWS_TYPES__ */
+#endif /* __LINUX_TYPES__ */

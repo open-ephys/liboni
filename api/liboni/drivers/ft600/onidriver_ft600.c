@@ -181,7 +181,6 @@ inline void fill_control_buffers(oni_ft600_ctx ctx, ULONG transferred)
 	} while (index < transferred);
 }
 
-#ifdef _WIN32
 void oni_ft600_usb_callback(PVOID context, E_FT_NOTIFICATION_CALLBACK_TYPE type, PVOID cinfo)
 {
 	FT_STATUS ftStatus;
@@ -192,8 +191,9 @@ void oni_ft600_usb_callback(PVOID context, E_FT_NOTIFICATION_CALLBACK_TYPE type,
 	ULONG transferred;
     ULONG total = 0;
 	
-	
 	do {
+#ifdef _WIN32		
+
         FT_ReadPipe(ctx->ftHandle,
                     info->ucEndpointNo,
                     ctx->auxBuffer + total,
@@ -202,6 +202,15 @@ void oni_ft600_usb_callback(PVOID context, E_FT_NOTIFICATION_CALLBACK_TYPE type,
                     &ctx->sigOverlapped);
         ftStatus = FT_GetOverlappedResult(
             ctx->ftHandle, &ctx->sigOverlapped, &transferred, TRUE);
+#else
+	ftStatus = FT_ReadPipe(ctx->ftHandle,
+			 info->ucEndpointNo,
+                   	 ctx->auxBuffer + total,
+                    	info->ulRecvNotificationLength - total,
+                    	&transferred,
+			0);
+#endif
+
         if (ftStatus != FT_OK) {
 		ctx->sigError = 1;
 		return;
@@ -209,14 +218,18 @@ void oni_ft600_usb_callback(PVOID context, E_FT_NOTIFICATION_CALLBACK_TYPE type,
         total += transferred;
     } while (total < info->ulRecvNotificationLength);
 
+	
+
+
 	if (total > 0)
 	{
 		fill_control_buffers(ctx, transferred);
 	}
 
 }
-#else
+
 void oni_ft600_update_control(oni_ft600_ctx ctx)
+#if 0
 {
 	FT_STATUS ftStatus;
 	DWORD toread = 1;///ctx->auxSize;
@@ -241,7 +254,10 @@ void oni_ft600_update_control(oni_ft600_ctx ctx)
 		pthread_mutex_unlock(&ctx->controlMutex);
 	}
 }
-
+#else
+{
+UNUSED(ctx);
+}
 #endif
 
 static inline oni_conf_off_t _oni_register_offset(oni_config_t reg);
@@ -346,9 +362,8 @@ void oni_ft600_free_ctx(oni_ft600_ctx ctx)
 	circBufferRelease(&ctx->regBuffer);
 	if (ctx->ftHandle != NULL)
 	{
-#ifdef _WIN32
+
 		FT_ClearNotificationCallback(ctx->ftHandle);
-#endif
 		FT_AbortPipe(ctx->ftHandle, pipe_in);
 		FT_AbortPipe(ctx->ftHandle, pipe_out);
 		FT_AbortPipe(ctx->ftHandle, pipe_cmd);
@@ -391,10 +406,11 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
     ftTransfer.wStructSize = sizeof(FT_TRANSFER_CONF);
     // The spec defines that only one simultaneous call to each pipe must be
     // done, so disable built-in thred safety for performance
-    ftTransfer.pipe[FT_PIPE_DIR_IN].fNonThreadSafeTransfer = FALSE;
-    ftTransfer.pipe[FT_PIPE_DIR_OUT].fNonThreadSafeTransfer = FALSE;
+    ftTransfer.pipe[FT_PIPE_DIR_IN].fNonThreadSafeTransfer = true;
+    ftTransfer.pipe[FT_PIPE_DIR_OUT].fNonThreadSafeTransfer = true;
     CHECK_FTERR(FT_SetTransferParams(&ftTransfer, pipeid_data));
-    // And control is mutexed in the onidriver
+    ftTransfer.pipe[FT_PIPE_DIR_IN].fNonThreadSafeTransfer = false;
+    ftTransfer.pipe[FT_PIPE_DIR_OUT].fNonThreadSafeTransfer = false;
     CHECK_FTERR(FT_SetTransferParams(&ftTransfer, pipeid_control));
 
     // unused pipes
@@ -469,9 +485,10 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 	ctx->auxBuffer = malloc(ctx->auxSize);
 	CHECK_NULL(ctx->auxBuffer);
     
-#ifdef _WIN32
+
 	CHECK_FTERR(FT_SetNotificationCallback(ctx->ftHandle, oni_ft600_usb_callback, ctx));
 	//CHECK_FTERR(FT_SetStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in, ctx->inBlockSize));
+#ifdef _WIN32
 	CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_in, 0));
 	CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_out, 0));
 	CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_cmd, 0));
@@ -856,7 +873,7 @@ int oni_driver_get_opt(oni_driver_ctx driver_ctx,
     else if (driver_option == 1) {
         if (*option_len < sizeof(uint32_t))
             return ONI_EBUFFERSIZE;
-        if (FT_GetLibraryVersion(ctx->ftHandle, value) == FT_OK)
+        if (FT_GetLibraryVersion(value) == FT_OK)
             return ONI_ESUCCESS;
         else
             return ONI_ESEEKFAILURE;

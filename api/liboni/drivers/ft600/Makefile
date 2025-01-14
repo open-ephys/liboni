@@ -29,8 +29,8 @@ install: $(SNAME) $(DNAME) ## Install driver. Defaults to make install PREFIX=/u
 	@[ -d $(DESTDIR)$(PREFIX)/lib ] || mkdir -p $(DESTDIR)$(PREFIX)/lib
 	@[ -d $(DESTDIR)$(PREFIX)/include ] || mkdir -p $(DESTDIR)$(PREFIX)/include
 	cp $(DNAME) $(DESTDIR)$(PREFIX)/lib/$(DNAME)
-	cp $(wildcard $(FT_PATH)/*.so*) $(DESTDIR)$(PREFIX)/lib/
-	cp $(wildcard $(FT_PATH)/*.h) $(DESTDIR)$(PREFIX)/include/
+#	cp $(wildcard $(FT_PATH)/*.so*) $(DESTDIR)$(PREFIX)/lib/
+#	cp $(wildcard $(FT_PATH)/*.h) $(DESTDIR)$(PREFIX)/include/
 	@[ -d $(DESTDIR)$(PREFIX)/lib/$(DNAMELN) ] || $(RM) $(DESTDIR)$(PREFIX)/lib/$(DNAMELN)
 	ln -s $(DESTDIR)$(PREFIX)/lib/$(DNAME) $(DESTDIR)$(PREFIX)/lib/$(DNAMELN)
 	ldconfig
