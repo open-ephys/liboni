@@ -11,7 +11,7 @@ OBJ       :=  $(SRC:.c=.o)
 POSIX_OBJ :=  $(POSIX_SRC:.c=.o)
 CFLAGS    :=  -Wall -W -Werror -fPIC -O3
 ISOCFLAGS :=  -pedantic
-LDFLAGS   :=  -L.
+LDFLAGS   :=  -L. -ldl
 PREFIX    :=  /usr/local
 
 # Turn wildcard list into comma separated list
@@ -51,7 +51,7 @@ $(SNAME): $(OBJ) $(POSIX_OBJ)
 
 $(DNAME): LDFLAGS += -shared
 $(DNAME): $(OBJ) $(POSIX_OBJ)
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $^ -o $@ $(LDFLAGS)
 
 $(OBJ): CFLAGS += $(ISOCFLAGS)
 

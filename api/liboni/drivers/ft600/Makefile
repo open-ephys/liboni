@@ -8,7 +8,7 @@ OBJ       :=  $(SRC:.c=.o)
 FT_PATH   := ./ft3dxx/linux
 CFLAGS    :=  -pedantic -Wall -W -Werror -fPIC -O2 $(DEFS) -I$(FT_PATH)
 LDFLAGS   :=  -L. -L$(FT_PATH)
-LIBS      := -lftd3xx -lpthread 
+LIBS      := -lftd3xx -pthread
 PREFIX    :=  /usr/local
 
 # Turn wildcard list into comma separated list

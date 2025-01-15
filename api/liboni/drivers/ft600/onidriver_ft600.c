@@ -23,6 +23,13 @@
 #endif
 #include <FTD3XX.h>
 
+#define POLL_CONTROL
+//#define LINUX_ASYNC
+
+#ifdef POLL_CONTROL
+#include <pthread.h>
+#endif
+
 
 #if defined(_WIN32) && defined(DRIVER_1308_WORKAROUND)
 #define FT_ReadPipeEx FT_ReadPipe
@@ -91,6 +98,9 @@ struct oni_ft600_ctx_impl {
 	unsigned int numInOverlapped;
 	OVERLAPPED* inOverlapped;
 	ULONG* inTransferred;
+#ifdef POLL_CONTROL
+	pthread_mutex_t controlMutex;
+#endif
 #ifdef _WIN32
 	OVERLAPPED cmdOverlapped;
 	OVERLAPPED sigOverlapped;
@@ -178,6 +188,7 @@ inline void fill_control_buffers(oni_ft600_ctx ctx, ULONG transferred)
 	} while (index < transferred);
 }
 
+#ifndef POLL_CONTROL
 void oni_ft600_usb_callback(PVOID context, E_FT_NOTIFICATION_CALLBACK_TYPE type, PVOID cinfo)
 {
 	FT_STATUS ftStatus;
@@ -224,6 +235,31 @@ void oni_ft600_usb_callback(PVOID context, E_FT_NOTIFICATION_CALLBACK_TYPE type,
 	}
 
 }
+#else 
+void oni_ft600_update_control(oni_ft600_ctx ctx)
+{
+	FT_STATUS ftStatus;
+	DWORD toread = ctx->auxSize;
+	ULONG transferred;
+
+	if (pthread_mutex_trylock(&ctx->controlMutex) == 0)
+	{
+
+        ftStatus = FT_ReadPipeEx(ctx->ftHandle, pipeid_control, ctx->auxBuffer, toread, &transferred,0);
+            if (ftStatus != FT_OK && ftStatus != FT_TIMEOUT && ftStatus != FT_IO_PENDING)
+            {
+                ctx->sigError = 1;
+                pthread_mutex_unlock(&ctx->controlMutex);
+                return;
+            }
+            if (ftStatus == FT_OK && transferred > 0)
+            {
+                fill_control_buffers(ctx, transferred);
+            }
+		pthread_mutex_unlock(&ctx->controlMutex);
+	}
+}
+#endif
 
 static inline oni_conf_off_t _oni_register_offset(oni_config_t reg);
 
@@ -269,8 +305,9 @@ inline void oni_ft600_stop_acq(oni_ft600_ctx ctx)
 {
     ctx->state = STATE_INIT;
 	Sleep(10);
-
+#if defined _WIN32 || defined LINUX_ASYNC
     FT_ClearStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in);
+#endif
     FT_AbortPipe(ctx->ftHandle, pipe_in);
 #ifndef _WIN32
     FT_FlushPipe(ctx->ftHandle, pipe_in);
@@ -325,8 +362,9 @@ void oni_ft600_free_ctx(oni_ft600_ctx ctx)
 	circBufferRelease(&ctx->regBuffer);
 	if (ctx->ftHandle != NULL)
 	{
-
+#ifndef POLL_CONTROL
 		FT_ClearNotificationCallback(ctx->ftHandle);
+#endif
 		FT_AbortPipe(ctx->ftHandle, pipe_in);
 		FT_AbortPipe(ctx->ftHandle, pipe_out);
 		FT_AbortPipe(ctx->ftHandle, pipe_cmd);
@@ -342,6 +380,9 @@ void oni_ft600_free_ctx(oni_ft600_ctx ctx)
 			free(ctx->inOverlapped);
 		}
 		if (ctx->inTransferred != NULL) free(ctx->inTransferred);
+#ifdef POLL_CONTROL
+		pthread_mutex_destroy(&ctx->controlMutex);
+#endif
 #ifndef _WIN32
 		FT_FlushPipe(ctx->ftHandle, pipe_in);
 		FT_FlushPipe(ctx->ftHandle, pipe_out);
@@ -367,8 +408,8 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
     ftTransfer.wStructSize = sizeof(FT_TRANSFER_CONF);
     // The spec defines that only one simultaneous call to each pipe must be
     // done, so disable built-in thred safety for performance
-    ftTransfer.pipe[FT_PIPE_DIR_IN].fNonThreadSafeTransfer = true;
-    ftTransfer.pipe[FT_PIPE_DIR_OUT].fNonThreadSafeTransfer = true;
+    ftTransfer.pipe[FT_PIPE_DIR_IN].fNonThreadSafeTransfer = false;
+    ftTransfer.pipe[FT_PIPE_DIR_OUT].fNonThreadSafeTransfer = false;
     CHECK_FTERR(FT_SetTransferParams(&ftTransfer, pipeid_data));
     ftTransfer.pipe[FT_PIPE_DIR_IN].fNonThreadSafeTransfer = false;
     ftTransfer.pipe[FT_PIPE_DIR_OUT].fNonThreadSafeTransfer = false;
@@ -434,13 +475,21 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 	CHECK_NULL(ctx->inTransferred);
 	ctx->inBuffer = malloc(2 * (size_t)ctx->numInOverlapped * ctx->inBlockSize);
 	CHECK_NULL(ctx->inBuffer);
+#ifdef POLL_CONTROL
+	if (pthread_mutex_init(&ctx->controlMutex, NULL) != 0)
+	{
+		oni_ft600_free_ctx(ctx);
+		return ONI_EINIT;
+	}
+#endif
 	CHECK_ERR(circBufferInit(&ctx->signalBuffer));
 	CHECK_ERR(circBufferInit(&ctx->regBuffer));
 	ctx->auxBuffer = malloc(ctx->auxSize);
 	CHECK_NULL(ctx->auxBuffer);
     
-
+#ifndef POLL_CONTROL
 	CHECK_FTERR(FT_SetNotificationCallback(ctx->ftHandle, oni_ft600_usb_callback, ctx));
+#endif
 	//CHECK_FTERR(FT_SetStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in, ctx->inBlockSize));
 #ifdef _WIN32
 	CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_in, 0));
@@ -491,6 +540,9 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 	{
 		while (!circBufferCanRead(&ctx->signalBuffer, size))
 		{
+#ifdef POLL_CONTROL
+			oni_ft600_update_control(ctx);
+#endif
 			if (ctx->sigError)
 			{
 				ctx->sigError = 0;
@@ -509,6 +561,7 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 		FT_STATUS ftStatus;
 		int read = 0;
 		if (remaining < ctx->inBlockSize) return ONI_EINVALREADSIZE;
+#if defined _WIN32 || defined LINUX_ASYNC
 		size_t to_read;
 		uint8_t* dstPtr = data;
 		uint8_t* srcPtr;
@@ -527,11 +580,13 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 			unsigned int simIndex = ctx->nextReadIndex % ctx->numInOverlapped;
             unsigned int nextIndex = (ctx->nextReadIndex + ctx->numInOverlapped)
                                      % (2 * ctx->numInOverlapped);
-			ULONG transferred;
+			ULONG transferred = 0;
+
             ftStatus = FT_GetOverlappedResult(ctx->ftHandle,
                                               &ctx->inOverlapped[simIndex],
                                               &ctx->inTransferred[simIndex],
                                               TRUE);
+
             if (ftStatus != FT_OK) {
 				printf("Read failure %d\n", ftStatus);
 				return ONI_EREADFAILURE;
@@ -544,7 +599,6 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 #else
 			FT_ReadPipeAsync(ctx->ftHandle, pipeid_data, ctx->inBuffer + ((size_t)nextIndex * ctx->inBlockSize), ctx->inBlockSize,
 				&ctx->inTransferred[simIndex], &ctx->inOverlapped[simIndex]);
-
 #endif
 			srcPtr = ctx->inBuffer + ctx->inBlockSize * (size_t)ctx->nextReadIndex;
 			to_read = MIN(remaining, transferred);
@@ -562,6 +616,24 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
                 ctx->lastReadOffset = 0;
 			}
 		}
+#else
+		ULONG transferred;
+        uint8_t* dstPtr = (uint8_t*)data;
+		do
+		{
+			ftStatus = FT_ReadPipeEx(ctx->ftHandle, pipeid_data, dstPtr + read, remaining, &transferred, 1000);
+			if (ftStatus != FT_OK && ftStatus != FT_TIMEOUT && ftStatus != FT_IO_PENDING)
+			{
+				printf("Read failure %d\n", ftStatus);
+				return ONI_EREADFAILURE;
+			}
+			if (ftStatus == FT_OK)
+			{
+				remaining -= transferred;
+				read += transferred;
+			}
+		} while (remaining > 0);
+#endif
 		return read;
 
 	}
@@ -687,6 +759,9 @@ int oni_driver_read_config(oni_driver_ctx driver_ctx, oni_config_t reg, oni_reg_
 
 	while (!circBufferCanRead(&ctx->regBuffer, sizeof(oni_reg_val_t))) 
 	{
+#ifdef POLL_CONTROL
+		oni_ft600_update_control(ctx);
+#endif
 		if (ctx->sigError)
 		{
 			ctx->sigError = 0;
@@ -702,13 +777,17 @@ int oni_driver_read_config(oni_driver_ctx driver_ctx, oni_config_t reg, oni_reg_
 inline void oni_ft600_start_acq(oni_ft600_ctx ctx)
 {
 
-        FT_SetStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in, ctx->inBlockSize);
+#if defined _WIN32 || defined LINUX_ASYNC
+    FT_SetStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in, ctx->inBlockSize);
+#endif
 	for (size_t i = 0; i < ctx->numInOverlapped; i++)
 	{
 #if _WIN32
 		FT_ReadPipeEx(ctx->ftHandle, pipe_in, ctx->inBuffer + (i * ctx->inBlockSize), ctx->inBlockSize, &ctx->inTransferred[i], &ctx->inOverlapped[i]);
 #else
+#ifdef LINUX_ASYNC
 		FT_ReadPipeAsync(ctx->ftHandle, pipeid_data, ctx->inBuffer + (i * ctx->inBlockSize), ctx->inBlockSize, &ctx->inTransferred[i], &ctx->inOverlapped[i]);
+#endif
 #endif
 	}
 
