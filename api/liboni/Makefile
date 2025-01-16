@@ -1,9 +1,8 @@
 # "make help" prints help.
 SHELL     :=  /bin/bash
 NAME      :=  liboni
+UNAME     :=  $(shell uname -s)
 SNAME     :=  $(NAME).a
-DNAME     :=  $(NAME).so.1
-DNAMELN   :=  $(NAME).so
 HDR       :=  oni.h onidefs.h onix.h onidriver.h # Public headers to be installed
 SRC       :=  oni.c onix.c
 POSIX_SRC :=  onidriverloader.c
@@ -11,8 +10,18 @@ OBJ       :=  $(SRC:.c=.o)
 POSIX_OBJ :=  $(POSIX_SRC:.c=.o)
 CFLAGS    :=  -Wall -W -Werror -fPIC -O3
 ISOCFLAGS :=  -pedantic
-LDFLAGS   :=  -L. -ldl
 PREFIX    :=  /usr/local
+
+ifeq ($(UNAME), Linux)
+DNAME     :=  $(NAME).so.1
+DNAMELN   :=  $(NAME).so
+LDFLAGS   :=  -L. -ldl
+endif
+ifeq ($(UNAME), Darwin)
+DNAME     :=  $(NAME).dylib
+DNAMELN   :=  $(NAME).1.dylib
+LDFLAGS   :=  -L.
+endif
 
 # Turn wildcard list into comma separated list
 SPACE :=
@@ -36,8 +45,10 @@ install: $(SNAME) $(DNAME) ## Install driver. Defaults to make install PREFIX=/u
 	cp $(HDR) $(DESTDIR)$(PREFIX)/include
 	@[ -d $(DESTDIR)$(PREFIX)/lib/$(DNAMELN) ] || $(RM) $(DESTDIR)$(PREFIX)/lib/$(DNAMELN)
 	ln -s $(DESTDIR)$(PREFIX)/lib/$(DNAME) $(DESTDIR)$(PREFIX)/lib/$(DNAMELN)
+ifeq ($(UNAME), Linux)
 	ldconfig
 	ldconfig -p | grep liboni
+endif
 
 .PHONY: uninstall
 uninstall: ## Remove liboni from installation directory.
@@ -49,9 +60,20 @@ uninstall: ## Remove liboni from installation directory.
 $(SNAME): $(OBJ) $(POSIX_OBJ)
 	$(AR) $(ARFLAGS) $@ $^
 
+ifeq ($(UNAME), Linux)
 $(DNAME): LDFLAGS += -shared
+endif
+ifeq ($(UNAME), Darwin)
+$(DNAME): LDFLAGS += -dynamiclib
+endif
+
 $(DNAME): $(OBJ) $(POSIX_OBJ)
+ifeq ($(UNAME), Linux)
 	$(CC) $^ -o $@ $(LDFLAGS)
+endif
+ifeq ($(UNAME), Darwin)
+	$(CC) $(LDFLAGS) $^ -o $@
+endif
 
 $(OBJ): CFLAGS += $(ISOCFLAGS)
 
