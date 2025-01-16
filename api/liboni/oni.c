@@ -1,7 +1,7 @@
 // TODO:
-// 1. Get rid of oni_fifo_size_t and anything else
-// hardcoding fifo width at this top level driver. Or the loaded driver
-// could import this number somehow (e.g. via extern variable or context member)
+// 1. Get rid of oni_fifo_size_t and anything else hardcoding fifo width at
+// this top level driver. Or the loaded driver could import this number somehow
+// (e.g. via extern variable or context member)
 
 #include <assert.h>
 #include <errno.h>
@@ -384,9 +384,10 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
             if (rc) return rc;
 
             // Dump buffers
-            // TODO: Is this always the right thing to do? In the case our RIFFA implementation, yes.
-            // But other implementations may not clear intermediate FIFOs meaning that the first data
-            // encountered on restart is not the start of a frame.
+            // TODO: Is this always the right thing to do? In the case our
+            // RIFFA implementation, yes. But other implementations may not
+            // clear intermediate FIFOs meaning that the first data encountered
+            // on restart is not the start of a frame.
             _oni_dump_buffers(ctx);
 
             if (*(oni_reg_val_t *)value != 0)
@@ -667,12 +668,19 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
     assert(iframe->private.f.data_sz > 0 && "Zero-sized frame");
     assert(iframe->private.f.data_sz <= ctx->max_read_frame_size && "Invalid frame size");
 
+    // TODO: max_read_frame_size contains the header as well so the upper bound
+    // check is too relaxed.
+    if (iframe->private.f.data_sz == 0
+        || iframe->private.f.data_sz > ctx->max_read_frame_size)
+        return ONI_EBADFRAME;
+
     // Find read size (+ padding)
+    // TODO:https://github.com/open-ephys/ONI/issues/3
     size_t rsize = iframe->private.f.data_sz;
     rsize += rsize % sizeof(oni_fifo_dat_t);
     total_size += rsize;
 
-    // Read data
+    // Direct frame data's view into the pre-collected buffer
     rc = _oni_read_buffer(ctx, (void **)&iframe->private.f.data, rsize, 0);
     if (rc) return rc;
 
@@ -789,7 +797,7 @@ void oni_version(int *major, int *minor, int *patch)
     *patch = ONI_VERSION_PATCH;
 }
 
-const oni_driver_info_t* oni_get_driver_info(const oni_ctx ctx) 
+const oni_driver_info_t* oni_get_driver_info(const oni_ctx ctx)
 {
     return ctx->driver.info();
 }
@@ -889,6 +897,10 @@ const char *oni_error_str(int err)
         case ONI_EPROTCONFIG : {
             return "Attempted to directly read or write a protected "
                    "configuration option";
+        }
+        case ONI_EBADFRAME:
+        {
+            return "Received malformed frame";
         }
         default:
             return "Unknown error";
@@ -1205,9 +1217,9 @@ static int _oni_read_buffer(oni_ctx ctx, void **data, size_t size, int allow_ref
     // TODO: Is there a way to get rid of allow_refill?
     // NB: Frames must reference a single buffer, so we must refill if less
     // than max possible frame size on the first read within oni_read_frame().
-    // Making this limit smaller will result in memory corruption, so don't do it.
-    // Allowing refills multiple times during one call to oni_read_frame() will
-    // also cause memory corruption.
+    // Making this limit smaller will result in memory corruption, so don't do
+    // it.  Allowing refills multiple times during one call to oni_read_frame()
+    // will also cause memory corruption.
     if (remaining < ctx->max_read_frame_size && allow_refill) {
 
         assert(ctx->max_read_frame_size <= ctx->block_read_size &&

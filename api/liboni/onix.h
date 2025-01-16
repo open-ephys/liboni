@@ -11,12 +11,8 @@ extern "C" {
 #define ONI_EXPORT
 #endif
 
-// Device definitions
-#define MAXDEVID 99999
-
-// NB: "Officially" supported device IDs for the ONIX project occupy
-// device IDs < MAXDEVID. IDs above this value are not reserved and can be used
-// for custom projects without future conflict.
+// NB:  Device IDs are 32-bit integers with the following format:
+//     Reserved(8-bit).Company(8-bit).Device(16-bit) 
 // NB: If you add a device here, make sure to update oni_device_str().
 enum {
     ONIX_NULL               = 0,    // Placeholder device
@@ -48,17 +44,12 @@ enum {
     ONIX_MAX10ADCCORE       = 26,   // Max10 internal ADC device
     ONIX_LOADTEST           = 27,   // Variable load testing device
     ONIX_MEMUSAGE           = 28,   // Acquisition hardware buffer usage reporting device
+                                    // Accidentally skipped
     ONIX_HARPSYNCINPUT      = 30,   // Harp synchronization data input device
     ONIX_RHS2116            = 31,   // Intan RHS2116 bioamplifier and stimulator
-
-    // NB: Final reserved device ID. Always on bottom
-    ONIX_MAXDEVICEID        = MAXDEVID,
-
-    // >= MAXDEVID: Not reserved. Free to use for custom projects
+    ONIX_RHS2116TRIGGER     = 32,   // Multi Intan RHS2116 stimulation trigger
+    ONIX_NRIC1384           = 33    // IMEC NRIC1384 384-channel bioaquisition chip
 };
-
-// Hub definitions
-#define MAXHUBID 99999
 
 // Each hub has a "hidden" information device with a fixed device index and 
 // several read only registers
@@ -73,9 +64,8 @@ enum {
     ONIX_HUB_DELAYNS        = 5,    // Hub to host transmission delay in nanoseconds
 };
 
-// NB: "Officially" supported hub IDs for the ONIX project occupy
-// hub IDs < MAXHUBID. IDs above this value are not reserved and can be used
-// for custom projects without future conflict.
+// NB: Hub IDs are 32-bit integers that uniquely identify the hub. They have the folowing format:
+//     Reserved(8-bit).Company(8-bit).Hub(16-bit)
 // NB: If you add a hub here, make sure to update oni_hub_str().
 enum {
     ONIX_HUB_NULL           = 0,    // Placeholder hub
@@ -84,11 +74,13 @@ enum {
     ONIX_HUB_HSNP           = 3,    // Open Ephys headstage-neuropix1
     ONIX_HUB_HSRHS2116      = 4,    // Open Ephys headstage-rhs2116
     ONIX_HUB_HS64S          = 5,    // Open Ephys headstage-64s
+    ONIX_HUB_HSNP1ET        = 6,    // Open Ephys headstage-neuropix1e-te
+    ONIX_HUB_HSNP2EB        = 7,    // Open Ephys headstage-neuropix2e-beta
+    ONIX_HUB_HSNP2E         = 8,    // Open Ephys headstage-neuropix2e
+    ONIX_HUB_HSNRIC1384     = 9,    // Open Ephys headstage-nric1384
+    ONIX_HUB_HSNP1EH        = 10,   // Open Ephys headstage-neuropix1e-hirose
+    ONIX_HUB_RHYTHM         = 11    // Open Ephys Acquisition Board Rhythm wrapper
 
-    // NB: Final reserved hub ID. Always on bottom
-    ONIX_HUB_MAXID          = MAXHUBID,
-
-    // >= MAXHUBID: Not reserved. Free to use for custom projects
 };
 
 // ONIX Specific configuration registers

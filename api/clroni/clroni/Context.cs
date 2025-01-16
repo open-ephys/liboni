@@ -33,33 +33,39 @@ namespace oni
         // The safe handle used for API interaction
         private readonly ContextHandle ctx;
 
+
+        /// <summary>
+        /// Information about the hardware device driver that is being used the by the context.
+        /// </summary>
+        public DriverInfo Driver { get; private set; }
+
         // Constructor initialized
         /// <summary>
         /// Host system clock frequency in Hz. This describes the frequency of
         /// the clock governing the host hardware.
         /// </summary>
-        public readonly uint SystemClockHz;
+        public uint SystemClockHz { get; private set; }
 
         /// <summary>
         /// Host system acquisition clock frequency in Hz, derived from <see cref="SystemClockHz"/>.
         /// This describes the frequency of the clock used to drive the acquisition
         /// counter which is used timestamp data frames.
         /// </summary>
-        public readonly uint AcquisitionClockHz;
+        public uint AcquisitionClockHz { get; private set; }
 
         /// <summary>
         /// The maximal size of a frame produced by a call to <see cref="ReadFrame"/>
         /// in bytes. This number is the maximum sized frame that can be produced
         /// across every device within the device table that generates read data.
         /// </summary>
-        public readonly uint MaxReadFrameSize;
+        public uint MaxReadFrameSize { get; private set; }
 
         /// <summary>
         /// The maximal size of consumed by a call to <see cref="Write"/> in bytes.
         /// This number is the maximum sized frame that can be consumed across every
         /// device within the device table that accepts write data.
         /// </summary>
-        public readonly uint MaxWriteFrameSize;
+        public uint MaxWriteFrameSize { get; private set; }
 
         /// <summary>
         /// ONI specified device table containing the full device hierarchy
@@ -83,7 +89,7 @@ namespace oni
         /// specified driver cannot be found or is invalid.</exception>
         /// <exception cref="ONIException">Thrown when there is an error during
         /// hardware initialization (e.g. an invalid device table).</exception>
-        public Context(string driver, int index)
+        public Context(string driver, int index = -1)
         {
             // Create context
             ctx = NativeMethods.oni_create_ctx(driver);
@@ -97,11 +103,7 @@ namespace oni
             var rc = NativeMethods.oni_init_ctx(ctx, index);
             if (rc != 0) { throw new ONIException(rc); }
 
-            // Get context metadata
-            SystemClockHz = (uint)GetIntOption((int)Option.SYSCLKHZ);
-            AcquisitionClockHz = (uint)GetIntOption((int)Option.ACQCLKHZ);
-            MaxReadFrameSize = (uint)GetIntOption((int)Option.MAXREADFRAMESIZE);
-            MaxWriteFrameSize = (uint)GetIntOption((int)Option.MAXWRITEFRAMESIZE);
+            Driver = new DriverInfo(NativeMethods.oni_get_driver_info(ctx));
 
             PopulateDeviceTable();
             
@@ -110,6 +112,12 @@ namespace oni
         // Populate device table
         private void PopulateDeviceTable()
         {
+            // Get context metadata
+            SystemClockHz = (uint)GetIntOption((int)Option.SYSCLKHZ);
+            AcquisitionClockHz = (uint)GetIntOption((int)Option.ACQCLKHZ);
+            MaxReadFrameSize = (uint)GetIntOption((int)Option.MAXREADFRAMESIZE);
+            MaxWriteFrameSize = (uint)GetIntOption((int)Option.MAXWRITEFRAMESIZE);
+
             int num_devs = GetIntOption((int)Option.NUMDEVICES);
             DeviceTable = new Dictionary<uint, Device>(num_devs);
             int size_dev = Marshal.SizeOf(new Device());

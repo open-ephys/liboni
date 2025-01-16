@@ -8,7 +8,9 @@
 
 typedef struct {
     size_t capacity;
-    uint8_t front, rear, size;
+    size_t front;
+    size_t rear;
+    size_t size;
     uint8_t *array;
 } queue_u8_t;
 

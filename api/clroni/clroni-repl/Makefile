@@ -2,9 +2,9 @@
 # liboepcie.so
 test: ../clroni/oni.dll
 	cp ../clroni/oni.dll ./
-	mcs -r:../clroni/oni.dll Host.cs
+	mcs -r:../clroni/oni.dll Repl.cs
 
 .PHONY: clean
 clean:
 	$(RM) oni.dll
-	$(RM) Host.exe
+	$(RM) Repl.exe

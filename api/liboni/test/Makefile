@@ -8,7 +8,7 @@ CFLAGS=-O3 -Wall
 LDFLAGS=-loni -ldl
 
 .PHONY: all
-all: oni-repl cobs-test ## Build basic oni-repl and test functions
+all: cobs-test
 
 .PHONY: debug
 debug: CFLAGS += -DDEBUG -g3 ## Build with debug symbols
@@ -22,13 +22,9 @@ cobs-test: cobs_test.c testfunc.c ## Make COBS test program
 	@echo Making $@
 	$(CC) $(CFLAGS) $^ -lm $(LDFLAGS) -o $@
 
-oni-repl: main.c ## Make simple oni-repl acquisition software
-	@echo Making $@
-	$(CC) $(CFLAGS) $? -lm -lpthread $(LDFLAGS) -o $@
-
 .PHONY: clean
 clean: ## Clean build artifacts
-	rm ./oni-repl ./cobs-test
+	rm ./cobs-test
 
 .PHONY: help
 help:

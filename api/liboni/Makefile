@@ -4,14 +4,14 @@ NAME      :=  liboni
 SNAME     :=  $(NAME).a
 DNAME     :=  $(NAME).so.1
 DNAMELN   :=  $(NAME).so
-HDR       :=  oni.h onidefs.h onix.h onidriver.h oelogo.h # Public headers to be installed
+HDR       :=  oni.h onidefs.h onix.h onidriver.h # Public headers to be installed
 SRC       :=  oni.c onix.c
 POSIX_SRC :=  onidriverloader.c
 OBJ       :=  $(SRC:.c=.o)
 POSIX_OBJ :=  $(POSIX_SRC:.c=.o)
 CFLAGS    :=  -Wall -W -Werror -fPIC -O3
 ISOCFLAGS :=  -pedantic
-LDFLAGS   :=  -L.
+LDFLAGS   :=  -L. -ldl
 PREFIX    :=  /usr/local
 
 # Turn wildcard list into comma separated list
@@ -51,7 +51,7 @@ $(SNAME): $(OBJ) $(POSIX_OBJ)
 
 $(DNAME): LDFLAGS += -shared
 $(DNAME): $(OBJ) $(POSIX_OBJ)
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $^ -o $@ $(LDFLAGS)
 
 $(OBJ): CFLAGS += $(ISOCFLAGS)
 
