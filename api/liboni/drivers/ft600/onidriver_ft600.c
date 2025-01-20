@@ -8,11 +8,11 @@
 #include "circbuffer.h"
 
 #define DRIVER_1308_WORKAROUND 1
+#define FTD3XX_STATIC
 
 #ifdef _WIN32
 #include<Windows.h>
 #define SERIAL_LEN 16
-#define FTD3XX_STATIC
 
 #else
 #include <unistd.h>

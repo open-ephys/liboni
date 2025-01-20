@@ -4,8 +4,17 @@ NAME      :=  oni-repl
 SRC       :=  main.c
 OBJ       :=  $(SRC:.c=.o)
 CFLAGS    :=  -pedantic -Wall -W -Werror -fPIC -O3 $(DEFS)
-LDFLAGS   :=  -lm -lpthread -loni -ldl
+# LDFLAGS   :=  -lm -lpthread -loni -ldl
 PREFIX    :=  /usr/local
+UNAME     :=  $(shell uname -s)
+
+ifeq ($(UNAME), Linux)
+LDFLAGS   :=  -lm -lpthread -loni -ldl
+endif
+ifeq ($(UNAME), Darwin)
+LDFLAGS   := -L/usr/local/lib -lm -lpthread -loni
+endif
+
 
 .PHONY: all
 all: $(NAME)

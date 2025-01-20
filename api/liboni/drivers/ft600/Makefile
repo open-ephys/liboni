@@ -5,22 +5,24 @@ UNAME     :=  $(shell uname -s)
 SRC       :=  onidriver_ft600.c circbuffer.c
 OBJ       :=  $(SRC:.c=.o)
 PREFIX    :=  /usr/local
-LIBS      := -lftd3xx -pthread
+LIBS      :=  -pthread
+CFLAGS    :=  -pedantic -Wall -W -Werror -fPIC -O2
 
 ifeq ($(UNAME), Linux)
 DNAME     :=  $(NAME).so.1
 DNAMELN   :=  $(NAME).so
 FT_PATH   := ./ft3dxx/linux
-LDFLAGS   :=  -L. -ldl -L$(FT_PATH)
+LDFLAGS   :=  -L. -ldl -L$(FT_PATH) -lftd3xx $(LIBS)
 endif
 ifeq ($(UNAME), Darwin)
 DNAME     :=  $(NAME).dylib
 DNAMELN   :=  $(NAME).1.dylib
 FT_PATH   := ./ft3dxx/osx
-LDFLAGS   :=  -L. -L$(FT_PATH)
+LDFLAGS   :=  -L. -L$(FT_PATH) $(FT_PATH)/libftd3xx-static.a $(LIBS) -framework IOKit -framework CoreFoundation -lc++
+CFLAGS += -arch x86_64 -arch arm64
 endif
 
-CFLAGS    :=  -pedantic -Wall -W -Werror -fPIC -O2 $(DEFS) -I$(FT_PATH)
+CFLAGS += $(DEFS) -I$(FT_PATH)
 
 # Turn wildcard list into comma separated list
 SPACE :=
@@ -64,7 +66,7 @@ ifeq ($(UNAME), Linux)
 	$(CC) $^ -o $@ $(LDFLAGS)
 endif
 ifeq ($(UNAME), Darwin)
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CXX) $(LDFLAGS) $^ -o $@
 endif
 
 .PHONY: clean
