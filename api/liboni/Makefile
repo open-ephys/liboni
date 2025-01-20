@@ -20,7 +20,8 @@ endif
 ifeq ($(UNAME), Darwin)
 DNAME     :=  $(NAME).dylib
 DNAMELN   :=  $(NAME).1.dylib
-LDFLAGS   :=  -L.
+LDFLAGS   :=  -L. -arch x86_64 -arch arm64
+CFLAGS += -arch x86_64 -arch arm64
 endif
 
 # Turn wildcard list into comma separated list
