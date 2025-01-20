@@ -12,7 +12,7 @@ ifeq ($(UNAME), Linux)
 DNAME     :=  $(NAME).so.1
 DNAMELN   :=  $(NAME).so
 FT_PATH   := ./ft3dxx/linux
-LDFLAGS   :=  -L. -ldl -L$(FT_PATH) -lftd3xx $(LIBS)
+LDFLAGS   :=  -L. -ldl -L$(FT_PATH) $(FT_PATH)/libftd3xx-static.a $(LIBS) -lstdc++
 endif
 ifeq ($(UNAME), Darwin)
 DNAME     :=  $(NAME).dylib
