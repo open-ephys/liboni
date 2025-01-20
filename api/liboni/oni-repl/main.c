@@ -177,7 +177,7 @@ void *read_loop(void *vargp)
             oni_device_t this_dev = devices[i];
 
             this_cnt++;
-            printf("\t[%llu] Dev: %u (%s) \n",
+            printf("\t[%" PRIu64 "] Dev: %u (%s) \n",
                 frame->time,
                 frame->dev_idx,
                 onix_device_str(this_dev.id));
