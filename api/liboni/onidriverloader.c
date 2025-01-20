@@ -25,7 +25,7 @@ static inline lib_handle_t open_library(const char* name)
 #ifndef NDEBUG
     char *e = dlerror();
     if (e != NULL)
-        fprintf(stderr, "%s\n", dlerror());
+        fprintf(stderr, "%s\n", e);
 #endif
     return lib;
 #endif
