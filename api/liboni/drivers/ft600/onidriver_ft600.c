@@ -20,10 +20,11 @@
 #define TRUE true
 #define FALSE false
 #define SERIAL_LEN 32
+#define POLL_CONTROL
 #endif
 #include <FTD3XX.h>
 
-#define POLL_CONTROL
+
 //#define LINUX_ASYNC
 
 #ifdef POLL_CONTROL
