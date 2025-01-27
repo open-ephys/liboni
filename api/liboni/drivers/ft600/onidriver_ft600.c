@@ -281,7 +281,7 @@ inline void oni_ft600_reset_ctx(oni_ft600_ctx ctx)
 	oni_ft600_restart_acq(ctx);
 }
 
-inline void oni_ft600_reset_acq(oni_ft600_ctx ctx, int hard)
+static inline void oni_ft600_reset_acq(oni_ft600_ctx ctx, int hard)
 {
 	if (hard) {
 		FT_WriteGPIO(ctx->ftHandle, 0x01, 0x01);
@@ -316,7 +316,7 @@ inline void oni_ft600_stop_acq(oni_ft600_ctx ctx)
 	oni_ft600_restart_acq(ctx);
 }
 
-inline int oni_ft600_sendcmd(oni_ft600_ctx ctx, uint8_t* buffer, size_t size)
+static inline int oni_ft600_sendcmd(oni_ft600_ctx ctx, uint8_t* buffer, size_t size)
 {
 	ULONG transferred = 0;
 	ULONG total = 0;
@@ -337,7 +337,7 @@ inline int oni_ft600_sendcmd(oni_ft600_ctx ctx, uint8_t* buffer, size_t size)
 	return ONI_ESUCCESS;
 }
 
-oni_driver_ctx oni_driver_create_ctx()
+oni_driver_ctx oni_driver_create_ctx(void)
 {
 	oni_ft600_ctx ctx;
 	ctx = calloc(1, sizeof(struct oni_ft600_ctx_impl));
@@ -885,7 +885,7 @@ int oni_driver_get_opt(oni_driver_ctx driver_ctx,
 	return ONI_EINVALOPT;
 }
 
-const oni_driver_info_t* oni_driver_info() 
+const oni_driver_info_t* oni_driver_info(void) 
 {
     return &driverInfo;
 }
