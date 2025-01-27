@@ -15,7 +15,7 @@ typedef void *lib_handle_t;
 #endif
 
 // Function pointers for common access
-typedef oni_driver_ctx(*oni_driver_create_ctx_f)();
+typedef oni_driver_ctx(*oni_driver_create_ctx_f)(void);
 typedef int(*oni_driver_init_f)(oni_driver_ctx, int);
 typedef int(*oni_driver_destroy_ctx_f)(oni_driver_ctx);
 
@@ -29,7 +29,7 @@ typedef int(*oni_driver_set_opt_f)(oni_driver_ctx, int, const void *, size_t);
 typedef int(*oni_driver_get_opt_f)(oni_driver_ctx, int, void *, size_t *);
 typedef int(*oni_driver_set_opt_callback_f)(oni_driver_ctx, int, const void *, size_t);
 
-typedef const oni_driver_info_t*(*oni_driver_info_f)();
+typedef const oni_driver_info_t*(*oni_driver_info_f)(void);
 
 // Driver field with function table and driver context
 typedef struct oni_driver {

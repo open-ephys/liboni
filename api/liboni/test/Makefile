@@ -5,7 +5,15 @@
 
 CC=cc
 CFLAGS=-O3 -Wall
-LDFLAGS=-loni -ldl
+UNAME     :=  $(shell uname -s)
+
+ifeq ($(UNAME), Linux)
+LDFLAGS   :=  -L. -ldl
+endif
+
+ifeq ($(UNAME), Darwin)
+LDFLAGS   :=  -L.
+endif
 
 .PHONY: all
 all: cobs-test

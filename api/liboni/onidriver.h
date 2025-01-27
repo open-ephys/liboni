@@ -28,7 +28,7 @@ typedef void *oni_driver_ctx;
 #define ONI_DRIVER_EXPORT
 #endif
 
-ONI_DRIVER_EXPORT oni_driver_ctx oni_driver_create_ctx();
+ONI_DRIVER_EXPORT oni_driver_ctx oni_driver_create_ctx(void);
 ONI_DRIVER_EXPORT int oni_driver_destroy_ctx(oni_driver_ctx);
 
 // Initialize driver. Argument is the host device index
@@ -49,7 +49,7 @@ ONI_DRIVER_EXPORT int oni_driver_set_opt(oni_driver_ctx driver_ctx, int driver_o
 ONI_DRIVER_EXPORT int oni_driver_get_opt(oni_driver_ctx driver_ctx, int driver_option, void *value, size_t* option_len);
 
 // Get a string identifying the driver
-ONI_DRIVER_EXPORT const oni_driver_info_t *oni_driver_info();
+ONI_DRIVER_EXPORT const oni_driver_info_t *oni_driver_info(void);
 
 #endif
 
