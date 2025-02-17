@@ -390,6 +390,21 @@ void print_hub_info(size_t hub_idx)
     rc ? printf("%s\n", oni_error_str(rc)) : printf("%u\n", hub_delay_ns);
 }
 
+void update_dev_table() 
+{
+    // Examine device table
+    size_t num_devs_sz = sizeof(num_devs);
+    oni_get_opt(ctx, ONI_OPT_NUMDEVICES, &num_devs, &num_devs_sz);
+
+    // Get the device table
+    size_t devices_sz = sizeof(oni_device_t) * num_devs;
+    devices = (oni_device_t *)realloc(devices, devices_sz);
+    if (devices == NULL) {
+        exit(EXIT_FAILURE);
+    }
+    oni_get_opt(ctx, ONI_OPT_DEVICETABLE, devices, &devices_sz);
+}
+
 int main(int argc, char *argv[])
 {
 
@@ -539,14 +554,7 @@ exit:
     //rc = oni_set_opt(ctx, ONI_OPT_RESET, &val, sizeof(val));
 
     // Examine device table
-    size_t num_devs_sz = sizeof(num_devs);
-    oni_get_opt(ctx, ONI_OPT_NUMDEVICES, &num_devs, &num_devs_sz);
-
-    // Get the device table
-    size_t devices_sz = sizeof(oni_device_t) * num_devs;
-    devices = (oni_device_t *)realloc(devices, devices_sz);
-    if (devices == NULL) { exit(EXIT_FAILURE); }
-    oni_get_opt(ctx, ONI_OPT_DEVICETABLE, devices, &devices_sz);
+    update_dev_table();
 
     // Dump files, if required
     if (dump) {
@@ -715,6 +723,7 @@ exit:
             oni_size_t reset = 1;
             rc = oni_set_opt(ctx, ONI_OPT_RESET, &reset, sizeof(reset));
             if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
+            update_dev_table();
         }
         else if (c == 'd') {
             display = (display == 0) ? 1 : 0;
