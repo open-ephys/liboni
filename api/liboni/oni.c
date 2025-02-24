@@ -1304,7 +1304,7 @@ static int _oni_alloc_write_buffer(oni_ctx ctx, void **data, size_t size)
     return ONI_ESUCCESS;
 }
 
-// NB: Allow context to relase control of buffer without refilling in the case
+// NB: Allow context to release control of buffer without refilling in the case
 // of restart
 static void _oni_dump_buffers(oni_ctx ctx)
 {

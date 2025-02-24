@@ -269,8 +269,10 @@ next:
 //    return NULL;
 //}
 
-void start_threads()
+static void start_threads()
 {
+    quit = 0;
+
     // Generate data read_thread and continue here config/signal handling in parallel
 #ifdef _WIN32
     DWORD read_tid;
@@ -292,14 +294,14 @@ void start_threads()
 #endif
 }
 
-void stop_threads()
+static void stop_threads()
 {
     // Join data and signal threads
     quit = 1;
 
 #ifdef _WIN32
 
-    WaitForSingleObject(read_thread, 200); // INFINITE);
+    WaitForSingleObject(read_thread, 500); // INFINITE);
     CloseHandle(read_thread);
 
     //WaitForSingleObject(write_thread, 200);
@@ -493,13 +495,13 @@ usage:
         printf("Usage: %s <driver> [slot] [-d] [-D <value>] [-n <value>] [-i <device index>] [--rbytes=<bytes>] [--wbytes=<bytes>] [--dformat=<hex,dec>] [--dumppath=<path>] [-h,--help] [-v,--version]\n\n", argv[0]);
 
         printf("\t driver \t\tHardware driver to dynamically link (e.g. riffa, ft600, test, etc.)\n");
-        printf("\t slot \t\t\tIndex specifiying the physical slot occupied by hardare being controlled. If none is provided, the driver-defined default will be used.\n");
+        printf("\t slot \t\t\tIndex specifying the physical slot occupied by hardware being controlled. If none is provided, the driver-defined default will be used.\n");
         printf("\t -d \t\t\tDisplay frames. If specified, frames produced by the oni hardware will be printed to the console.\n");
         printf("\t -D <percent> \t\tThe percent of frames printed to the console if frames are displayed. Percent should be a value in (0, 100.0].\n");
         printf("\t -n <count> \t\tDisplay at most count frames. Reset only on program restart. Useful for examining the start of the data stream. If set to 0, then this option is ignored.\n");
         printf("\t -i <index> \t\tOnly display frames from device with specified index value.\n");
         printf("\t --rbytes=<bytes> \tSet block read size in bytes. (default: %d bytes)\n", DEFAULT_BLK_READ_BYTES);
-        printf("\t --wbytes=<bytes> \tSet write preallocation size in bytes. (default: %d bytes)\n", DEFAULT_BLK_WRITE_BYTES);
+        printf("\t --wbytes=<bytes> \tSet write pre-allocation size in bytes. (default: %d bytes)\n", DEFAULT_BLK_WRITE_BYTES);
         printf("\t --dformat=<hex,dec> \tSet the format of frame data printed to the console to hexidecimal (default) or decimal.\n");
         printf("\t --dumppath=<path> \tPath to folder to dump raw device data. \
 If not defined, no data will be written. A flat binary file with name <index>_idx-<id>_id-<datetime>.raw will be created for each device in the device table that produces streaming \
@@ -509,7 +511,7 @@ data. The bit-wise frame definition in the ONI device datasheet (as required by 
                                     \t dev_addr_1 reg_address reg_value\n \
                                     \t ...\n \
                                     \t dev_addr_n reg_address reg_value\n \
-                 \t\tthat is used to bulk write device registers following context intialization.\n");
+                 \t\tthat is used to bulk write device registers following context initialization.\n");
         printf("\t --help, -h \t\tDisplay this message and exit.\n");
         printf("\t --version, -v \t\tDisplay version information.\n");
 
@@ -613,10 +615,11 @@ exit:
         if (reg_file != NULL) {
             rc = write_reg_file(reg_file);
         } else {
-            printf("Error: failed to open register inititalization file.\n");
+            printf("Error: failed to open register initialization file.\n");
         }
     }
 
+reset:
     // Show device table
     print_dev_table(devices, num_devs);
 
@@ -661,6 +664,7 @@ exit:
     assert(!rc && "Register read failure.");
     printf("Frame counter clock rate: %u Hz\n", reg);
 
+    // NB: This option is essentially deprecated
     //reg = 42;
     //rc = oni_set_opt(ctx, ONI_OPT_HWADDRESS, &reg, sizeof(oni_size_t));
     //assert(!rc && "Register write failure.");
@@ -701,8 +705,7 @@ exit:
         printf("\tD - change the percent of frames displayed\n");
         printf("\ti - set a filter to display frames only from a particular device\n");
         printf("\tt - print current device table\n");
-        printf("\tp - toggle running/pause register (used for interal testing; may cause issues)\n");
-        printf("\ts - toggle running/pause register & r/w thread operation (used for internal testing; may cause issues)\n");
+        printf("\tp - toggle running/pause register\n");
         printf("\tr[m|i[x]] - read from device register. [m] for managed registers. [i] for i2c raw registers, [ix] for i2c 16-bit addresses\n");
         printf("\tw[m|i[x]] - write to device register. [m] for managed registers. [i] for i2c raw registers, [ix] for i2c 16-bit addresses\n");
         printf("\th - get hub information about a device\n");
@@ -723,19 +726,35 @@ exit:
         free(cmd);
 
         if (c == 'p') {
-            running = (running == 1) ? 0 : 1;
-            oni_size_t run = running;
-            rc = oni_set_opt(ctx, ONI_OPT_RUNNING, &run, sizeof(run));
-            if (rc) {
-                printf("Error: %s\n", oni_error_str(rc));
+
+            if (running) {
+                stop_threads();
+                oni_size_t run = 0;
+                rc = oni_set_opt(ctx, ONI_OPT_RUNNING, &run, sizeof(run));
+                if (rc) {
+                    printf("Error: %s\n", oni_error_str(rc));
+                }
+                running = 0;
+                printf("Acquisition Paused\n");
+            } 
+            else {
+                start_threads();
+                oni_size_t run = 1;
+                rc = oni_set_opt(ctx, ONI_OPT_RUNNING, &run, sizeof(run));
+                if (rc) {
+                    printf("Error: %s\n", oni_error_str(rc));
+                }
+                running = 1;
+                printf("Acquisition started\n");
             }
-            printf("Paused\n");
         }
         else if (c == 'x') {
+            stop_threads();
             oni_size_t reset = 1;
             rc = oni_set_opt(ctx, ONI_OPT_RESET, &reset, sizeof(reset));
             if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
             update_dev_table();
+            goto reset;
         }
         else if (c == 'd') {
             display = (display == 0) ? 1 : 0;
@@ -914,15 +933,6 @@ exit:
                     printf("\n");
                     last_hub = hub;
                 }
-            }
-        }
-        else if (c == 's') {
-
-            if (quit == 0) {
-                stop_threads();
-            }
-            else {
-                start_threads();
             }
         }
         else if (c == 'a') {
