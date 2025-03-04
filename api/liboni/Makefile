@@ -15,7 +15,7 @@ PREFIX    :=  /usr/local
 ifeq ($(UNAME), Linux)
 DNAME     :=  $(NAME).so.1
 DNAMELN   :=  $(NAME).so
-LDFLAGS   :=  -L. -ldl
+LDFLAGS   :=  -L. -ldl -Wl,-rpath,'$$ORIGIN'
 endif
 ifeq ($(UNAME), Darwin)
 DNAME     :=  $(NAME).dylib
