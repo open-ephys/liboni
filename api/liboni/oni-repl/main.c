@@ -706,8 +706,14 @@ reset:
         printf("\ti - set a filter to display frames only from a particular device\n");
         printf("\tt - print current device table\n");
         printf("\tp - toggle running/pause register\n");
-        printf("\tr[m|i[x]] - read from device register. [m] for managed registers. [i] for i2c raw registers, [ix] for i2c 16-bit addresses\n");
-        printf("\tw[m|i[x]] - write to device register. [m] for managed registers. [i] for i2c raw registers, [ix] for i2c 16-bit addresses\n");
+        printf("\tr[m|i[x]] - read from device register.\n");
+        printf("\t [m]: managed registers.\n");
+        printf("\t [i]: i2c raw registers.\n");
+        printf("\t [ix]: 16-bit i2c raw registers.\n");
+        printf("\tw[m|i[x]] - write to device register.\n");
+        printf("\t [m]: managed registers.\n");
+        printf("\t [i]: i2c raw registers.\n");
+        printf("\t [ix]: 16-bit i2c raw registers.\n");
         printf("\th - get hub information about a device\n");
         printf("\tH - print all hubs in the current configuration\n");
         printf("\ta - reset the acquisition clock counter\n");
