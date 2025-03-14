@@ -75,7 +75,9 @@ int oni_create_driver(const char* lib_name, oni_driver_t* driver)
     free(full_lib_name);
 
     if (!handle) {
-       // fprintf(stderr, "Failed to load driver: %s\n", dlerror());
+#if !defined(_WIN32) && !defined(NDEBUG)
+      fprintf(stderr, "Failed to load driver: %s\n", dlerror());
+#endif
         return -1;
     }
 
