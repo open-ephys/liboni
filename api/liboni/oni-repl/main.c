@@ -80,7 +80,7 @@ int parse_reg_cmd(const char *cmd, long *values, int len)
         if (errno == ERANGE){ return -1; }
 
         values[k++] = i;
-        if (k == 3)
+        if (k == len)
             break;
     }
 
@@ -269,8 +269,10 @@ next:
 //    return NULL;
 //}
 
-void start_threads()
+static void start_threads()
 {
+    quit = 0;
+
     // Generate data read_thread and continue here config/signal handling in parallel
 #ifdef _WIN32
     DWORD read_tid;
@@ -292,14 +294,14 @@ void start_threads()
 #endif
 }
 
-void stop_threads()
+static void stop_threads()
 {
     // Join data and signal threads
     quit = 1;
 
 #ifdef _WIN32
 
-    WaitForSingleObject(read_thread, 200); // INFINITE);
+    WaitForSingleObject(read_thread, 500); // INFINITE);
     CloseHandle(read_thread);
 
     //WaitForSingleObject(write_thread, 200);
@@ -390,6 +392,30 @@ void print_hub_info(size_t hub_idx)
     rc ? printf("%s\n", oni_error_str(rc)) : printf("%u\n", hub_delay_ns);
 }
 
+void update_dev_table() 
+{
+    // Examine device table
+    size_t num_devs_sz = sizeof(num_devs);
+    oni_get_opt(ctx, ONI_OPT_NUMDEVICES, &num_devs, &num_devs_sz);
+
+    // Get the device table
+    size_t devices_sz = sizeof(oni_device_t) * num_devs;
+    devices = (oni_device_t *)realloc(devices, devices_sz);
+    if (devices == NULL) {
+        exit(EXIT_FAILURE);
+    }
+    oni_get_opt(ctx, ONI_OPT_DEVICETABLE, devices, &devices_sz);
+}
+
+oni_size_t get_i2c_reg_address(unsigned int i2c_dev_addr,
+                               unsigned int i2c_reg_addr,
+                               unsigned int address_16bit)
+{
+    oni_size_t address = (i2c_reg_addr << 7) | (i2c_dev_addr & 0x7F);
+    address |= address_16bit ? 0x80000000 : 0;
+    return address;
+}
+
 int main(int argc, char *argv[])
 {
 
@@ -469,13 +495,13 @@ usage:
         printf("Usage: %s <driver> [slot] [-d] [-D <value>] [-n <value>] [-i <device index>] [--rbytes=<bytes>] [--wbytes=<bytes>] [--dformat=<hex,dec>] [--dumppath=<path>] [-h,--help] [-v,--version]\n\n", argv[0]);
 
         printf("\t driver \t\tHardware driver to dynamically link (e.g. riffa, ft600, test, etc.)\n");
-        printf("\t slot \t\t\tIndex specifiying the physical slot occupied by hardare being controlled. If none is provided, the driver-defined default will be used.\n");
+        printf("\t slot \t\t\tIndex specifying the physical slot occupied by hardware being controlled. If none is provided, the driver-defined default will be used.\n");
         printf("\t -d \t\t\tDisplay frames. If specified, frames produced by the oni hardware will be printed to the console.\n");
         printf("\t -D <percent> \t\tThe percent of frames printed to the console if frames are displayed. Percent should be a value in (0, 100.0].\n");
         printf("\t -n <count> \t\tDisplay at most count frames. Reset only on program restart. Useful for examining the start of the data stream. If set to 0, then this option is ignored.\n");
         printf("\t -i <index> \t\tOnly display frames from device with specified index value.\n");
         printf("\t --rbytes=<bytes> \tSet block read size in bytes. (default: %d bytes)\n", DEFAULT_BLK_READ_BYTES);
-        printf("\t --wbytes=<bytes> \tSet write preallocation size in bytes. (default: %d bytes)\n", DEFAULT_BLK_WRITE_BYTES);
+        printf("\t --wbytes=<bytes> \tSet write pre-allocation size in bytes. (default: %d bytes)\n", DEFAULT_BLK_WRITE_BYTES);
         printf("\t --dformat=<hex,dec> \tSet the format of frame data printed to the console to hexidecimal (default) or decimal.\n");
         printf("\t --dumppath=<path> \tPath to folder to dump raw device data. \
 If not defined, no data will be written. A flat binary file with name <index>_idx-<id>_id-<datetime>.raw will be created for each device in the device table that produces streaming \
@@ -485,7 +511,7 @@ data. The bit-wise frame definition in the ONI device datasheet (as required by 
                                     \t dev_addr_1 reg_address reg_value\n \
                                     \t ...\n \
                                     \t dev_addr_n reg_address reg_value\n \
-                 \t\tthat is used to bulk write device registers following context intialization.\n");
+                 \t\tthat is used to bulk write device registers following context initialization.\n");
         printf("\t --help, -h \t\tDisplay this message and exit.\n");
         printf("\t --version, -v \t\tDisplay version information.\n");
 
@@ -539,14 +565,7 @@ exit:
     //rc = oni_set_opt(ctx, ONI_OPT_RESET, &val, sizeof(val));
 
     // Examine device table
-    size_t num_devs_sz = sizeof(num_devs);
-    oni_get_opt(ctx, ONI_OPT_NUMDEVICES, &num_devs, &num_devs_sz);
-
-    // Get the device table
-    size_t devices_sz = sizeof(oni_device_t) * num_devs;
-    devices = (oni_device_t *)realloc(devices, devices_sz);
-    if (devices == NULL) { exit(EXIT_FAILURE); }
-    oni_get_opt(ctx, ONI_OPT_DEVICETABLE, devices, &devices_sz);
+    update_dev_table();
 
     // Dump files, if required
     if (dump) {
@@ -596,10 +615,11 @@ exit:
         if (reg_file != NULL) {
             rc = write_reg_file(reg_file);
         } else {
-            printf("Error: failed to open register inititalization file.\n");
+            printf("Error: failed to open register initialization file.\n");
         }
     }
 
+reset:
     // Show device table
     print_dev_table(devices, num_devs);
 
@@ -644,6 +664,7 @@ exit:
     assert(!rc && "Register read failure.");
     printf("Frame counter clock rate: %u Hz\n", reg);
 
+    // NB: This option is essentially deprecated
     //reg = 42;
     //rc = oni_set_opt(ctx, ONI_OPT_HWADDRESS, &reg, sizeof(oni_size_t));
     //assert(!rc && "Register write failure.");
@@ -684,10 +705,15 @@ exit:
         printf("\tD - change the percent of frames displayed\n");
         printf("\ti - set a filter to display frames only from a particular device\n");
         printf("\tt - print current device table\n");
-        printf("\tp - toggle running/pause register (used for interal testing; may cause issues)\n");
-        printf("\ts - toggle running/pause register & r/w thread operation (used for internal testing; may cause issues)\n");
-        printf("\tr - read from device register\n");
-        printf("\tw - write to device register\n");
+        printf("\tp - toggle running/pause register\n");
+        printf("\tr[m|i[x]] - read from device register.\n");
+        printf("\t [m]: managed registers.\n");
+        printf("\t [i]: i2c raw registers.\n");
+        printf("\t [ix]: 16-bit i2c raw registers.\n");
+        printf("\tw[m|i[x]] - write to device register.\n");
+        printf("\t [m]: managed registers.\n");
+        printf("\t [i]: i2c raw registers.\n");
+        printf("\t [ix]: 16-bit i2c raw registers.\n");
         printf("\th - get hub information about a device\n");
         printf("\tH - print all hubs in the current configuration\n");
         printf("\ta - reset the acquisition clock counter\n");
@@ -697,24 +723,44 @@ exit:
 
         char *cmd = NULL;
         size_t cmd_len = 0;
+        char fcmd[3];
         rc = getline(&cmd, &cmd_len, stdin);
         if (rc == -1) { printf("Error: bad command\n"); continue; }
         c = cmd[0];
+        for (int i = 0; i < 3; i++)
+            fcmd[i] = i < cmd_len ? cmd[i] : '\0';
         free(cmd);
 
         if (c == 'p') {
-            running = (running == 1) ? 0 : 1;
-            oni_size_t run = running;
-            rc = oni_set_opt(ctx, ONI_OPT_RUNNING, &run, sizeof(run));
-            if (rc) {
-                printf("Error: %s\n", oni_error_str(rc));
+
+            if (running) {
+                stop_threads();
+                oni_size_t run = 0;
+                rc = oni_set_opt(ctx, ONI_OPT_RUNNING, &run, sizeof(run));
+                if (rc) {
+                    printf("Error: %s\n", oni_error_str(rc));
+                }
+                running = 0;
+                printf("Acquisition Paused\n");
+            } 
+            else {
+                start_threads();
+                oni_size_t run = 1;
+                rc = oni_set_opt(ctx, ONI_OPT_RUNNING, &run, sizeof(run));
+                if (rc) {
+                    printf("Error: %s\n", oni_error_str(rc));
+                }
+                running = 1;
+                printf("Acquisition started\n");
             }
-            printf("Paused\n");
         }
         else if (c == 'x') {
+            stop_threads();
             oni_size_t reset = 1;
             rc = oni_set_opt(ctx, ONI_OPT_RESET, &reset, sizeof(reset));
             if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
+            update_dev_table();
+            goto reset;
         }
         else if (c == 'd') {
             display = (display == 0) ? 1 : 0;
@@ -766,8 +812,60 @@ exit:
             print_dev_table(devices, num_devs);
         }
         else if (c == 'w') {
+            int nargs;
             printf("Write to a device register.\n");
-            printf("Enter: dev_idx reg_addr reg_val\n");
+            if (fcmd[1] == 'i') {
+                printf("Enter: dev_idx i2c_dev_addr reg_addr reg_val\n");
+                nargs = 4;
+            } else {
+                printf("Enter: dev_idx reg_addr reg_val\n");
+                nargs = 3;
+            }
+            printf(">>> ");
+
+            // Read the command
+            char *buf = NULL;
+            size_t len = 0;
+            rc = getline(&buf, &len, stdin);
+            if (rc == -1) { printf("Error: bad command\n"); continue; }
+
+            // Parse the command string
+            long values[4];
+            rc = parse_reg_cmd(buf, values, nargs);
+            if (rc == -1) { printf("Error: bad command\n"); continue; }
+            free(buf);
+
+            size_t dev_idx = (size_t)values[0];
+            oni_size_t addr;
+            oni_size_t val;
+            if (fcmd[1] == 'i')
+            {
+                addr = get_i2c_reg_address(values[1],values[2],(fcmd[2] == 'x') ? 1: 0);
+                val = (oni_size_t)values[4];
+            }
+            else if (fcmd[1] == 'm')
+            {
+                addr = (oni_size_t)(values[1] | (1<<15));
+                val = (oni_size_t)values[2];
+
+            } else {
+                addr = (oni_size_t)values[1];
+                val = (oni_size_t)values[2];
+            }
+
+            rc = oni_write_reg(ctx, dev_idx, addr, val);
+            printf("%s\n", oni_error_str(rc));
+        }
+        else if (c == 'r') {
+            int nargs;
+            printf("Read a device register.\n");
+            if (fcmd[1] == 'i') {
+                printf("Enter: dev_idx i2c_dev_addr reg_addr\n");
+                nargs = 3;
+            } else {
+                printf("Enter: dev_idx reg_addr\n");
+                nargs = 2;
+            }
             printf(">>> ");
 
             // Read the command
@@ -778,36 +876,21 @@ exit:
 
             // Parse the command string
             long values[3];
-            rc = parse_reg_cmd(buf, values, 3);
+            rc = parse_reg_cmd(buf, values, nargs);
             if (rc == -1) { printf("Error: bad command\n"); continue; }
             free(buf);
 
             size_t dev_idx = (size_t)values[0];
-            oni_size_t addr = (oni_size_t)values[1];
-            oni_size_t val = (oni_size_t)values[2];
+            oni_size_t addr;
+            if (fcmd[1] == 'i') {
+                addr = get_i2c_reg_address(
+                    values[1], values[2], (fcmd[2] == 'x') ? 1 : 0);
+            } else if (fcmd[1] == 'm') {
+                addr = (oni_size_t)(values[1] | (1 << 15));
 
-            rc = oni_write_reg(ctx, dev_idx, addr, val);
-            printf("%s\n", oni_error_str(rc));
-        }
-        else if (c == 'r') {
-            printf("Read a device register.\n");
-            printf("Enter: dev_idx reg_addr\n");
-            printf(">>> ");
-
-            // Read the command
-            char *buf = NULL;
-            size_t len = 0;
-            rc = getline(&buf, &len, stdin);
-            if (rc == -1) { printf("Error: bad command\n"); continue; }
-
-            // Parse the command string
-            long values[2];
-            rc = parse_reg_cmd(buf, values, 2);
-            if (rc == -1) { printf("Error: bad command\n"); continue; }
-            free(buf);
-
-            size_t dev_idx = (size_t)values[0];
-            oni_size_t addr = (oni_size_t)values[1];
+            } else {
+                addr = (oni_size_t)values[1];
+            }
 
             oni_reg_val_t val = 0;
             rc = oni_read_reg(ctx, dev_idx, addr, &val);
@@ -856,15 +939,6 @@ exit:
                     printf("\n");
                     last_hub = hub;
                 }
-            }
-        }
-        else if (c == 's') {
-
-            if (quit == 0) {
-                stop_threads();
-            }
-            else {
-                start_threads();
             }
         }
         else if (c == 'a') {
