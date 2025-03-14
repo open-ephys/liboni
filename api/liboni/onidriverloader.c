@@ -25,7 +25,7 @@ static inline lib_handle_t open_library(const char* name)
 #ifndef NDEBUG
     char *e = dlerror();
     if (e != NULL)
-        fprintf(stderr, "%s\n", dlerror());
+        fprintf(stderr, "%s\n", e);
 #endif
     return lib;
 #endif
@@ -56,8 +56,10 @@ static inline void* get_driver_function(lib_handle_t handle, const char* functio
 
 int oni_create_driver(const char* lib_name, oni_driver_t* driver)
 {
-#ifdef _WIN32
+#if defined(_WIN32)
     const char* extension = ".dll";
+#elif defined(__APPLE__)
+    const char* extension = ".dylib";
 #else
     const char* extension = ".so";
 #endif
@@ -73,7 +75,9 @@ int oni_create_driver(const char* lib_name, oni_driver_t* driver)
     free(full_lib_name);
 
     if (!handle) {
-        // fprintf(stderr, "Failed to load driver: %s\n", dlerror());
+#if !defined(_WIN32) && !defined(NDEBUG)
+      fprintf(stderr, "Failed to load driver: %s\n", dlerror());
+#endif
         return -1;
     }
 
