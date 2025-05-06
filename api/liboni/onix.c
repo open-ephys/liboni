@@ -109,6 +109,9 @@ const char *onix_device_str(int dev_id)
         case ONIX_NRIC1384: {
             return "IMEC NRIC1384 384-channel bioaquisition chip";
         }
+        case ONIX_PERSTHEARTBEAT: {
+            return "Persistent heartbeat";
+        }
         default:
             return "Unknown device";
     }
