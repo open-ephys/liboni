@@ -424,6 +424,7 @@ int main(int argc, char *argv[])
     int host_idx = -1;
     char *driver;
     char *reg_path = NULL;
+    int quit_before_repl = 0;
 
     static ko_longopt_t longopts[] = {{"help", ko_no_argument, 301},
                                       {"rbytes", ko_required_argument, 302},
@@ -435,13 +436,16 @@ int main(int argc, char *argv[])
                                       {NULL, 0, 0}};
     ketopt_t opt = KETOPT_INIT;
     int c;
-    while ((c = ketopt(&opt, argc, argv, 1, "hvdD:n:i:", longopts)) >= 0) {
+    while ((c = ketopt(&opt, argc, argv, 1, "qhvdD:n:i:", longopts)) >= 0) {
         if (c == 'h' || c == 301)
             goto usage;
         if (c == 'v' || c == 307) {
             print_version();
             goto exit;
-        } else if (c == 'd')
+        } 
+        else if (c == 'q')
+            quit_before_repl = 1;
+        else if (c == 'd')
             display = 1;
         else if (c == 'D') {
             float percent = atoi(opt.arg);
@@ -492,10 +496,11 @@ int main(int argc, char *argv[])
     } else {
 
 usage:
-        printf("Usage: %s <driver> [slot] [-d] [-D <value>] [-n <value>] [-i <device index>] [--rbytes=<bytes>] [--wbytes=<bytes>] [--dformat=<hex,dec>] [--dumppath=<path>] [-h,--help] [-v,--version]\n\n", argv[0]);
+        printf("Usage: %s <driver> [slot] [-q] [-d] [-D <value>] [-n <value>] [-i <device index>] [--rbytes=<bytes>] [--wbytes=<bytes>] [--dformat=<hex,dec>] [--dumppath=<path>] [--regpath=<path>] [-h,--help] [-v,--version]\n\n", argv[0]);
 
         printf("\t driver \t\tHardware driver to dynamically link (e.g. riffa, ft600, test, etc.)\n");
         printf("\t slot \t\t\tIndex specifying the physical slot occupied by hardware being controlled. If none is provided, the driver-defined default will be used.\n");
+        printf("\t -q \t\t\tQuit after intialization. If specified, quit before entering repl but after after establishing a connection with hardware, obtaining the device table, and writing to registers specified in --regpath.\n");
         printf("\t -d \t\t\tDisplay frames. If specified, frames produced by the oni hardware will be printed to the console.\n");
         printf("\t -D <percent> \t\tThe percent of frames printed to the console if frames are displayed. Percent should be a value in (0, 100.0].\n");
         printf("\t -n <count> \t\tDisplay at most count frames. Reset only on program restart. Useful for examining the start of the data stream. If set to 0, then this option is ignored.\n");
@@ -696,9 +701,8 @@ reset:
     printf("Hardware run state: %d\n", reg);
 
     // Enter REPL
-    printf("Some commands can cause hardware malfunction if issued in the wrong order!\n");
     c = 'x';
-    while (c != 'q') {
+    while (c != 'q' && !quit_before_repl) {
 
         printf("Enter a command and press enter:\n");
         printf("\td - toggle frame display\n");
