@@ -49,7 +49,8 @@ enum {
     ONIX_RHS2116            = 31,   // Intan RHS2116 bioamplifier and stimulator
     ONIX_RHS2116TRIGGER     = 32,   // Multi Intan RHS2116 stimulation trigger
     ONIX_NRIC1384           = 33,   // IMEC NRIC1384 384-channel bioaquisition chip
-    ONIX_PERSTHEARTBEAT     = 34    // Fixed heartbeat
+    ONIX_I2CRAW             = 34,   // Device for Raw i2c accesses
+    ONIX_PERSTHEARTBEAT     = 35    // Fixed heartbeat
 };
 
 // Each hub has a "hidden" information device with a fixed device index and 
@@ -80,7 +81,9 @@ enum {
     ONIX_HUB_HSNP2E         = 8,    // Open Ephys headstage-neuropix2e
     ONIX_HUB_HSNRIC1384     = 9,    // Open Ephys headstage-nric1384
     ONIX_HUB_HSNP1EH        = 10,   // Open Ephys headstage-neuropix1e-hirose
-    ONIX_HUB_RHYTHM         = 11    // Open Ephys Acquisition Board Rhythm wrapper
+    ONIX_HUB_ACQBOARD       = 256,  // Open Ephys Acquisition Board
+    ONIX_HUB_RHYTHM         = 257,  // Open Ephys Acquisition Board Rhythm wrapper
+    ONIX_HUB_ACQBOARD3D     = 258  // Open Ephys 3D Acquisition Board
 
 };
 

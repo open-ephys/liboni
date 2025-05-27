@@ -109,6 +109,9 @@ const char *onix_device_str(int dev_id)
         case ONIX_NRIC1384: {
             return "IMEC NRIC1384 384-channel bioaquisition chip";
         }
+        case ONIX_I2CRAW: {
+            return "Device for raw i2c accesses";
+        }
         case ONIX_PERSTHEARTBEAT: {
             return "Persistent heartbeat";
         }
@@ -153,8 +156,15 @@ const char *onix_hub_str(int dev_id)
         case ONIX_HUB_HSNP1EH: {
             return "Open Ephys ONIX Headstage-Neuropixels1.0e-Hirose";
         }
+        case ONIX_HUB_ACQBOARD:
+        {
+            return "Open Ephys Acquisition Board";
+        }
         case ONIX_HUB_RHYTHM: {
             return "Open Ephys Acquisition Board Rhythm wrapper";
+        }
+        case ONIX_HUB_ACQBOARD3D: {
+            return "Open Ephys 3D-capable Acquisition Board";
         }
         default:
             return "Unknown Hub";
