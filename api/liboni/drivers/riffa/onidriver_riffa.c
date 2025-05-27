@@ -129,7 +129,6 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
     CTX_CAST;
     int rc;
     uint32_t words = size >> 2;
-    memset(data, 0x42, size);
 
     if (stream == ONI_READ_STREAM_DATA)
     {
