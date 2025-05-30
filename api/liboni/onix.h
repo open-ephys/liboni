@@ -27,7 +27,7 @@ enum {
     ONIX_BNO055             = 9,    // BNO055 9-DOF IMU
     ONIX_TEST0              = 10,   // A test device used for debugging
     ONIX_NEUROPIX1R0        = 11,   // Neuropixels 1.0
-    ONIX_HEARTBEAT          = 12,   // Host heartbeat
+    ONIX_HEARTBEAT          = 12,   // Heartbeat
     ONIX_AD51X2             = 13,   // AD51X2 digital potentiometer
     ONIX_FMCVCTRL           = 14,   // Open Ephys FMC Host Board rev. 1.3 link voltage control subcircuit
     ONIX_AD7617             = 15,   // AD7617 ADC/DAS
@@ -48,7 +48,9 @@ enum {
     ONIX_HARPSYNCINPUT      = 30,   // Harp synchronization data input device
     ONIX_RHS2116            = 31,   // Intan RHS2116 bioamplifier and stimulator
     ONIX_RHS2116TRIGGER     = 32,   // Multi Intan RHS2116 stimulation trigger
-    ONIX_NRIC1384           = 33    // IMEC NRIC1384 384-channel bioaquisition chip
+    ONIX_NRIC1384           = 33,   // IMEC NRIC1384 384-channel bioaquisition chip
+    ONIX_I2CRAW             = 34,   // Device for Raw i2c accesses
+    ONIX_PERSTHEARTBEAT     = 35    // Fixed heartbeat
 };
 
 // Each hub has a "hidden" information device with a fixed device index and 
@@ -79,7 +81,9 @@ enum {
     ONIX_HUB_HSNP2E         = 8,    // Open Ephys headstage-neuropix2e
     ONIX_HUB_HSNRIC1384     = 9,    // Open Ephys headstage-nric1384
     ONIX_HUB_HSNP1EH        = 10,   // Open Ephys headstage-neuropix1e-hirose
-    ONIX_HUB_RHYTHM         = 11    // Open Ephys Acquisition Board Rhythm wrapper
+    ONIX_HUB_ACQBOARD       = 256,  // Open Ephys Acquisition Board
+    ONIX_HUB_RHYTHM         = 257,  // Open Ephys Acquisition Board Rhythm wrapper
+    ONIX_HUB_ACQBOARD3D     = 258  // Open Ephys 3D Acquisition Board
 
 };
 
