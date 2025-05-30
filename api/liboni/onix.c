@@ -110,7 +110,7 @@ const char *onix_device_str(int dev_id)
             return "IMEC NRIC1384 384-channel bioaquisition chip";
         }
         case ONIX_I2CRAW: {
-            return "Device for raw i2c accesses";
+            return "Device for raw I2C accesses";
         }
         case ONIX_PERSTHEARTBEAT: {
             return "Persistent heartbeat";
