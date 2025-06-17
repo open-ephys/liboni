@@ -24,7 +24,7 @@
 #define MIN(a,b) ((a<b) ? a : b)
 
 const oni_driver_info_t driverInfo
-    = {.name = "riffa", .major = 2, .minor = 0, .patch = 0, .pre_release = NULL};
+    = {.name = "riffa", .major = 1, .minor = 1, .patch = 0, .pre_release = NULL};
 
 struct oni_riffa_ctx_impl {
     oni_size_t block_size;
