@@ -83,7 +83,7 @@ enum {
     ONIX_HUB_HSNP1EH        = 10,   // Open Ephys headstage-neuropix1e-hirose
     ONIX_HUB_ACQBOARD       = 256,  // Open Ephys Acquisition Board
     ONIX_HUB_RHYTHM         = 257,  // Open Ephys Acquisition Board Rhythm wrapper
-    ONIX_HUB_ACQBOARD3D     = 258  // Open Ephys 3D Acquisition Board
+    ONIX_HUB_ACQBOARD3D     = 258   // Open Ephys 3D Acquisition Board
 
 };
 
