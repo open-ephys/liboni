@@ -8,6 +8,14 @@
 #include "../../onidriver.h"
 #include <riffa.h>
 
+#ifdef _WIN32
+#include <Windows.h>
+#else 
+#include <unistd.h>
+#define Sleep(x) usleep((x)*1000)
+#endif
+
+
 #define UNUSED(x) (void)(x)
 
 // NB: To save some repetition
@@ -16,7 +24,7 @@
 #define MIN(a,b) ((a<b) ? a : b)
 
 const oni_driver_info_t driverInfo
-    = {.name = "riffa", .major = 1, .minor = 0, .patch = 0, .pre_release = NULL};
+    = {.name = "riffa", .major = 1, .minor = 1, .patch = 0, .pre_release = NULL};
 
 struct oni_riffa_ctx_impl {
     oni_size_t block_size;
@@ -90,6 +98,7 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 
     //reset the whole system
     fpga_reset(ctx->fpga);
+    Sleep(5);
     return ONI_ESUCCESS;
 }
 
@@ -104,6 +113,7 @@ int oni_driver_destroy_ctx(oni_driver_ctx driver_ctx)
         // NB: Let's keep the fpga turned off, just in case. Should
         // automatically reset on close with the lock, but this does not hurt.
         fpga_reset(ctx->fpga);
+        Sleep(5);
         fpga_close(ctx->fpga);
     }
     free(ctx);
@@ -173,10 +183,6 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
     CTX_CAST;
     uint32_t addr;
     int rc;
-
-    // Prior to an ONI reset, reset the whole fpga to ensure that DMA transmission buffers are clear
-    if (reg == ONI_CONFIG_RESET && value != 0)
-        fpga_reset(ctx->fpga);
 
     oni_conf_off_t write_offset = _oni_register_offset(reg);
 
