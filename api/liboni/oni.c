@@ -849,7 +849,8 @@ const char *oni_error_str(int err)
             return "Invalid COBS packet";
         }
         case ONI_ERETRIG: {
-            return "Attempt to trigger an already triggered operation";
+            return "Attempted to perform a hardware operation before a "
+                   "previous call to the same operation has completed";
         }
         case ONI_EBUFFERSIZE: {
             return "Supplied buffer is too small";
@@ -920,7 +921,7 @@ static inline int _oni_hash32_find(oni_ctx ctx, oni_dev_idx_t x)
     int probe;
 
     // TODO: Not sure if this ideal. We are using a hashing function that has no collisions but this
-    // is not true when doing the modulo here and requires and explicity check == x for that reason.
+    // is not true when doing the modulo here and requires and explicitly check == x for that reason.
     for (probe = _oni_hash32(x) % ctx->dev_hash_len;
         ctx->dev_hash_table[probe].idx != ONI_DEVIDXNULL;
         probe = (probe + 1) % ctx->dev_hash_len) {

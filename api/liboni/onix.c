@@ -107,7 +107,7 @@ const char *onix_device_str(int dev_id)
             return "Multi Intan RHS2116 stimulation trigger";
         }
         case ONIX_NRIC1384: {
-            return "IMEC NRIC1384 384-channel bioaquisition chip";
+            return "IMEC NRIC1384 384-channel bioacquisition chip";
         }
         case ONIX_I2CRAW: {
             return "Device for raw I2C accesses";
