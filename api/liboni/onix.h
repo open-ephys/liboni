@@ -48,7 +48,7 @@ enum {
     ONIX_HARPSYNCINPUT      = 30,   // Harp synchronization data input device
     ONIX_RHS2116            = 31,   // Intan RHS2116 bioamplifier and stimulator
     ONIX_RHS2116TRIGGER     = 32,   // Multi Intan RHS2116 stimulation trigger
-    ONIX_NRIC1384           = 33,   // IMEC NRIC1384 384-channel bioaquisition chip
+    ONIX_NRIC1384           = 33,   // IMEC NRIC1384 384-channel bioacquisition chip
     ONIX_I2CRAW             = 34,   // Device for Raw i2c accesses
     ONIX_PERSTHEARTBEAT     = 35    // Fixed heartbeat
 };
@@ -66,7 +66,7 @@ enum {
     ONIX_HUB_DELAYNS        = 5,    // Hub to host transmission delay in nanoseconds
 };
 
-// NB: Hub IDs are 32-bit integers that uniquely identify the hub. They have the folowing format:
+// NB: Hub IDs are 32-bit integers that uniquely identify the hub. They have the following format:
 //     Reserved(8-bit).Company(8-bit).Hub(16-bit)
 // NB: If you add a hub here, make sure to update oni_hub_str().
 enum {

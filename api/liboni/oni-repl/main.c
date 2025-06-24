@@ -500,7 +500,7 @@ usage:
 
         printf("\t driver \t\tHardware driver to dynamically link (e.g. riffa, ft600, test, etc.)\n");
         printf("\t slot \t\t\tIndex specifying the physical slot occupied by hardware being controlled. If none is provided, the driver-defined default will be used.\n");
-        printf("\t -q \t\t\tQuit after intialization. If specified, quit before entering repl but after after establishing a connection with hardware, obtaining the device table, and writing to registers specified in --regpath.\n");
+        printf("\t -q \t\t\tQuit after initialization. If specified, quit before entering repl but after after establishing a connection with hardware, obtaining the device table, and writing to registers specified in --regpath.\n");
         printf("\t -d \t\t\tDisplay frames. If specified, frames produced by the oni hardware will be printed to the console.\n");
         printf("\t -D <percent> \t\tThe percent of frames printed to the console if frames are displayed. Percent should be a value in (0, 100.0].\n");
         printf("\t -n <count> \t\tDisplay at most count frames. Reset only on program restart. Useful for examining the start of the data stream. If set to 0, then this option is ignored.\n");
@@ -727,7 +727,7 @@ reset:
 
         char *cmd = NULL;
         size_t cmd_len = 0;
-        char fcmd[3];
+        char fcmd[3] = {0, 0 ,0};
         rc = getline(&cmd, &cmd_len, stdin);
         if (rc == -1) { printf("Error: bad command\n"); continue; }
         c = cmd[0];
@@ -810,7 +810,7 @@ reset:
             if (device_idx_filter_en)
                 printf("Only displaying frames from device at index %d\n", device_idx_filter);
             else
-                puts("Dislaying frames from all devices");
+                puts("Displaying frames from all devices");
         }
         else if (c == 't') {
             print_dev_table(devices, num_devs);
