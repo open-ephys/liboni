@@ -1,8 +1,6 @@
 ﻿using Microsoft.Win32.SafeHandles;
 using System;
-using System.Runtime.ConstrainedExecution;
 using System.Runtime.InteropServices;
-using System.Security.Permissions;
 
 namespace oni
 {
@@ -10,8 +8,6 @@ namespace oni
     /// Managed wrapper for an ONI-compliant data frame implementation. Produced by calls
     /// to <see cref="Context.ReadFrame"/> .
     /// </summary>
-    [SecurityPermission(SecurityAction.InheritanceDemand, UnmanagedCode = true)]
-    [SecurityPermission(SecurityAction.Demand, UnmanagedCode = true)]
     public unsafe class Frame : SafeHandleZeroOrMinusOneIsInvalid
     {
 
@@ -36,7 +32,6 @@ namespace oni
         /// </summary>
         /// <returns>True if the handle is released successfully (always the case
         /// in this implementation)</returns>
-        [ReliabilityContract(Consistency.WillNotCorruptState, Cer.Success)]
         protected override bool ReleaseHandle()
         {
             GC.RemoveMemoryPressure(((frame_t*)handle.ToPointer())->data_sz);

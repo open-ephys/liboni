@@ -1,16 +1,12 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <Title>CLR bindings for liboni</Title>
     <Description>CLR bindings to liboni, an ONI compliant API for data acquisition.</Description>
     <PackageTags>ONI Open Ephys ONIX</PackageTags>
-    <TargetFramework>net472</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
-<<<<<<< riffa-hardreset
-    <Version>6.2.0</Version>
-=======
-    <Version>6.1.3</Version>
->>>>>>> main
+    <TargetFramework>net8.0</TargetFramework>
+    <UseWindowsForms>false</UseWindowsForms>
+    <Version>6.3.0-dev1</Version>
     <Authors>Jon Newman</Authors>
     <Company>Open Ephys, Inc.</Company>
     <Copyright>©Open Ephys, Inc.</Copyright>

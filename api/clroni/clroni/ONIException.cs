@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Runtime.InteropServices;
-using System.Runtime.Serialization;
 
 namespace oni
 {
@@ -15,10 +14,13 @@ namespace oni
         /// </summary>
         public readonly int Number;
 
+        /// <summary>
+        /// Initializes a new <see cref="ONIException"/>
+        /// </summary>
         protected ONIException() { }
 
         /// <summary>
-        /// Initializes a new <see cref="oni.ONIException"/>
+        /// Initializes a new <see cref="ONIException"/>
         /// </summary>
         /// <param name="errnum">The error code returned by the native ONI API.</param>
         internal ONIException(int errnum)
@@ -31,9 +33,5 @@ namespace oni
         /// </summary>
         public override string Message =>
             Marshal.PtrToStringAnsi(NativeMethods.oni_error_str(Number));
-
-        protected ONIException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
-        { }
     }
 }
