@@ -17,8 +17,8 @@
 // Version macros for compile-time program version
 // NB: see https://semver.org/
 #define ONI_REPL_VERSION_MAJOR 1
-#define ONI_REPL_VERSION_MINOR 0
-#define ONI_REPL_VERSION_PATCH 4
+#define ONI_REPL_VERSION_MINOR 1
+#define ONI_REPL_VERSION_PATCH 0
 
 #define DEFAULT_BLK_READ_BYTES 2048
 #define DEFAULT_BLK_WRITE_BYTES 2048
@@ -500,7 +500,7 @@ usage:
 
         printf("\t driver \t\tHardware driver to dynamically link (e.g. riffa, ft600, test, etc.)\n");
         printf("\t slot \t\t\tIndex specifying the physical slot occupied by hardware being controlled. If none is provided, the driver-defined default will be used.\n");
-        printf("\t -q \t\t\tQuit after intialization. If specified, quit before entering repl but after after establishing a connection with hardware, obtaining the device table, and writing to registers specified in --regpath.\n");
+        printf("\t -q \t\t\tQuit after initialization. If specified, quit before entering repl but after after establishing a connection with hardware, obtaining the device table, and writing to registers specified in --regpath.\n");
         printf("\t -d \t\t\tDisplay frames. If specified, frames produced by the oni hardware will be printed to the console.\n");
         printf("\t -D <percent> \t\tThe percent of frames printed to the console if frames are displayed. Percent should be a value in (0, 100.0].\n");
         printf("\t -n <count> \t\tDisplay at most count frames. Reset only on program restart. Useful for examining the start of the data stream. If set to 0, then this option is ignored.\n");
