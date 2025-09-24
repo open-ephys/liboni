@@ -38,7 +38,7 @@ enum {
     ONI_EINVALOPT = -10, // Invalid context option
     ONI_EINVALARG = -11, // Invalid function arguments
     ONI_ECOBSPACK = -12, // Invalid COBS packet
-    ONI_ERETRIG = -13, // Attempt to trigger an already triggered operation
+    ONI_ERETRIG = -13, // Attempted to perform a hardware operation before a previous call to the same operation has completed
     ONI_EBUFFERSIZE = -14, // Supplied buffer is too small
     ONI_EBADDEVTABLE = -15, // Badly formatted device table supplied by firmware
     ONI_EBADALLOC = -16, // Bad dynamic memory allocation

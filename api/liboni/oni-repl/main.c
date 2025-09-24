@@ -727,7 +727,7 @@ reset:
 
         char *cmd = NULL;
         size_t cmd_len = 0;
-        char fcmd[3];
+        char fcmd[3] = {0, 0 ,0};
         rc = getline(&cmd, &cmd_len, stdin);
         if (rc == -1) { printf("Error: bad command\n"); continue; }
         c = cmd[0];
@@ -810,7 +810,7 @@ reset:
             if (device_idx_filter_en)
                 printf("Only displaying frames from device at index %d\n", device_idx_filter);
             else
-                puts("Dislaying frames from all devices");
+                puts("Displaying frames from all devices");
         }
         else if (c == 't') {
             print_dev_table(devices, num_devs);
