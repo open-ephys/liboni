@@ -1,12 +1,11 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <Title>CLR bindings for liboni</Title>
     <Description>CLR bindings to liboni, an ONI compliant API for data acquisition.</Description>
     <PackageTags>ONI Open Ephys ONIX</PackageTags>
     <TargetFramework>net472</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
-    <Version>6.2.0</Version>
+    <Version>6.3.0</Version>
     <Authors>Jon Newman</Authors>
     <Company>Open Ephys, Inc.</Company>
     <Copyright>©Open Ephys, Inc.</Copyright>

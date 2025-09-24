@@ -1,7 +1,7 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Title>ONI RELLPL (RCRLLR)(CLR)</Title>
+    <Title>ONI REPL</Title>
     <Description>Test application for clroni.</Description>
     <PackageTags>ONI Open Ephys</PackageTags>
     <TargetFramework>net472</TargetFramework>
