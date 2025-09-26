@@ -392,7 +392,7 @@ void print_hub_info(size_t hub_idx)
     rc ? printf("%s\n", oni_error_str(rc)) : printf("%u\n", hub_delay_ns);
 }
 
-void update_dev_table() 
+void update_dev_table()
 {
     // Examine device table
     size_t num_devs_sz = sizeof(num_devs);
@@ -442,7 +442,7 @@ int main(int argc, char *argv[])
         if (c == 'v' || c == 307) {
             print_version();
             goto exit;
-        } 
+        }
         else if (c == 'q')
             quit_before_repl = 1;
         else if (c == 'd')
@@ -542,7 +542,7 @@ exit:
     ctx = oni_create_ctx(driver);
     if (!ctx) { printf("Failed to create context\n"); exit(EXIT_FAILURE); }
 
-    // Print the driver translator informaiton
+    // Print the driver translator information
     const oni_driver_info_t *di = oni_get_driver_info(ctx);
     if (di->pre_release == NULL) {
         printf("Loaded driver: %s v%d.%d.%d\n",
@@ -561,8 +561,14 @@ exit:
 
     // Initialize context and discover hardware
     rc = oni_init_ctx(ctx, host_idx);
-    if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
-    assert(rc == 0);
+    if (rc) {
+        printf("Error: %s\n", oni_error_str(rc));
+        printf("Failed to initialize context. Perhaps another program is currently accessing "
+                "the hardware or the hardware requires a firmware update to use this version "
+                "of oni-repl.\n");
+        oni_destroy_ctx(ctx);
+        exit(EXIT_FAILURE);
+    }
 
     //// Set ONIX_FLAG0 to turn on pass-through and issue reset
     //oni_reg_val_t val = 1;
@@ -731,7 +737,7 @@ reset:
         rc = getline(&cmd, &cmd_len, stdin);
         if (rc == -1) { printf("Error: bad command\n"); continue; }
         c = cmd[0];
-        for (int i = 0; i < 3; i++)
+        for (size_t i = 0; i < 3; i++)
             fcmd[i] = i < cmd_len ? cmd[i] : '\0';
         free(cmd);
 
@@ -746,7 +752,7 @@ reset:
                 }
                 running = 0;
                 printf("Acquisition Paused\n");
-            } 
+            }
             else {
                 start_threads();
                 oni_size_t run = 1;
@@ -844,8 +850,8 @@ reset:
             oni_size_t val;
             if (fcmd[1] == 'i')
             {
-                addr = get_i2c_reg_address(values[1],values[2],(fcmd[2] == 'x') ? 1: 0);
-                val = (oni_size_t)values[4];
+                addr = get_i2c_reg_address(values[1],values[2],(fcmd[2] == 'x') ? 1 : 0);
+                val = (oni_size_t)values[3];
             }
             else if (fcmd[1] == 'm')
             {
