@@ -11,6 +11,8 @@ namespace oni
     public static partial class NativeMethods
     {
         private const CallingConvention CCCdecl = CallingConvention.Cdecl;
+
+        [DllImport(LibraryName, CallingConvention = CCCdecl, CharSet = CharSet.Ansi)]
         internal static extern void oni_version(out int major, out int minor, out int patch);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl, CharSet = CharSet.Ansi)]
