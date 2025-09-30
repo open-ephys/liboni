@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
-#if !NET7_0_OR_GREATER
 using System.Runtime.Serialization;
-#endif
+
 
 namespace oni
 {

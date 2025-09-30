@@ -2,10 +2,9 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-#if !NET7_0_OR_GREATER
 using System.Security.Permissions;
 using System.Text;
-#endif
+
 
 namespace oni
 {

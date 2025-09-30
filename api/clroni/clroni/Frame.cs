@@ -1,10 +1,9 @@
 ﻿using Microsoft.Win32.SafeHandles;
 using System;
 using System.Runtime.InteropServices;
-#if !NET7_0_OR_GREATER
 using System.Runtime.ConstrainedExecution;
 using System.Security.Permissions;
-#endif
+
 
 namespace oni
 {

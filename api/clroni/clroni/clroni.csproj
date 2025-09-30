@@ -4,7 +4,7 @@
     <Title>CLR bindings for liboni</Title>
     <Description>CLR bindings to liboni, an ONI compliant API for data acquisition.</Description>
     <PackageTags>ONI Open Ephys ONIX</PackageTags>
-    <TargetFrameworks>net472;netstandard2.0;net8.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net472;netstandard2.0</TargetFrameworks>
     <UseWindowsForms>false</UseWindowsForms>
     <Version>6.3.0-dev1</Version>
     <Authors>Jon Newman</Authors>
@@ -40,6 +40,16 @@
 
   <ItemGroup>
     <None Remove="Makefile" />
+    <Compile Remove="NativeMethods.Framework.cs" />
+    <Compile Remove="NativeMethods.NET8.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472' Or '$(TargetFramework)' == 'netstandard2.0'">
+    <Compile Include="NativeMethods.Framework.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <Compile Include="NativeMethods.NET8.cs" />
   </ItemGroup>
 
     <ItemGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
