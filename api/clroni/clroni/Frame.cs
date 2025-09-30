@@ -1,6 +1,10 @@
 ﻿using Microsoft.Win32.SafeHandles;
 using System;
 using System.Runtime.InteropServices;
+#if !NET7_0_OR_GREATER
+using System.Runtime.ConstrainedExecution;
+using System.Security.Permissions;
+#endif
 
 namespace oni
 {
@@ -8,7 +12,13 @@ namespace oni
     /// Managed wrapper for an ONI-compliant data frame implementation. Produced by calls
     /// to <see cref="Context.ReadFrame"/> .
     /// </summary>
+#if NET7_0_OR_GREATER
     public unsafe class Frame : SafeHandleZeroOrMinusOneIsInvalid
+#else
+    [SecurityPermission(SecurityAction.InheritanceDemand, UnmanagedCode = true)]
+    [SecurityPermission(SecurityAction.Demand, UnmanagedCode = true)]
+    public unsafe class Frame : SafeHandleZeroOrMinusOneIsInvalid
+#endif
     {
 
         [StructLayout(LayoutKind.Sequential)]
@@ -32,7 +42,12 @@ namespace oni
         /// </summary>
         /// <returns>True if the handle is released successfully (always the case
         /// in this implementation)</returns>
+#if NET7_0_OR_GREATER
         protected override bool ReleaseHandle()
+#else
+        [ReliabilityContract(Consistency.WillNotCorruptState, Cer.Success)]
+        protected override bool ReleaseHandle()
+#endif
         {
             GC.RemoveMemoryPressure(((frame_t*)handle.ToPointer())->data_sz);
             NativeMethods.oni_destroy_frame(handle);

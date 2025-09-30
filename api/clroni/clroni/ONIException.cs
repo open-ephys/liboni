@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Runtime.InteropServices;
+#if !NET7_0_OR_GREATER
+using System.Runtime.Serialization;
+#endif
 
 namespace oni
 {
@@ -33,5 +36,11 @@ namespace oni
         /// </summary>
         public override string Message =>
             Marshal.PtrToStringAnsi(NativeMethods.oni_error_str(Number));
+
+#if !NET7_0_OR_GREATER
+        protected ONIException(SerializationInfo info, StreamingContext context)
+            : base(info, context)
+        { }
+#endif
     }
 }

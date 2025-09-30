@@ -2,6 +2,10 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+#if !NET7_0_OR_GREATER
+using System.Security.Permissions;
+using System.Text;
+#endif
 
 namespace oni
 {
@@ -193,8 +197,12 @@ namespace oni
                 Marshal.WriteInt64(sz, BufferSize);
             }
 
-            //var str = new StringBuilder(1000);
+
+#if NET7_0_OR_GREATER
             var str = new char[BufferSize];
+#else
+            var str = new StringBuilder(BufferSize);
+#endif
 
             int rc;
             if (!drv_opt)
@@ -556,7 +564,12 @@ namespace oni
         /// by IDisposable.
         /// </summary>
         /// <param name="disposing"></param>
+#if NET7_0_OR_GREATER
         protected virtual void Dispose(bool disposing)
+#else
+        [SecurityPermission(SecurityAction.Demand, UnmanagedCode = true)]
+        protected virtual void Dispose(bool disposing)
+#endif
         {
 
             if (ctx != null && !ctx.IsInvalid)

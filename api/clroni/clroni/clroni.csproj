@@ -4,7 +4,7 @@
     <Title>CLR bindings for liboni</Title>
     <Description>CLR bindings to liboni, an ONI compliant API for data acquisition.</Description>
     <PackageTags>ONI Open Ephys ONIX</PackageTags>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFrameworks>net472;netstandard2.0;net8.0</TargetFrameworks>
     <UseWindowsForms>false</UseWindowsForms>
     <Version>6.3.0-dev1</Version>
     <Authors>Jon Newman</Authors>

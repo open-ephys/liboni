@@ -106,6 +106,7 @@ namespace oni
     [SuppressUnmanagedCodeSecurity] // NB: Call into native code without incurring the performance loss of a run-time security check when doing so
     public static partial class NativeMethods
     {
+#if NET7_0_OR_GREATER
         [LibraryImport(LibraryName)]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         internal static partial IntPtr onix_device_str(int id);
@@ -113,5 +114,12 @@ namespace oni
         [LibraryImport(LibraryName)]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(System.Runtime.CompilerServices.CallConvCdecl) })]
         internal static partial IntPtr onix_hub_str(int id);
+#else
+        [DllImport(LibraryName, CallingConvention = CCCdecl)]
+        internal static extern IntPtr onix_device_str(int id);
+
+        [DllImport(LibraryName, CallingConvention = CCCdecl)]
+        internal static extern IntPtr onix_hub_str(int id);
+#endif
     }
 }

@@ -1,10 +1,20 @@
 ﻿using Microsoft.Win32.SafeHandles;
+#if !NET7_0_OR_GREATER
+using System.Runtime.ConstrainedExecution;
+using System.Security.Permissions;
+#endif
 
 namespace oni
 {
+#if NET7_0_OR_GREATER
     internal class ContextHandle : SafeHandleZeroOrMinusOneIsInvalid
+#else
+    [SecurityPermission(SecurityAction.InheritanceDemand, UnmanagedCode = true)]
+    [SecurityPermission(SecurityAction.Demand, UnmanagedCode = true)]
+    internal unsafe class ContextHandle : SafeHandleZeroOrMinusOneIsInvalid
+#endif
     {
-        internal ContextHandle() : base(true) { }
+        public ContextHandle() : base(true) { }
 
         protected override bool ReleaseHandle()
         {
