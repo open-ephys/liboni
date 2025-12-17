@@ -4,7 +4,7 @@
 // Version macros for compile-time API version detection
 // NB: see https://semver.org/
 #define ONI_VERSION_MAJOR 4
-#define ONI_VERSION_MINOR 4
+#define ONI_VERSION_MINOR 5
 #define ONI_VERSION_PATCH 0
 
 #define ONI_MAKE_VERSION(major, minor, patch) \

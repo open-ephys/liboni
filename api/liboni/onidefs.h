@@ -54,9 +54,10 @@ enum {
     ONI_EDEVIDXREPEAT = -26, // Device table contains repeated device indices
     ONI_EPROTCONFIG = -27, // Attempted to directly read or write a protected configuration option
     ONI_EBADFRAME = -28, // Received malformed frame
+    ONI_EBADCONTROLLER = -29, // ONI Controller is not compatible
 
     // NB: Always at bottom
-    ONI_MINERRORNUM = -29
+    ONI_MINERRORNUM = -30
 };
 
 // Registers available in the specification
