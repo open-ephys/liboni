@@ -6,7 +6,7 @@ SRC       :=  onidriver_ft600.c circbuffer.c
 OBJ       :=  $(SRC:.c=.o)
 PREFIX    :=  /usr/local
 LIBS      :=  -pthread
-CFLAGS    :=  -pedantic -Wall -W -Werror -fPIC -O2
+CFLAGS    :=  -pedantic -Wall -W -Werror -fPIC -O2 -fno-omit-frame-pointer -g
 
 ifeq ($(UNAME), Linux)
 DNAME     :=  $(NAME).so.1

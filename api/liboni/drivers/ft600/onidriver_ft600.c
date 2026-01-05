@@ -16,6 +16,7 @@
 
 #else
 #include <unistd.h>
+#include <sched.h>
 #define Sleep(x) usleep((x)*1000)
 #define TRUE true
 #define FALSE false
@@ -490,23 +491,27 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 #ifdef POLL_CONTROL
     FT_60XCONFIGURATION chipConfig;
     ftStatus = FT_GetChipConfiguration(ctx->ftHandle, &chipConfig);
-	if (ftStatus != FT_OK)
-	{
+    if (ftStatus != FT_OK)
+    {
         FT_Close(ctx->ftHandle);
         return ONI_EINIT;
-	}
+    }
     int configOk = 1;
     if (chipConfig.FIFOMode != CONFIGURATION_FIFO_MODE_600)
+    {
         configOk = 0;
+    }
     if (chipConfig.OptionalFeatureSupport
         != CONFIGURATION_OPTIONAL_FEATURE_DISABLEALL)
+    {
         configOk = 0;
+    }
 
-	if (configOk == 0)
-	{
+    if (configOk == 0)
+    {
         FT_Close(ctx->ftHandle);
         return ONI_EBADCONTROLLER;
-	}
+    }
 
 #endif
    
@@ -525,7 +530,7 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 	ctx->inBuffer = malloc(2 * (size_t)ctx->numInOverlapped * ctx->inBlockSize);
 	CHECK_NULL(ctx->inBuffer);
 #ifdef POLL_CONTROL
-	if (mutex_init(&ctx->controlMutex, NULL) != 0)
+	if (mutex_init(&ctx->controlMutex) != 0)
 	{
 		oni_ft600_free_ctx(ctx);
 		return ONI_EINIT;
