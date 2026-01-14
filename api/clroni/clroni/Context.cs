@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Security.Permissions;
 using System.Text;
 
+
 namespace oni
 {
     /// <summary>
@@ -183,17 +184,24 @@ namespace oni
         // String GetOption
         private string GetStringOption(int option, bool drv_opt = false)
         {
+            const int BufferSize = 1000;
+
             var sz = Marshal.AllocHGlobal(IntPtr.Size);
             if (IntPtr.Size == 4)
             {
-                Marshal.WriteInt32(sz, 1000);
+                Marshal.WriteInt32(sz, BufferSize);
             }
             else
             {
-                Marshal.WriteInt64(sz, 1000);
+                Marshal.WriteInt64(sz, BufferSize);
             }
 
-            var str = new StringBuilder(1000);
+
+#if NET7_0_OR_GREATER
+            var str = new char[BufferSize];
+#else
+            var str = new StringBuilder(BufferSize);
+#endif
 
             int rc;
             if (!drv_opt)
@@ -555,8 +563,12 @@ namespace oni
         /// by IDisposable.
         /// </summary>
         /// <param name="disposing"></param>
+#if NET7_0_OR_GREATER
+        protected virtual void Dispose(bool disposing)
+#else
         [SecurityPermission(SecurityAction.Demand, UnmanagedCode = true)]
         protected virtual void Dispose(bool disposing)
+#endif
         {
 
             if (ctx != null && !ctx.IsInvalid)

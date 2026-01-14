@@ -1,29 +1,19 @@
 ﻿using oni;
-using System;
 using System.Runtime.InteropServices;
-using System.Threading;
 using CommandLine;
-using System.Linq;
 using CommandLine.Text;
 
 namespace ClrOniRepl
 {
-    class DataProcessor
+    class DataProcessor(Context context, bool display = false, ulong displayEvery = 1000)
     {
-        private readonly Context context;
+        private readonly Context context = context;
 
         public volatile bool Quit = false;
 
-        public bool Display { get; set; }
+        public bool Display { get; set; } = display;
 
-        public ulong DisplayEvery { get; set; }
-
-        public DataProcessor(Context context, bool display = false, ulong displayEvery = 1000)
-        {
-            this.context = context;
-            Display = display;
-            DisplayEvery = displayEvery;
-        }
+        public ulong DisplayEvery { get; set; } = displayEvery;
 
         public void CaptureData()
         {
@@ -219,7 +209,12 @@ namespace ClrOniRepl
                                         break;
 
                                     case 'x':
+                                        processor.Quit = true;
+                                        procThread.Join(200);
                                         ctx.Refresh();
+                                        Console.Write(Helpers.DeviceTableString(ctx));
+                                        ctx.Start(true);
+                                        procThread.Start();
                                         break;
 
                                     default:
