@@ -536,6 +536,7 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
     
 #ifndef POLL_CONTROL
 	CHECK_FTERR(FT_SetNotificationCallback(ctx->ftHandle, oni_ft600_usb_callback, ctx));
+#endif
 #ifdef _WIN32
 	CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_in, 0));
 	CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_out, 0));
