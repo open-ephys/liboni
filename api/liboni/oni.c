@@ -905,7 +905,7 @@ const char *oni_error_str(int err)
         }
         case ONI_EBADCONTROLLER : 
         {
-            return "ONI Controller is not compatible";
+            return "ONI Controller is not compatible with driver translator";
         }
         default:
             return "Unknown error";

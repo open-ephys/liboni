@@ -315,13 +315,9 @@ static inline void oni_ft600_reset_acq(oni_ft600_ctx ctx, int hard)
 	}
 	FT_AbortPipe(ctx->ftHandle, pipe_in);
 	FT_AbortPipe(ctx->ftHandle, pipe_out);
-//	FT_AbortPipe(ctx->ftHandle, pipe_cmd);
-//	FT_AbortPipe(ctx->ftHandle, pipe_sig);
 #ifndef _WIN32
         FT_FlushPipe(ctx->ftHandle, pipe_in);
         FT_FlushPipe(ctx->ftHandle, pipe_out);
-//    FT_FlushPipe(ctx->ftHandle, pipe_cmd);
-//    FT_FlushPipe(ctx->ftHandle, pipe_sig);
 #endif
 	oni_ft600_reset_ctx(ctx);
 	FT_WriteGPIO(ctx->ftHandle, 0x01, 0x00);
@@ -332,9 +328,6 @@ inline void oni_ft600_stop_acq(oni_ft600_ctx ctx)
 {
     ctx->state = STATE_INIT;
 	Sleep(10);
-#if defined _WIN32 || defined LINUX_ASYNC
-   // FT_ClearStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in);
-#endif
     FT_AbortPipe(ctx->ftHandle, pipe_in);
 #ifndef _WIN32
     FT_FlushPipe(ctx->ftHandle, pipe_in);
@@ -543,8 +536,6 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
     
 #ifndef POLL_CONTROL
 	CHECK_FTERR(FT_SetNotificationCallback(ctx->ftHandle, oni_ft600_usb_callback, ctx));
-#endif
-	//CHECK_FTERR(FT_SetStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in, ctx->inBlockSize));
 #ifdef _WIN32
 	CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_in, 0));
 	CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_out, 0));
@@ -605,7 +596,6 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 				ctx->sigError = 0;
 				return ONI_ESEEKFAILURE;
 			}
-			//Sleep(1);
 		}
 		circBufferRead(&ctx->signalBuffer, data, size);
 		return size;
@@ -824,7 +814,6 @@ int oni_driver_read_config(oni_driver_ctx driver_ctx, oni_config_t reg, oni_reg_
 			ctx->sigError = 0;
 			return ONI_ESEEKFAILURE;
 		}
-		//Sleep(1);
 	}
 	circBufferRead(&ctx->regBuffer, (uint8_t*)value, sizeof(oni_reg_val_t));
 	return ONI_ESUCCESS;
@@ -834,9 +823,6 @@ int oni_driver_read_config(oni_driver_ctx driver_ctx, oni_config_t reg, oni_reg_
 inline void oni_ft600_start_acq(oni_ft600_ctx ctx)
 {
 
-#if defined _WIN32 || defined LINUX_ASYNC
-    //FT_SetStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in, ctx->inBlockSize);
-#endif
 	for (size_t i = 0; i < ctx->numInOverlapped; i++)
 	{
 #if _WIN32
