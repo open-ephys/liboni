@@ -6,7 +6,7 @@ SRC       :=  onidriver_ft600.c circbuffer.c
 OBJ       :=  $(SRC:.c=.o)
 PREFIX    :=  /usr/local
 LIBS      :=  -pthread
-CFLAGS    :=  -pedantic -Wall -W -Werror -fPIC -O2
+CFLAGS    :=  -pedantic -Wall -W -Werror -fPIC -O2 -fno-omit-frame-pointer -g
 
 ifeq ($(UNAME), Linux)
 DNAME     :=  $(NAME).so.1
@@ -17,8 +17,8 @@ endif
 ifeq ($(UNAME), Darwin)
 DNAME     :=  $(NAME).dylib
 DNAMELN   :=  $(NAME).1.dylib
-FT_PATH   := ./ft3dxx/osx
-LDFLAGS   :=  -L. -L$(FT_PATH) $(FT_PATH)/libftd3xx-static.a $(LIBS) -framework IOKit -framework CoreFoundation -lc++ -arch x86_64 -arch arm64
+FT_PATH   :=  ./ft3dxx/osx
+LDFLAGS   :=  -L. -L$(FT_PATH) $(FT_PATH)/libftd3xx-static.a $(LIBS) -framework IOKit -framework CoreFoundation -framework Security -lc++ -arch x86_64 -arch arm64
 CFLAGS += -arch x86_64 -arch arm64
 endif
 

@@ -22,6 +22,7 @@ typedef void                    *HANDLE;
 typedef unsigned int            LONG;
 typedef int                        INT;
 typedef unsigned int            UINT;
+typedef unsigned int            *PUINT;
 typedef char                    *LPSTR;
 typedef char                    *LPTSTR;
 typedef const char                *LPCTSTR;
@@ -146,7 +147,7 @@ typedef struct timeval FILETIME;
 #define PURGE_RXCLEAR       0x0008  // Kill the typeahead buffer if there.
 
 #ifndef INVALID_HANDLE_VALUE
-#define INVALID_HANDLE_VALUE 0xFFFFFFFF
+#define INVALID_HANDLE_VALUE ((void*)0xFFFFFFFF)
 #endif
 
 #endif /* __LINUX_TYPES__ */

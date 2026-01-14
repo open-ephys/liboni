@@ -903,6 +903,10 @@ const char *oni_error_str(int err)
         {
             return "Received malformed frame";
         }
+        case ONI_EBADCONTROLLER : 
+        {
+            return "ONI Controller is not compatible with driver translator";
+        }
         default:
             return "Unknown error";
     }
