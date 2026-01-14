@@ -6,7 +6,7 @@
     <PackageTags>ONI Open Ephys ONIX</PackageTags>
     <TargetFrameworks>net8.0;net472;netstandard2.0</TargetFrameworks>
     <UseWindowsForms>false</UseWindowsForms>
-    <Version>6.3.0-dev4</Version>
+    <Version>6.3.0</Version>
     <Authors>Jon Newman</Authors>
     <Company>Open Ephys, Inc.</Company>
     <Copyright>©Open Ephys, Inc.</Copyright>
