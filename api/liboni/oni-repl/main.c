@@ -17,8 +17,8 @@
 // Version macros for compile-time program version
 // NB: see https://semver.org/
 #define ONI_REPL_VERSION_MAJOR 1
-#define ONI_REPL_VERSION_MINOR 0
-#define ONI_REPL_VERSION_PATCH 4
+#define ONI_REPL_VERSION_MINOR 1
+#define ONI_REPL_VERSION_PATCH 0
 
 #define DEFAULT_BLK_READ_BYTES 2048
 #define DEFAULT_BLK_WRITE_BYTES 2048
@@ -392,7 +392,7 @@ void print_hub_info(size_t hub_idx)
     rc ? printf("%s\n", oni_error_str(rc)) : printf("%u\n", hub_delay_ns);
 }
 
-void update_dev_table() 
+void update_dev_table()
 {
     // Examine device table
     size_t num_devs_sz = sizeof(num_devs);
@@ -442,7 +442,7 @@ int main(int argc, char *argv[])
         if (c == 'v' || c == 307) {
             print_version();
             goto exit;
-        } 
+        }
         else if (c == 'q')
             quit_before_repl = 1;
         else if (c == 'd')
@@ -500,7 +500,7 @@ usage:
 
         printf("\t driver \t\tHardware driver to dynamically link (e.g. riffa, ft600, test, etc.)\n");
         printf("\t slot \t\t\tIndex specifying the physical slot occupied by hardware being controlled. If none is provided, the driver-defined default will be used.\n");
-        printf("\t -q \t\t\tQuit after intialization. If specified, quit before entering repl but after after establishing a connection with hardware, obtaining the device table, and writing to registers specified in --regpath.\n");
+        printf("\t -q \t\t\tQuit after initialization. If specified, quit before entering repl but after after establishing a connection with hardware, obtaining the device table, and writing to registers specified in --regpath.\n");
         printf("\t -d \t\t\tDisplay frames. If specified, frames produced by the oni hardware will be printed to the console.\n");
         printf("\t -D <percent> \t\tThe percent of frames printed to the console if frames are displayed. Percent should be a value in (0, 100.0].\n");
         printf("\t -n <count> \t\tDisplay at most count frames. Reset only on program restart. Useful for examining the start of the data stream. If set to 0, then this option is ignored.\n");
@@ -542,7 +542,7 @@ exit:
     ctx = oni_create_ctx(driver);
     if (!ctx) { printf("Failed to create context\n"); exit(EXIT_FAILURE); }
 
-    // Print the driver translator informaiton
+    // Print the driver translator information
     const oni_driver_info_t *di = oni_get_driver_info(ctx);
     if (di->pre_release == NULL) {
         printf("Loaded driver: %s v%d.%d.%d\n",
@@ -561,8 +561,14 @@ exit:
 
     // Initialize context and discover hardware
     rc = oni_init_ctx(ctx, host_idx);
-    if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
-    assert(rc == 0);
+    if (rc) {
+        printf("Error: %s\n", oni_error_str(rc));
+        printf("Failed to initialize context. Perhaps another program is currently accessing "
+                "the hardware or the hardware requires a firmware update to use this version "
+                "of oni-repl.\n");
+        oni_destroy_ctx(ctx);
+        exit(EXIT_FAILURE);
+    }
 
     //// Set ONIX_FLAG0 to turn on pass-through and issue reset
     //oni_reg_val_t val = 1;
@@ -727,11 +733,11 @@ reset:
 
         char *cmd = NULL;
         size_t cmd_len = 0;
-        char fcmd[3];
+        char fcmd[3] = {0, 0 ,0};
         rc = getline(&cmd, &cmd_len, stdin);
         if (rc == -1) { printf("Error: bad command\n"); continue; }
         c = cmd[0];
-        for (int i = 0; i < 3; i++)
+        for (size_t i = 0; i < 3; i++)
             fcmd[i] = i < cmd_len ? cmd[i] : '\0';
         free(cmd);
 
@@ -746,7 +752,7 @@ reset:
                 }
                 running = 0;
                 printf("Acquisition Paused\n");
-            } 
+            }
             else {
                 start_threads();
                 oni_size_t run = 1;
@@ -810,7 +816,7 @@ reset:
             if (device_idx_filter_en)
                 printf("Only displaying frames from device at index %d\n", device_idx_filter);
             else
-                puts("Dislaying frames from all devices");
+                puts("Displaying frames from all devices");
         }
         else if (c == 't') {
             print_dev_table(devices, num_devs);
@@ -844,8 +850,8 @@ reset:
             oni_size_t val;
             if (fcmd[1] == 'i')
             {
-                addr = get_i2c_reg_address(values[1],values[2],(fcmd[2] == 'x') ? 1: 0);
-                val = (oni_size_t)values[4];
+                addr = get_i2c_reg_address(values[1],values[2],(fcmd[2] == 'x') ? 1 : 0);
+                val = (oni_size_t)values[3];
             }
             else if (fcmd[1] == 'm')
             {
