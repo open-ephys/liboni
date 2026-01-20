@@ -94,7 +94,7 @@ typedef enum
 } oni_ft600_sigstate;
 
 const oni_driver_info_t driverInfo
-    = {.name = "ft600", .major = 1, .minor = 0, .patch = 4, .pre_release = NULL};
+    = {.name = "ft600", .major = 1, .minor = 0, .patch = 5, .pre_release = NULL};
 
 struct oni_ft600_ctx_impl {
 	oni_size_t inBlockSize;
@@ -487,6 +487,7 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
     if (ftStatus != FT_OK)
     {
         FT_Close(ctx->ftHandle);
+        ctx->ftHandle = NULL;
         return ONI_EINIT;
     }
     int configOk = 1;
@@ -503,6 +504,7 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
     if (configOk == 0)
     {
         FT_Close(ctx->ftHandle);
+        ctx->ftHandle = NULL;
         return ONI_EBADCONTROLLER;
     }
 
