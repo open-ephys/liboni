@@ -3,7 +3,8 @@ ANSI C implementation of the [Open Neuro Interface API
 Specification](https://open-ephys.github.io/ONI/api/index.html).
 
 ## Scope and External Dependencies
-`liboni` is written in C to facilitate cross platform and cross-language use and provide adeq. It is composed of the following files:
+`liboni` is written in C to facilitate cross platform and cross-language use. 
+It is composed of the following files:
 
 1. oni.h and oni.c: main API implementation
 1. onix.h and onix.c: ONIX-specific extension funtions. These filese can be ignored for third party projects. These files are likely to be deprecated in the future.
@@ -11,9 +12,6 @@ Specification](https://open-ephys.github.io/ONI/api/index.html).
    hardware translation driver.
 1. onidriver.h: hardware translation driver header that must be implemented for
    a particular host hardware
-
-`liboni` is a low level library used by high-level language binding and/or
-software plugin developers.
 
 ## License
 [MIT](https://en.wikipedia.org/wiki/MIT_License)
@@ -45,12 +43,12 @@ $ ldconfig
 ### Windows
 Open the included Visual Studio solution and press play. For whatever reason,
 it seems that the startup project is not consistently saved with the solution.
-So make sure that is set to `liboni-test` in the solution properties.
+So make sure that is set to `oni-repl` in the solution properties.
 
-## Test Programs (Linux Only)
-The [liboni-test](liboni-test) directory contains minimal working programs that use this library.
-
-1. `oni-repl` : Basic data acquisition with a Read Evaluate Print Loop for changing runtime behavior.
+## Test Program
+The [oni-repl](oni-repl) command line program that implements a basic
+ONI data acquisition loop and a Read Evaluate Print Loop (REPL) for modifying 
+runtime behavior.
 
 ## Performance Testing (Linux Only)
 1. Install google perftools:
