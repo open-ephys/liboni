@@ -658,6 +658,10 @@ int oni_write_reg(const oni_ctx ctx,
     int rc = oni_reg_access(ctx, &op, 1);
     
     int res;
+
+    // NB: for single accesses such as this, we just return
+    // the particular ESUCCESS or EREG(READ/WRITE)FAILURE
+    // message stored on the result field
     if (rc == ONI_ESUCCESS || rc == ONI_EBATCHREG)
     {
         res = op.result;
@@ -666,7 +670,6 @@ int oni_write_reg(const oni_ctx ctx,
     {
         res = rc;
     }
-    res = rc;
     
     return res;
 }
@@ -688,7 +691,6 @@ int oni_read_reg(const oni_ctx ctx,
     } else {
         res = rc;
     }
-    res = rc;
 
     return res;
 }
