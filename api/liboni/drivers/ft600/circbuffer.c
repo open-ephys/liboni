@@ -10,9 +10,13 @@ int circBufferInit(circ_buffer_t* buffer)
 	return 1;
 }
 
-void circBufferRelease(circ_buffer_t* buffer)
+void circBufferRelease(circ_buffer_t *buffer)
 {
-	if (buffer->buffer != NULL) free(buffer->buffer);
+    if (buffer->buffer != NULL) 
+	{
+        free(buffer->buffer);
+        buffer->buffer = NULL;
+    }
 }
 int circBufferCanWrite(circ_buffer_t* buffer, size_t size)
 {

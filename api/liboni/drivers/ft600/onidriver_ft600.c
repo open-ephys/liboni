@@ -78,6 +78,10 @@ const char usbdesc[] = "Open Ephys FT600 USB board";
 #define CHECK_FTERR(exp) {if(exp!=FT_OK){oni_ft600_free_ctx(ctx);return ONI_EINIT;}}
 #define CHECK_NULL(exp) {if(exp==NULL){oni_ft600_free_ctx(ctx);return ONI_EBADALLOC;}}
 #define CHECK_ERR(exp) {if(exp==0){oni_ft600_free_ctx(ctx);return ONI_EINIT;}}
+#define FREE_AND_RELEASE(exp) {if (exp != NULL) { free(exp); exp = NULL;} } 
+
+// Bytes that a register operation compound comand takes
+#define MAX_REG_OP_SIZE 45
 
 typedef enum 
 {
@@ -95,6 +99,13 @@ typedef enum
 
 const oni_driver_info_t driverInfo
     = {.name = "ft600", .major = 1, .minor = 0, .patch = 5, .pre_release = NULL};
+
+typedef struct {
+    oni_dev_idx_t dev_idx;
+    oni_reg_addr_t dev_addr;
+    oni_reg_val_t value;
+    oni_reg_val_t rw;
+} oni_ft600_reg_operation_t;
 
 struct oni_ft600_ctx_impl {
 	oni_size_t inBlockSize;
@@ -125,12 +136,10 @@ struct oni_ft600_ctx_impl {
 	OVERLAPPED sigOverlapped;
 	OVERLAPPED outOverlapped;
 #endif
-	struct {
-		oni_dev_idx_t dev_idx;
-		oni_reg_addr_t dev_addr;
-		oni_reg_val_t value;
-		oni_reg_val_t rw;
-	} regOperation;
+    oni_ft600_reg_operation_t* regOperation;
+    size_t regOperationIndex;
+    size_t maxRegOperation;
+    uint8_t* regOperationBuffer;
 };
 
 typedef struct oni_ft600_ctx_impl* oni_ft600_ctx;
@@ -288,8 +297,6 @@ void oni_ft600_update_control(oni_ft600_ctx ctx)
 }
 #endif
 
-static inline oni_conf_off_t _oni_register_offset(oni_config_t reg);
-
 inline void oni_ft600_restart_acq(oni_ft600_ctx ctx)
 {
 	ctx->nextReadIndex = 0;
@@ -371,13 +378,18 @@ oni_driver_ctx oni_driver_create_ctx(void)
 	ctx->regBuffer.size = DEFAULT_REGSIZE;
 	ctx->signalBuffer.size = DEFAULT_SIGNALSIZE;
 	ctx->numInOverlapped = DEFAULT_OVERLAPPED;
+    ctx->regOperation = NULL;
+    ctx->regOperationBuffer = NULL;
+    ctx->regOperationIndex = 0;
 	return ctx;
 }
 
 void oni_ft600_free_ctx(oni_ft600_ctx ctx)
 {
-	if (ctx->inBuffer != NULL) free(ctx->inBuffer);
-	if (ctx->auxBuffer != NULL) free(ctx->auxBuffer);
+    FREE_AND_RELEASE(ctx->regOperation);
+    FREE_AND_RELEASE(ctx->inBuffer);
+    FREE_AND_RELEASE(ctx->auxBuffer);
+    FREE_AND_RELEASE(ctx->regOperationBuffer);
 	circBufferRelease(&ctx->signalBuffer);
 	circBufferRelease(&ctx->regBuffer);
 	if (ctx->ftHandle != NULL)
@@ -398,8 +410,9 @@ void oni_ft600_free_ctx(oni_ft600_ctx ctx)
 			for (unsigned int i = 0; i < ctx->numInOverlapped; i++)
 				FT_ReleaseOverlapped(ctx->ftHandle, &ctx->inOverlapped[i]);
 			free(ctx->inOverlapped);
+            ctx->inOverlapped = NULL;
 		}
-		if (ctx->inTransferred != NULL) free(ctx->inTransferred);
+        FREE_AND_RELEASE(ctx->inTransferred);
 #ifdef POLL_CONTROL
 		mutex_destroy(&ctx->controlMutex);
 #endif
@@ -563,6 +576,19 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 		oni_ft600_free_ctx(ctx);
 		return res;
 	}
+	// get maxQ and allocate register buffer
+    oni_reg_val_t val;
+    res = oni_driver_read_config(ctx, ONI_ATTR_MAX_REGISTER_Q_SIZE, &val);
+    if (res != ONI_ESUCCESS) {
+        oni_ft600_free_ctx(ctx);
+        return res;
+    }
+    ctx->maxRegOperation = val;
+    ctx->regOperation = malloc(val * sizeof(oni_ft600_reg_operation_t));
+    CHECK_NULL(ctx->regOperation);
+    ctx->regOperationBuffer = malloc(val * MAX_REG_OP_SIZE);
+    CHECK_NULL(ctx->regOperationBuffer);
+
 	ctx->state = STATE_INIT;
 	return ONI_ESUCCESS;
 }
@@ -724,73 +750,127 @@ int oni_driver_write_stream(oni_driver_ctx driver_ctx,
 	return size;
 }
 
+int oni_driver_prepare_register_operation(oni_driver_ctx driver_ctx, size_t num)
+{
+    CTX_CAST;
+    if (num > ctx->maxRegOperation)
+        return ONI_EINVALARG;
+    ctx->regOperationIndex = 0;
+    return ONI_ESUCCESS;
+}
+
+int oni_driver_commit_register_operation(oni_driver_ctx driver_ctx)
+{
+    CTX_CAST;
+
+	if (ctx->regOperationIndex == 0)
+        return ONI_EINVALSTATE;
+
+    size_t i = 0;
+	for (size_t op = 0; op < ctx->regOperationIndex; op++)
+	{
+        ctx->regOperationBuffer[(9 * i)] = CMD_WRITEREG;
+        *(uint32_t *)(ctx->regOperationBuffer + 1 + (9 * i))
+            = (uint32_t)ONI_OP_RI_DEV_ADDR;
+        *(uint32_t *)(ctx->regOperationBuffer + 5 + (9 * i)) 
+            = ctx->regOperation[op].dev_idx;
+        i++;
+        ctx->regOperationBuffer[(9 * i)] = CMD_WRITEREG;
+        *(uint32_t *)(ctx->regOperationBuffer + 1 + (9 * i))
+            = (uint32_t)ONI_OP_RI_REG_ADDR;
+        *(uint32_t *)(ctx->regOperationBuffer + 5 + (9 * i))
+            = ctx->regOperation[op].dev_addr;
+        i++;
+        ctx->regOperationBuffer[(9 * i)] = CMD_WRITEREG;
+        *(uint32_t *)(ctx->regOperationBuffer + 1 + (9 * i)) 
+			= (uint32_t)ONI_OP_RI_RW;
+        *(uint32_t *)(ctx->regOperationBuffer + 5 + (9 * i))
+            = ctx->regOperation[op].rw;
+        i++;
+        if (ctx->regOperation[op].rw) {
+            ctx->regOperationBuffer[(9 * i)] = CMD_WRITEREG;
+            *(uint32_t *)(ctx->regOperationBuffer + 1 + (9 * i))
+                = (uint32_t)ONI_OP_RI_REG_VAL;
+            *(uint32_t *)(ctx->regOperationBuffer + 5 + (9 * i))
+                = ctx->regOperation[op].value;
+            i++;
+        }
+        ctx->regOperationBuffer[(9 * i)] = CMD_WRITEREG;
+        *(uint32_t *)(ctx->regOperationBuffer + 1 + (9 * i)) 
+			= (uint32_t)ONI_OP_RI_TRIGGER;
+        *(uint32_t *)(ctx->regOperationBuffer + 5 + (9 * i)) = 1;
+        i++;
+	}
+    size_t size = i * 9;
+    ctx->regOperationIndex = 0;
+    int res = oni_ft600_sendcmd(ctx, ctx->regOperationBuffer, size);
+    if (res != ONI_ESUCCESS)
+        return res;
+    return ONI_ESUCCESS;
+
+}
+
+void oni_driver_cancel_register_operation(oni_driver_ctx driver_ctx) 
+{
+    CTX_CAST;
+    ctx->regOperationIndex = 0;
+}
+
 int oni_driver_write_config(oni_driver_ctx driver_ctx,
 	oni_config_t reg,
 	oni_reg_val_t value)
 {
 	CTX_CAST;
-	uint8_t buffer[45];
-	size_t size;
-	//to avoid cluttering the USB interface will all the operations required for a device
-	//register access, we latch them together and send them in a single USB operation
-	if (reg == ONI_CONFIG_DEV_IDX)
+	uint8_t buffer[9];
+	size_t size = 9;
+
+	if (reg == ONI_OP_RI_DEV_ADDR)
 	{
-		ctx->regOperation.dev_idx = value;
+        if (ctx->regOperationIndex >= ctx->maxRegOperation)
+            return ONI_EBUFFERSIZE;
+        ctx->regOperation[ctx->regOperationIndex].dev_idx = value;
 		return ONI_ESUCCESS;
 	}
-	if (reg == ONI_CONFIG_REG_ADDR)
+    if (reg == ONI_OP_RI_REG_ADDR)
 	{
-		ctx->regOperation.dev_addr = value;
+        if (ctx->regOperationIndex >= ctx->maxRegOperation)
+            return ONI_EBUFFERSIZE;
+        ctx->regOperation[ctx->regOperationIndex].dev_addr = value;
 		return ONI_ESUCCESS;
 	}
-	if (reg == ONI_CONFIG_REG_VALUE)
+    if (reg == ONI_OP_RI_REG_VAL)
 	{
-		ctx->regOperation.value = value;
+        if (ctx->regOperationIndex >= ctx->maxRegOperation)
+            return ONI_EBUFFERSIZE;
+        ctx->regOperation[ctx->regOperationIndex].value = value;
 		return ONI_ESUCCESS;
 	}
-	if (reg == ONI_CONFIG_RW)
+    if (reg == ONI_OP_RI_RW)
 	{
-		ctx->regOperation.rw = value;
+        if (ctx->regOperationIndex >= ctx->maxRegOperation)
+            return ONI_EBUFFERSIZE;
+        ctx->regOperation[ctx->regOperationIndex].rw = value;
 		return ONI_ESUCCESS;
 	}
-	if (reg == ONI_CONFIG_TRIG)
+    if (reg == ONI_OP_RI_TRIGGER)
 	{
-		size_t i = 0;
-		buffer[(9*i)] = CMD_WRITEREG;
-		*(uint32_t*)(buffer + 1 + (9 * i)) = _oni_register_offset(ONI_CONFIG_DEV_IDX);
-		*(uint32_t*)(buffer + 5 + (9 * i)) = ctx->regOperation.dev_idx;
-		i++;
-		buffer[(9 * i)] = CMD_WRITEREG;
-		*(uint32_t*)(buffer + 1 + (9 * i)) = _oni_register_offset(ONI_CONFIG_REG_ADDR);
-		*(uint32_t*)(buffer + 5 + (9 * i)) = ctx->regOperation.dev_addr;
-		i++;
-		buffer[(9 * i)] = CMD_WRITEREG;
-		*(uint32_t*)(buffer + 1 + (9 * i)) = _oni_register_offset(ONI_CONFIG_RW);
-		*(uint32_t*)(buffer + 5 + (9 * i)) = ctx->regOperation.rw;
-		i++;
-		if (ctx->regOperation.rw)
-		{
-			buffer[(9 * i)] = CMD_WRITEREG;
-			*(uint32_t*)(buffer + 1 + (9 * i)) = _oni_register_offset(ONI_CONFIG_REG_VALUE);
-			*(uint32_t*)(buffer + 5 + (9 * i)) = ctx->regOperation.value;
-			i++;
-		}
-		buffer[(9 * i)] = CMD_WRITEREG;
-		*(uint32_t*)(buffer + 1 + (9 * i)) = _oni_register_offset(ONI_CONFIG_TRIG);
-		*(uint32_t*)(buffer + 5 + (9 * i)) = 1;
-		i++;
-		size = i * 9;
+        if (ctx->regOperationIndex >= ctx->maxRegOperation)
+            return ONI_EBUFFERSIZE;
+        ctx->regOperationIndex++;
+        return ONI_ESUCCESS;
 	}
 	else
 	{
 		buffer[0] = CMD_WRITEREG;
-		*(uint32_t*)(buffer + 1) = _oni_register_offset(reg);
+		*(uint32_t*)(buffer + 1) = (uint32_t)reg;
 		*(uint32_t*)(buffer + 5) = value;
-		size = 9;
 	}
 
-	if (reg == ONI_CONFIG_RESET && value != 0) 
+	if (reg == ONI_OP_SOFT_RESET && value != 0) 
 	{
+		// NB: this cannot be on the callback because in this case
+		// we want to stop acquisition on the driver level before
+		// issuing the soft reset
 	    oni_ft600_stop_acq(ctx);
 	}
 	int res = oni_ft600_sendcmd(ctx, buffer, size);
@@ -803,7 +883,7 @@ int oni_driver_read_config(oni_driver_ctx driver_ctx, oni_config_t reg, oni_reg_
 	CTX_CAST;
 	uint8_t buffer[5];
 	buffer[0] = CMD_READREG;
-	*(uint32_t*)(buffer + 1) = _oni_register_offset(reg);
+    *(uint32_t *)(buffer + 1) = (uint32_t)reg;
 	int res = oni_ft600_sendcmd(ctx, buffer, 5);
 	if (res != ONI_ESUCCESS) return res;
 
@@ -935,32 +1015,5 @@ const oni_driver_info_t* oni_driver_info(void)
     return &driverInfo;
 }
 
-static inline oni_conf_off_t _oni_register_offset(oni_config_t reg)
-{
-	switch (reg) {
-	case ONI_CONFIG_DEV_IDX:
-		return CONFDEVIDXOFFSET;
-	case ONI_CONFIG_REG_ADDR:
-		return CONFADDROFFSET;
-	case ONI_CONFIG_REG_VALUE:
-		return CONFVALUEOFFSET;
-	case ONI_CONFIG_RW:
-		return CONFRWOFFSET;
-	case ONI_CONFIG_TRIG:
-		return CONFTRIGOFFSET;
-	case ONI_CONFIG_RUNNING:
-		return CONFRUNNINGOFFSET;
-	case ONI_CONFIG_RESET:
-		return CONFRESETOFFSET;
-	case ONI_CONFIG_SYSCLKHZ:
-		return CONFSYSCLKHZOFFSET;
-	case ONI_CONFIG_ACQCLKHZ:
-		return CONFACQCLKHZOFFSET;
-	case ONI_CONFIG_RESETACQCOUNTER:
-		return CONFRESETACQCOUNTER;
-	case ONI_CONFIG_HWADDRESS:
-		return CONFHWADDRESS;
-	default:
-		return 0;
-	}
-}
+
+

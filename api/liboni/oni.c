@@ -87,6 +87,9 @@ struct oni_ctx_impl {
         IDLE,
         RUNNING
     } run_state;
+
+    // controller capabilities
+    oni_controller_caps_t controller_caps;
 };
 
 // Signal flags
@@ -153,11 +156,36 @@ int oni_init_ctx(oni_ctx ctx, int host_idx)
     int rc = ctx->driver.init(ctx->driver.ctx, host_idx);
     if (rc) return rc;
 
+    // NB: Populate the capabilities structure
+
+    oni_reg_val_t val;
+
+    // TODO: Check that the spec version matches the expected by the library
+    rc = _oni_read_config(ctx, ONI_SPEC_VER, &val);
+    if (rc) return rc;
+    ctx->controller_caps.spec_ver.major = (val >> 24)&0xFF;
+    ctx->controller_caps.spec_ver.minor = (val >> 16) & 0xFF;
+    ctx->controller_caps.spec_ver.patch = (val >> 8) & 0xFF;
+    ctx->controller_caps.spec_ver.reserved = (val >> 0) & 0xFF;
+
+    rc = _oni_read_config(ctx, ONI_ATTR_READ_STR_ALIGN, &ctx->controller_caps.read_str_align);
+    if (rc) return rc;
+
+    rc = _oni_read_config(ctx, ONI_ATTR_WRITE_STR_ALIGN, &ctx->controller_caps.write_str_align);
+    if (rc) return rc;
+
+    rc = _oni_read_config(ctx, ONI_ATTR_MAX_REGISTER_Q_SIZE, &ctx->controller_caps.max_register_q_size);
+    if (rc) return rc;
+
+    rc = _oni_read_config(ctx, ONI_ATTR_NUM_SYNC_DEVS, &ctx->controller_caps.num_sync_devs);
+    if (rc) return rc;
+
+
     // NB: Trigger reset routine (populates device table and key acquisition
     // parameters) Success will set ctx->run_state to IDLE
 
     // Set the reset register
-    rc = _oni_write_config(ctx, ONI_CONFIG_RESET, 1);
+    rc = _oni_write_config(ctx, ONI_OP_SOFT_RESET, 1);
     if (rc) return rc;
 
     // Get device table etc
@@ -227,7 +255,7 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
             if (*option_len < ONI_REGSZ)
                 return ONI_EBUFFERSIZE;
 
-            int rc = _oni_read_config(ctx, ONI_CONFIG_RUNNING, value);
+            int rc = _oni_read_config(ctx, ONI_OP_ACQ_RUNNING, value);
             if (rc) return rc;
 
             *option_len = ONI_REGSZ;
@@ -242,7 +270,7 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
             if (*option_len < ONI_REGSZ)
                 return ONI_EBUFFERSIZE;
 
-            int rc = _oni_read_config(ctx, ONI_CONFIG_SYSCLKHZ, value);
+            int rc = _oni_read_config(ctx, ONI_OP_SYS_CLK_HZ, value);
             if (rc) return rc;
 
             *option_len = ONI_REGSZ;
@@ -257,7 +285,7 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
             if (*option_len < ONI_REGSZ)
                 return ONI_EBUFFERSIZE;
 
-            int rc = _oni_read_config(ctx, ONI_CONFIG_ACQCLKHZ, value);
+            int rc = _oni_read_config(ctx, ONI_OP_ACQ_CLK_HZ, value);
             if (rc) return rc;
 
             *option_len = ONI_REGSZ;
@@ -272,7 +300,7 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
             if (*option_len < ONI_REGSZ)
                 return ONI_EBUFFERSIZE;
 
-            int rc = _oni_read_config(ctx, ONI_CONFIG_HWADDRESS, value);
+            int rc = _oni_read_config(ctx, ONI_OP_SYNC_HW_ADDR, value);
             if (rc) return rc;
 
             *option_len = ONI_REGSZ;
@@ -337,31 +365,8 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
         case ONI_OPT_RESET:
         case ONI_OPT_RESETACQCOUNTER:
             return ONI_EWRITEONLY;
-        default: {
-
-            // Attempt to read to custom (outside ONI spec) configuration
-            // option
-            assert(ctx_opt >= ONI_OPT_CUSTOMBEGIN && "Invalid custom configuration register.");
-            if (ctx_opt < ONI_OPT_CUSTOMBEGIN)
-                return ONI_EPROTCONFIG;
-
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
-            if (ctx->run_state < IDLE)
-                return ONI_EINVALSTATE;
-
-            if (*option_len < ONI_REGSZ)
-                return ONI_EBUFFERSIZE;
-
-            int rc = _oni_read_config(ctx,
-                                      ONI_CONFIG_CUSTOMBEGIN
-                                          + (ctx_opt - ONI_OPT_CUSTOMBEGIN),
-                                      value);
-            if (rc) return rc;
-
-            *option_len = ONI_REGSZ;
-
-            break;
-        }
+        default: 
+            return ONI_EINVALOPT;
     }
     return ONI_ESUCCESS;
 }
@@ -380,7 +385,7 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
                 return ONI_EBUFFERSIZE;
 
             int rc = _oni_write_config(
-                ctx, ONI_CONFIG_RUNNING, *(oni_reg_val_t*)value);
+                ctx, ONI_OP_ACQ_RUNNING, *(oni_reg_val_t*)value);
             if (rc) return rc;
 
             // Dump buffers
@@ -407,7 +412,7 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
             if (*(oni_reg_val_t *)value != 0) {
 
                 int rc = _oni_write_config(
-                    ctx, ONI_CONFIG_RESET, *(oni_reg_val_t*)value);
+                    ctx, ONI_OP_SOFT_RESET, *(oni_reg_val_t*)value);
                 if (rc) return rc;
 
                 // Get device table etc
@@ -427,7 +432,7 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
             if (*(oni_reg_val_t *)value != 0) {
 
                 int rc = _oni_write_config(
-                    ctx, ONI_CONFIG_RESETACQCOUNTER, *(oni_reg_val_t *)value);
+                    ctx, ONI_OP_ACQ_CNT_RESET, *(oni_reg_val_t *)value);
                 if (rc) return rc;
             }
 
@@ -442,7 +447,7 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
                 return ONI_EBUFFERSIZE;
 
             int rc = _oni_write_config(
-                ctx, ONI_CONFIG_HWADDRESS, *(oni_reg_val_t *)value);
+                ctx, ONI_OP_SYNC_HW_ADDR, *(oni_reg_val_t *)value);
             if (rc) return rc;
 
             break;
@@ -507,28 +512,8 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
         case ONI_OPT_MAXREADFRAMESIZE:
         case ONI_OPT_MAXWRITEFRAMESIZE:
             return ONI_EREADONLY;
-        default: {
-
-            // Attempt to write to custom (outside ONI spec) configuration
-            // option
-            assert(ctx_opt >= ONI_OPT_CUSTOMBEGIN && "Invalid custom configuration register.");
-            if (ctx_opt < ONI_OPT_CUSTOMBEGIN)
-                return ONI_EPROTCONFIG;
-
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
-            if (ctx->run_state < IDLE)
-                return ONI_EINVALSTATE;
-
-            if (option_len != ONI_REGSZ)
-                return ONI_EBUFFERSIZE;
-
-            int rc = _oni_write_config(ctx,
-                                       ONI_CONFIG_CUSTOMBEGIN + (ctx_opt - ONI_OPT_CUSTOMBEGIN),
-                                       *(oni_reg_val_t *)value);
-            if (rc) return rc;
-
-            break;
-        }
+        default: 
+            return ONI_EINVALOPT;
     }
 
     return ctx->driver.set_opt_callback(ctx->driver.ctx, ctx_opt, value, option_len);
@@ -544,87 +529,168 @@ int oni_set_driver_opt(oni_ctx ctx, int drv_opt, const void* value, size_t optio
     return ctx->driver.set_opt(ctx->driver.ctx, drv_opt, value, option_len);
 }
 
-int oni_write_reg(const oni_ctx ctx,
-                  oni_dev_idx_t dev_idx,
-                  oni_reg_addr_t addr,
-                  oni_reg_val_t value)
+#define REG_ERROR(x)                                                           \
+    do {                                                                       \
+        ctx->driver.cancel_register_operation(ctx->driver.ctx);                \
+        return x;                                                              \
+    } while (0);
+int oni_reg_access(const oni_ctx ctx, oni_reg_operation_t *operations, int num)
 {
     assert(ctx != NULL && "Context is NULL");
     assert(ctx->run_state > UNINITIALIZED && "Context must be INITIALIZED.");
+    assert(operations != NULL && "Operation array is NULL");
+    assert(num > 0 && "Number of registers must be > 0");
 
     // Make sure we are not already in config triggered state
     oni_reg_val_t trig = 0;
-    int rc = _oni_read_config(ctx, ONI_CONFIG_TRIG, &trig);
-    if (rc) return rc;
+    int rc = _oni_read_config(ctx, ONI_OP_RI_TRIGGER, &trig);
+    if (rc)
+        return rc;
 
-    if (trig != 0) return ONI_ERETRIG;
+    if (trig != 0)
+        return ONI_ERETRIG;
 
-    // Set config registers and trigger a write
-    rc = _oni_write_config(ctx, ONI_CONFIG_DEV_IDX, dev_idx);
-    if (rc) return rc;
-    rc = _oni_write_config(ctx, ONI_CONFIG_REG_ADDR, addr);
-    if (rc) return rc;
-    rc = _oni_write_config(ctx, ONI_CONFIG_REG_VALUE, value);
-    if (rc) return rc;
+    size_t done = 0;
+    int res = ONI_ESUCCESS;
+    while (done < num)
+    {
+        size_t batch = min((num - done), ctx->controller_caps.max_register_q_size);
+        rc = ctx->driver.prepare_register_operation(ctx->driver.ctx, batch);
+        if (rc)
+            REG_ERROR(rc);
+        for (size_t i = 0; i < batch; i++)
+        {
+            size_t idx = done + i;
+            oni_reg_optype_t op = operations[idx].optype;
 
-    oni_reg_val_t rw = 1;
-    rc = _oni_write_config(ctx, ONI_CONFIG_RW, rw);
-    if (rc) return rc;
+            rc = _oni_write_config(ctx, ONI_OP_RI_DEV_ADDR, operations[idx].dev_idx);
+            if (rc)
+                REG_ERROR(rc);
+            ;
+            rc = _oni_write_config(ctx, ONI_OP_RI_REG_ADDR, operations[idx].addr);
+            if (rc)
+                REG_ERROR(rc);
+            if (op == ONI_REG_OP_WRITE) {
+                rc = _oni_write_config(ctx, ONI_OP_RI_REG_VAL, operations[idx].value);
+                if (rc)
+                    REG_ERROR(rc);
+            }
 
-    trig = 1;
-    rc = _oni_write_config(ctx, ONI_CONFIG_TRIG, trig);
-    if (rc) return rc;
+            oni_reg_val_t rw = (oni_reg_val_t)op;
+            rc = _oni_write_config(ctx, ONI_OP_RI_RW, rw);
+            if (rc)
+                REG_ERROR(rc);
 
-    // Wait for response from hardware
-    oni_signal_t type;
-    rc = _oni_pump_signal_type(ctx, CONFIGWACK | CONFIGWNACK, &type);
-    if (rc) return rc;
+            trig = 1;
+            rc = _oni_write_config(ctx, ONI_OP_RI_TRIGGER, trig);
+            if (rc)
+                REG_ERROR(rc);
+        }
+        rc = ctx->driver.commit_register_operation(ctx->driver.ctx);
+        if (rc)
+            REG_ERROR(rc);
+        for (size_t i = 0; i < batch; i++) 
+        {
+            size_t idx = done + i;
+            char response[20];
+            oni_signal_t sig_type = NULLSIG;
+            oni_signal_t filter
+                = CONFIGRACK | CONFIGRNACK | CONFIGWACK | CONFIGWNACK;
 
-    if (type == CONFIGWNACK) return ONI_EWRITEFAILURE;
+            _oni_pump_signal_data(ctx, filter, &sig_type, response, 20);
+            if (operations[idx].optype == ONI_REG_OP_READ)
+            {
+                if (sig_type == CONFIGRACK)
+                {
+                    operations[idx].timestamp = *(oni_fifo_time_t *)(response + 0);
+                    operations[idx].hub_timestamp = *(oni_fifo_time_t *)(response + 8);
+                    operations[idx].value = *(oni_reg_val_t *)(response + 16);
+                    operations[idx].result = ONI_ESUCCESS;
+                }
+                else if (sig_type == CONFIGRNACK)
+                {
+                    operations[idx].result = ONI_EDREGREADFAILURE;
+                    res = ONI_EBATCHREG;
+                }
+                else
+                {
+                    // NB: if an invalid type is here, something has gone very wrong
+                    return ONI_EOUTOFSEQUENCE;
+                }
+            }
+            else
+            {
+                if (sig_type == CONFIGWACK) {
+                    operations[idx].timestamp = *(oni_fifo_time_t *)(response + 0);
+                    operations[idx].hub_timestamp = *(oni_fifo_time_t *)(response + 8);
+                    operations[idx].result = ONI_ESUCCESS;
+                } 
+                else if (sig_type == CONFIGWNACK) 
+                {
+                    operations[idx].result = ONI_EDREGWRITEFAILURE;
+                    res = ONI_EBATCHREG;
+                }
+                else 
+                {
+                    // NB: if an invalid type is here, something has gone very wrong
+                    return ONI_EOUTOFSEQUENCE;
+                }
+            }
+                
+        }
 
-    return ONI_ESUCCESS;
+        done += batch;
+    }
+    return res;
+
+}
+#undef REG_ERROR
+
+int oni_write_reg(const oni_ctx ctx,
+    oni_dev_idx_t dev_idx,
+    oni_reg_addr_t addr,
+    oni_reg_val_t value)
+{
+    oni_reg_operation_t op = {.dev_idx = dev_idx,
+                              .addr = addr,
+                              .value = value,
+                              .optype = ONI_REG_OP_WRITE};
+    int rc = oni_reg_access(ctx, &op, 1);
+    
+    int res;
+    if (rc == ONI_ESUCCESS || rc == ONI_EBATCHREG)
+    {
+        res = op.result;
+    }
+    else
+    {
+        res = rc;
+    }
+    res = rc;
+    
+    return res;
 }
 
 int oni_read_reg(const oni_ctx ctx,
-                 oni_dev_idx_t dev_idx,
-                 oni_reg_addr_t addr,
-                 oni_reg_val_t *value)
+                  oni_dev_idx_t dev_idx,
+                  oni_reg_addr_t addr,
+                  oni_reg_val_t* value)
 {
-    assert(ctx != NULL && "Context is NULL");
-    assert(ctx->run_state > UNINITIALIZED && "Context must be INITIALIZED.");
+    oni_reg_operation_t op = {.dev_idx = dev_idx,
+                              .addr = addr,
+                              .optype = ONI_REG_OP_READ};
+    int rc = oni_reg_access(ctx, &op, 1);
 
-    // Make sure we are not already in config triggered state
-    oni_reg_val_t trig = 0;
-    int rc = _oni_read_config(ctx, ONI_CONFIG_TRIG, &trig);
-    if (rc) return rc;
+    int res;
+    if (rc == ONI_ESUCCESS || rc == ONI_EBATCHREG) {
+        res = op.result;
+        *value = op.value;
+    } else {
+        res = rc;
+    }
+    res = rc;
 
-    if (trig != 0) return ONI_ERETRIG;
-
-    // Set configuration registers and trigger a write
-    rc = _oni_write_config(ctx, ONI_CONFIG_DEV_IDX, dev_idx);
-    if (rc) return rc;
-    rc = _oni_write_config(ctx, ONI_CONFIG_REG_ADDR, addr);
-    if (rc) return rc;
-
-    oni_reg_val_t rw = 0;
-    rc = _oni_write_config(ctx, ONI_CONFIG_RW, rw);
-    if (rc) return rc;
-
-    trig = 1;
-    rc = _oni_write_config(ctx, ONI_CONFIG_TRIG, trig);
-    if (rc) return rc;
-
-    // Wait for response from hardware
-    oni_signal_t type;
-    rc = _oni_pump_signal_type(ctx, CONFIGRACK | CONFIGRNACK, &type);
-    if (rc) return rc;
-
-    if (type == CONFIGRNACK) return ONI_EREADFAILURE;
-
-    rc = _oni_read_config(ctx, ONI_CONFIG_REG_VALUE, value);
-    if (rc) return rc;
-
-    return ONI_ESUCCESS;
+    return res;
 }
 
 // NB: Although it seems that with fixed sized reads, we should be able to just
@@ -907,8 +973,77 @@ const char *oni_error_str(int err)
         {
             return "ONI Controller is not compatible with driver translator";
         }
+        case ONI_EDREGREADFAILURE: {
+            return "Failure to read from a device register";
+        }
+        case ONI_EDREGWRITEFAILURE: {
+            return "Failure to write to a device register";
+        }
+        case ONI_EBATCHREG: {
+            return "Batch operation completed but not all register accesses were succesful";
+        }
+        case ONI_EOUTOFSEQUENCE:
+        {
+            return "Received response is out of sequence";
+        }
         default:
             return "Unknown error";
+    }
+}
+
+void oni_create_reg_read_continuous(oni_reg_operation_t *ops,
+                                               oni_dev_idx_t dev_idx,
+                                               oni_reg_addr_t start,
+                                               size_t num)
+{
+    for (size_t i = 0; i < num; i++)
+    {
+        ops[i].dev_idx = dev_idx;
+        ops[i].addr = start + i;
+        ops[i].optype = ONI_REG_OP_READ;
+    }
+}
+
+void oni_create_reg_read_sparse(oni_reg_operation_t *ops,
+                                           oni_dev_idx_t dev_idx,
+                                           oni_reg_addr_t *addresses,
+                                           size_t num)
+{
+    for (size_t i = 0; i < num; i++) 
+    {
+        ops[i].dev_idx = dev_idx;
+        ops[i].addr = addresses[i];
+        ops[i].optype = ONI_REG_OP_READ;
+    }
+}
+
+void oni_create_reg_write_continuous(oni_reg_operation_t *ops,
+                                                oni_dev_idx_t dev_idx,
+                                                oni_reg_addr_t start,
+                                                oni_reg_val_t *values,
+                                                size_t num)
+{
+    for (size_t i = 0; i < num; i++)
+    {
+        ops[i].dev_idx = dev_idx;
+        ops[i].addr = start + i;
+        ops[i].value = values[i];
+        ops[i].optype = ONI_REG_OP_WRITE;
+    }
+}
+
+void oni_create_reg_write_sparse(oni_reg_operation_t *ops,
+                                            oni_dev_idx_t dev_idx,
+                                            oni_reg_addr_t *addresses,
+                                            oni_reg_val_t *values,
+                                            size_t num)
+{
+    for (size_t i = 0; i < num; i++) 
+    {
+        ops[i].dev_idx = dev_idx;
+        ops[i].addr = addresses[i];
+        ops[i].value = values[i];
+        ops[i].optype = ONI_REG_OP_WRITE;
     }
 }
 

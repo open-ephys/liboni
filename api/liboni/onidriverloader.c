@@ -88,6 +88,9 @@ int oni_create_driver(const char* lib_name, oni_driver_t* driver)
     LOAD_FUNCTION(write_stream);
     LOAD_FUNCTION(read_config);
     LOAD_FUNCTION(write_config);
+    LOAD_FUNCTION(prepare_register_operation);
+    LOAD_FUNCTION(commit_register_operation);
+    LOAD_FUNCTION(cancel_register_operation);
     LOAD_FUNCTION(set_opt_callback);
     LOAD_FUNCTION(set_opt);
     LOAD_FUNCTION(get_opt);
