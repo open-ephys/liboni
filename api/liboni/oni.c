@@ -177,6 +177,17 @@ int oni_destroy_ctx(oni_ctx ctx)
     int rc = ctx->driver.destroy_ctx(ctx->driver.ctx);
     if (rc) return rc;
 
+    // Release shared read buffer
+    if (ctx->shared_rbuf != NULL)
+        _ref_dec(&(ctx->shared_rbuf->count));
+
+    // Release shared write buffer
+    if (ctx->shared_wbuf != NULL)
+        _ref_dec(&(ctx->shared_wbuf->count));
+
+    if (ctx->dev_table != NULL)
+        free(ctx->dev_table);
+
     if (ctx->dev_hash_table != NULL)
         free(ctx->dev_hash_table);
 
