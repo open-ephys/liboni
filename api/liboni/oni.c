@@ -177,11 +177,12 @@ int oni_destroy_ctx(oni_ctx ctx)
     int rc = ctx->driver.destroy_ctx(ctx->driver.ctx);
     if (rc) return rc;
 
-    // Release shared read buffer
+    // NB: _ref_dec is only called when a new shared buffer is created. We must
+    // therefore explicitly decrement the active shared buffers here to balance
+    // the initial _ref_inc from their creation.
     if (ctx->shared_rbuf != NULL)
         _ref_dec(&(ctx->shared_rbuf->count));
 
-    // Release shared write buffer
     if (ctx->shared_wbuf != NULL)
         _ref_dec(&(ctx->shared_wbuf->count));
 
