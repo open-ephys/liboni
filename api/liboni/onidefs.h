@@ -54,27 +54,14 @@ enum {
     ONI_EDEVIDXREPEAT = -26, // Device table contains repeated device indices
     ONI_EPROTCONFIG = -27, // Attempted to directly read or write a protected configuration option
     ONI_EBADFRAME = -28, // Received malformed frame
-    ONI_EBADCONTROLLER = -29, // ONI Controller is not compatible
-
+    ONI_EBADCONTROLLER = -29, // ONI Controller is not compatible with driver translator
+    ONI_EDREGREADFAILURE = -30, // Failure to read from a evice register
+    ONI_EDREGWRITEFAILURE = -31, // Failure to write to a device register
+    ONI_EBATCHREG = - 32, // Batch operation completed but not all register accesses were succesful
+    ONI_EOUTOFSEQUENCE = -33, // Received response is out of sequence
     // NB: Always at bottom
-    ONI_MINERRORNUM = -30
+    ONI_MINERRORNUM = -34
 };
-
-// Registers available in the specification
-typedef enum {
-    ONI_CONFIG_DEV_IDX = 0,
-    ONI_CONFIG_REG_ADDR,
-    ONI_CONFIG_REG_VALUE,
-    ONI_CONFIG_RW,
-    ONI_CONFIG_TRIG,
-    ONI_CONFIG_RUNNING,
-    ONI_CONFIG_RESET,
-    ONI_CONFIG_SYSCLKHZ,
-    ONI_CONFIG_ACQCLKHZ,
-    ONI_CONFIG_RESETACQCOUNTER,
-    ONI_CONFIG_HWADDRESS,
-    ONI_CONFIG_CUSTOMBEGIN,
-} oni_config_t;
 
 // Fixed width device types
 // TODO: I feel like oni.h and onidefs.h should only deal with standard signed

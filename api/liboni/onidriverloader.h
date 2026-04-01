@@ -25,6 +25,10 @@ typedef int(*oni_driver_write_stream_f)(oni_driver_ctx, oni_write_stream_t, cons
 typedef int(*oni_driver_read_config_f)(oni_driver_ctx, oni_config_t, oni_reg_val_t *);
 typedef int(*oni_driver_write_config_f)(oni_driver_ctx, oni_config_t, oni_reg_val_t);
 
+typedef int(*oni_driver_prepare_register_operation_f)(oni_driver_ctx, size_t);
+typedef int(*oni_driver_commit_register_operation_f)(oni_driver_ctx);
+typedef void(*oni_driver_cancel_register_operation_f)(oni_driver_ctx);
+
 typedef int(*oni_driver_set_opt_f)(oni_driver_ctx, int, const void *, size_t);
 typedef int(*oni_driver_get_opt_f)(oni_driver_ctx, int, void *, size_t *);
 typedef int(*oni_driver_set_opt_callback_f)(oni_driver_ctx, int, const void *, size_t);
@@ -42,6 +46,9 @@ typedef struct oni_driver {
     oni_driver_write_stream_f write_stream;
     oni_driver_read_config_f read_config;
     oni_driver_write_config_f write_config;
+    oni_driver_prepare_register_operation_f prepare_register_operation;
+    oni_driver_commit_register_operation_f commit_register_operation;
+    oni_driver_cancel_register_operation_f cancel_register_operation;
     oni_driver_set_opt_callback_f set_opt_callback;
     oni_driver_set_opt_f set_opt;
     oni_driver_get_opt_f get_opt;
