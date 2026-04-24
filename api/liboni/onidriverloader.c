@@ -41,7 +41,7 @@ static inline void* get_driver_function(lib_handle_t handle, const char* functio
 #ifndef NDEBUG
     char *e = dlerror();
     if (e != NULL)
-        fprintf(stderr, "%s\n", dlerror());
+        fprintf(stderr, "%s\n", e);
 #endif
     return f;
 #endif

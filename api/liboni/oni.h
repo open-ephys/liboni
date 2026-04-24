@@ -4,8 +4,8 @@
 // Version macros for compile-time API version detection
 // NB: see https://semver.org/
 #define ONI_VERSION_MAJOR 4
-#define ONI_VERSION_MINOR 5
-#define ONI_VERSION_PATCH 1
+#define ONI_VERSION_MINOR 6
+#define ONI_VERSION_PATCH 0
 
 #define ONI_MAKE_VERSION(major, minor, patch) \
     ((major) * 10000 + (minor) * 100 + (patch))
@@ -51,7 +51,7 @@ typedef struct {
     const oni_fifo_time_t time;     // Frame time (ACQCLKHZ)
     const oni_fifo_dat_t dev_idx;   // Device index that produced or accepts the frame
     const oni_fifo_dat_t data_sz;   // Size in bytes of data buffer
-    char *data;                     // Raw data block
+    uint8_t *data;                  // Raw data block
 
 } oni_frame_t;
 

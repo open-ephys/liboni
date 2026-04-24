@@ -117,8 +117,8 @@ static int _oni_alloc_write_buffer(oni_ctx ctx, void **data, size_t size);
 static int _oni_read_buffer(oni_ctx ctx, void **data, size_t size, int);
 static void _oni_dump_buffers(oni_ctx ctx);
 static void _oni_destroy_buffer(const struct ref *ref);
-static inline void _ref_inc(const struct ref *ref);
-static inline void _ref_dec(const struct ref *ref);
+static inline void _ref_inc(struct ref *ref);
+static inline void _ref_dec(struct ref *ref);
 
 oni_ctx oni_create_ctx(const char* drv_name)
 {
@@ -173,8 +173,7 @@ int oni_init_ctx(oni_ctx ctx, int host_idx)
 int oni_destroy_ctx(oni_ctx ctx)
 {
     assert(ctx != NULL && "Context is NULL");
-
-    int rc = ctx->driver.destroy_ctx(ctx->driver.ctx);
+    int rc = oni_destroy_driver(&ctx->driver);
     if (rc) return rc;
 
     // NB: _ref_dec is only called when a new shared buffer is created. We must
@@ -292,8 +291,7 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
         }
         case ONI_OPT_MAXREADFRAMESIZE: {
 
-            assert(ctx->run_state > UNINITIALIZED
-                   && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -307,8 +305,7 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
         }
         case ONI_OPT_MAXWRITEFRAMESIZE: {
 
-            assert(ctx->run_state > UNINITIALIZED
-                   && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -322,9 +319,9 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
         }
         case ONI_OPT_BLOCKREADSIZE: {
 
-            assert(ctx->run_state > UNINITIALIZED
-                   && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
+                 return ONI_EINVALSTATE;
 
             if (*option_len < ONI_REGSZ)
                 return ONI_EBUFFERSIZE;
@@ -335,9 +332,9 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
         }
         case ONI_OPT_BLOCKWRITESIZE: {
 
-            assert(ctx->run_state > UNINITIALIZED
-                   && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
+                return ONI_EINVALSTATE;
 
             if (*option_len < ONI_REGSZ)
                 return ONI_EBUFFERSIZE;
@@ -365,8 +362,7 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
                 return ONI_EBUFFERSIZE;
 
             int rc = _oni_read_config(ctx,
-                                      ONI_CONFIG_CUSTOMBEGIN
-                                          + (ctx_opt - ONI_OPT_CUSTOMBEGIN),
+                                      ONI_CONFIG_CUSTOMBEGIN + (ctx_opt - ONI_OPT_CUSTOMBEGIN),
                                       value);
             if (rc) return rc;
 
@@ -423,7 +419,8 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
                 if (rc) return rc;
 
                 // Get device table etc
-                _oni_reset_routine(ctx);
+                rc = _oni_reset_routine(ctx);
+                if (rc) return rc;
             }
 
             break;
@@ -668,6 +665,8 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
 
     // Allocate frame and buffer
     oni_frame_impl_t *iframe = malloc(sizeof(oni_frame_impl_t));
+    if (!iframe)
+        return ONI_EBADALLOC;
 
     // Total frame size
     int total_size = sizeof(oni_frame_t);
@@ -735,6 +734,8 @@ int oni_create_frame(const oni_ctx ctx,
 
     // Allocate frame and buffer
     oni_frame_impl_t *iframe = malloc(sizeof(oni_frame_impl_t));
+    if (!iframe)
+        return ONI_EBADALLOC;
 
     // Total frame size
     int total_size = sizeof(oni_frame_t);
@@ -777,6 +778,12 @@ int oni_create_frame(const oni_ctx ctx,
 
 int oni_write_frame(const oni_ctx ctx, const oni_frame_t *frame)
 {
+    assert(ctx != NULL && "Context is NULL");
+
+    // NB: We don't need run_state == RUNNING because this could be changed in
+    // a different thread
+    assert(ctx->run_state >= IDLE && "Context is not acquiring.");
+
     // Write the frame
     oni_frame_impl_t *iframe = (oni_frame_impl_t *)frame;
 
@@ -871,7 +878,7 @@ const char *oni_error_str(int err)
             return "Badly formatted device table supplied by firmware";
         }
         case ONI_EBADALLOC: {
-            return "Bad dynamic memory allocation";
+            return "A memory allocation failed";
         }
         case ONI_ECLOSEFAIL: {
             return "File descriptor close failure (check errno)";
@@ -915,7 +922,7 @@ const char *oni_error_str(int err)
         {
             return "Received malformed frame";
         }
-        case ONI_EBADCONTROLLER : 
+        case ONI_EBADCONTROLLER :
         {
             return "ONI Controller is not compatible with driver translator";
         }
@@ -1048,11 +1055,12 @@ static int _oni_reset_routine(oni_ctx ctx)
     // NB: Default the block read size to a single max sized frame. This is bad
     // for high bandwidth performance and good for closed-loop delay. The opposite is true
     // for write frames (to an extent) so this is defaulted to something large.
-    ctx->block_read_size = ctx->max_read_frame_size
-                           + ctx->max_read_frame_size % sizeof(oni_fifo_dat_t);
-    ctx->block_write_size = ctx->max_write_frame_size
-                            + ctx->max_write_frame_size % sizeof(oni_fifo_dat_t);
-    ctx->block_write_size = ctx->block_write_size < 4096 ? 4096 : ctx->block_write_size;
+    size_t align = sizeof(oni_fifo_dat_t);
+    size_t r = ctx->max_read_frame_size % align;
+    ctx->block_read_size = ctx->max_read_frame_size + (r ? align - r : 0);
+
+    r = ctx->max_write_frame_size % align;
+    ctx->block_write_size = ctx->max_write_frame_size + (r ? align - r : 0);
 
     // Set the block read size in the driver, in case it needs it
     ctx->driver.set_opt_callback(ctx->driver.ctx,
@@ -1245,9 +1253,18 @@ static int _oni_read_buffer(oni_ctx ctx, void **data, size_t size, int allow_ref
         // New buffer allocated, old_buffer saved
         struct oni_buf_impl *old_buffer = ctx->shared_rbuf;
         ctx->shared_rbuf = malloc(sizeof(struct oni_buf_impl));
+        if (!ctx->shared_rbuf) {
+            ctx->shared_rbuf = old_buffer;
+            return ONI_EBADALLOC;
+        }
 
         // Allocate data block in buffer
         ctx->shared_rbuf->buffer = malloc(remaining + ctx->block_read_size);
+        if (!ctx->shared_rbuf->buffer) {
+            free(ctx->shared_rbuf);
+            ctx->shared_rbuf = old_buffer;
+            return ONI_EBADALLOC;
+        }
 
         // Transfer remaining data to new buffer
         if (old_buffer != NULL) {
@@ -1299,9 +1316,18 @@ static int _oni_alloc_write_buffer(oni_ctx ctx, void **data, size_t size)
         // New buffer allocated, old_buffer saved
         struct oni_buf_impl *old_buffer = ctx->shared_wbuf;
         ctx->shared_wbuf = malloc(sizeof(struct oni_buf_impl));
+        if (!ctx->shared_wbuf) {
+            ctx->shared_wbuf = old_buffer;
+            return ONI_EBADALLOC;
+        }
 
         // Allocate data block in buffer
         ctx->shared_wbuf->buffer = malloc(ctx->block_write_size);
+        if (!ctx->shared_wbuf->buffer) {
+            free(ctx->shared_wbuf);
+            ctx->shared_wbuf = old_buffer;
+            return ONI_EBADALLOC;
+        }
 
         // Context releases control of old buffer
         if (old_buffer != NULL)
@@ -1345,21 +1371,21 @@ static void _oni_destroy_buffer(const struct ref *ref)
     free(buf);
 }
 
-static inline void _ref_inc(const struct ref *ref)
+static inline void _ref_inc(struct ref *ref)
 {
 #ifdef _WIN32
-    _InterlockedIncrement((int *)&ref->count);
+    _InterlockedIncrement(&ref->count);
 #else
-    __sync_add_and_fetch((int *)&ref->count, 1);
+    __sync_add_and_fetch(&ref->count, 1);
 #endif
 }
 
-static inline void _ref_dec(const struct ref *ref)
+static inline void _ref_dec(struct ref *ref)
 {
 #ifdef _WIN32
-    if (_InterlockedDecrement((int *)&ref->count) == 0)
+    if (_InterlockedDecrement(&ref->count) == 0)
 #else
-    if (__sync_sub_and_fetch((int *)&ref->count, 1) == 0)
+    if (__sync_sub_and_fetch(&ref->count, 1) == 0)
 #endif
         ref->free(ref);
 }
