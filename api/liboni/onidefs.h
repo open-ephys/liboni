@@ -2,10 +2,6 @@
 #define __ONI_DEFS_H__
 #include <stdint.h>
 
-// Frame header size in bytes
-// NB: Header is [dev_idx, data_sz, time]
-#define ONI_FRAMEHEADERSZ 2 * sizeof(oni_fifo_dat_t) + sizeof(oni_fifo_time_t)
-
 // Context options
 enum {
     ONI_OPT_DEVICETABLE = 0,
@@ -41,7 +37,7 @@ enum {
     ONI_ERETRIG = -13, // Attempted to perform a hardware operation before a previous call to the same operation has completed
     ONI_EBUFFERSIZE = -14, // Supplied buffer is too small
     ONI_EBADDEVTABLE = -15, // Badly formatted device table supplied by firmware
-    ONI_EBADALLOC = -16, // Bad dynamic memory allocation
+    ONI_EBADALLOC = -16, // A memory allocation failed
     ONI_ECLOSEFAIL = -17, // File descriptor close failure, check errno
     ONI_EREADONLY = -18, // Attempted write to read only object (register, context option, etc)
     ONI_EUNIMPL = -19, // Specified, but unimplemented, feature
@@ -88,7 +84,7 @@ typedef uint32_t oni_reg_val_t;  // Registers have 32-bit values
 typedef uint32_t oni_fifo_dat_t; // FIFOs use 32-bit words; // TODO: find a way to remove
 typedef uint64_t oni_fifo_time_t; // FIFO bound timers use 64-bit words; // TODO: find a way to remove
 
-#define BYTE_TO_FIFO_SHIFT 2; // TODO: find a way to remove
+#define BYTE_TO_FIFO_SHIFT 2 // TODO: find a way to remove
 
 // Register size
 #define ONI_REGSZ sizeof(oni_reg_val_t)

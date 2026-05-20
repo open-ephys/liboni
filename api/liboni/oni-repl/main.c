@@ -118,7 +118,7 @@ int write_reg_file(FILE *file) {
 }
 
 // Simple & slow device lookup
-int find_dev(oni_dev_idx_t idx)
+static int find_dev(oni_dev_idx_t idx)
 {
     for (size_t i = 0; i < num_devs; i++)
         if (devices[i].idx == idx)
@@ -301,7 +301,7 @@ static void stop_threads()
 
 #ifdef _WIN32
 
-    WaitForSingleObject(read_thread, 500); // INFINITE);
+    WaitForSingleObject(read_thread, INFINITE);
     CloseHandle(read_thread);
 
     //WaitForSingleObject(write_thread, 200);

@@ -25,9 +25,10 @@
 
 #define UNUSED(x) (void)(x)
 
+#define ONI_RFRAMEHEADERSZ sizeof(oni_fifo_time_t) + 2 * sizeof(oni_fifo_dat_t) // [time, dev_idx, data_sz]
+
 // NB: To save some repetition
 #define CTX_CAST const oni_test_ctx ctx = (oni_test_ctx)driver_ctx
-
 #define MIN(a,b) ((a<b) ? a : b)
 
 const oni_driver_info_t driverInfo
@@ -183,7 +184,7 @@ oni_driver_ctx oni_driver_create_ctx()
     ctx->sig_queue = queue_u8_create(1024);
 
     // Buffer for creating frames
-    ctx->max_frame_size += ONI_FRAMEHEADERSZ;
+    ctx->max_frame_size += ONI_RFRAMEHEADERSZ;
     ctx->buff_pos = 0;
     ctx->read_buff = malloc(ctx->block_read_size + ctx->max_frame_size);
 
@@ -548,7 +549,8 @@ static void _fill_read_buffer(oni_test_ctx ctx, void *data, size_t size)
     int d = ctx->enabled_idx[rand() % ctx->num_enabled]; // Select a random device (that is generating data)
     for (; // static i
          ctx->buff_pos < size;
-         ctx->buff_pos += (ONI_FRAMEHEADERSZ + ctx->dev_table[d].dev.read_size),
+         ctx->buff_pos
+         += (ONI_RFRAMEHEADERSZ + ctx->dev_table[d].dev.read_size),
          d = ctx->enabled_idx[rand() % ctx->num_enabled]) {
 
         // Header
