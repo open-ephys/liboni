@@ -51,7 +51,7 @@ typedef struct {
     const oni_fifo_time_t time;     // Frame time (ACQCLKHZ)
     const oni_fifo_dat_t dev_idx;   // Device index that produced or accepts the frame
     const oni_fifo_dat_t data_sz;   // Size in bytes of data buffer
-    uint8_t *data;                  // Raw data block
+    char *data;                     // Raw data block
 
 } oni_frame_t;
 

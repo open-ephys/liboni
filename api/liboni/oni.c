@@ -1057,10 +1057,10 @@ static int _oni_reset_routine(oni_ctx ctx)
     // for write frames (to an extent) so this is defaulted to something large.
     size_t align = sizeof(oni_fifo_dat_t);
     size_t r = ctx->max_read_frame_size % align;
-    ctx->block_read_size = ctx->max_read_frame_size + (r ? align - r : 0);
+    ctx->block_read_size = (ctx->max_read_frame_size + align - 1) & ~(align - 1);
 
     r = ctx->max_write_frame_size % align;
-    ctx->block_write_size = ctx->max_write_frame_size + (r ? align - r : 0);
+    ctx->block_write_size = (ctx->max_write_frame_size + align - 1) & ~(align - 1);
 
     // Set the block read size in the driver, in case it needs it
     ctx->driver.set_opt_callback(ctx->driver.ctx,
@@ -1288,6 +1288,12 @@ static int _oni_read_buffer(oni_ctx ctx, void **data, size_t size, int allow_ref
                           ctx->block_read_size);
         if ((size_t)rc != ctx->block_read_size) return ONI_EREADFAILURE;
     }
+
+    // TODO: Another reason to remove allow_refill.
+    // Ensure that allow_refill did not prevent allocation even when shared_rbuf
+    // was NULL
+    if (ctx->shared_rbuf == NULL)
+        return ONI_EINVALARG; 
 
     // "Read" (i.e. reference) buffer and update buffer read position
     *data = ctx->shared_rbuf->read_pos;
