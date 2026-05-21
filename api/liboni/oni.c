@@ -5,8 +5,6 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -14,7 +12,7 @@
 #include "onidriverloader.h"
 
 // Device hash table overhead factor
-#define ONI_DEVHASHOVERHEAD (10.0)
+#define ONI_DEVHASHOVERHEAD 10
 
 // NB: 255 in sub-address is invalid in this implementation,
 // so we can use this to clear the hash table
@@ -114,7 +112,7 @@ static int _oni_cobs_unstuff(uint8_t *dst, const uint8_t *src, size_t size);
 static inline int _oni_write_config(oni_ctx ctx, oni_config_t reg, oni_reg_val_t value);
 static inline int _oni_read_config(oni_ctx, oni_config_t reg, oni_reg_val_t *value);
 static int _oni_alloc_write_buffer(oni_ctx ctx, void **data, size_t size);
-static int _oni_read_buffer(oni_ctx ctx, void **data, size_t size);
+static int _oni_ensure_read_buffer(oni_ctx ctx);
 static void _oni_dump_buffers(oni_ctx ctx);
 static void _oni_destroy_buffer(const struct ref *ref);
 static inline void _ref_inc(struct ref *ref);
@@ -652,9 +650,14 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
 
     // Get the device index and data size from the buffer
     // TODO: what is the point of having an oni_fifo_t if we are hard coding the header size anyway?
-    uint8_t *header = NULL;
-    int rc = _oni_read_buffer(ctx, (void **)&header, ONI_RFRAMEHEADERSZ);
+    int rc = _oni_ensure_read_buffer(ctx);
     if (rc) return rc;
+
+    // "Read" (i.e. reference) buffer and update buffer read position
+    assert(ctx->shared_rbuf->read_pos + ONI_RFRAMEHEADERSZ <= ctx->shared_rbuf->end_pos
+           && "Attempted to read past buffer end");
+    uint8_t *header = ctx->shared_rbuf->read_pos;
+    ctx->shared_rbuf->read_pos += ONI_RFRAMEHEADERSZ;
 
     // Allocate frame and buffer
     oni_frame_impl_t *iframe = malloc(sizeof(oni_frame_impl_t));
@@ -1225,7 +1228,7 @@ static inline int _oni_read_config(oni_ctx ctx, oni_config_t reg, oni_reg_val_t 
     return ctx->driver.read_config(ctx->driver.ctx, reg, value);
 }
 
-static int _oni_read_buffer(oni_ctx ctx, void **data, size_t size)
+static int _oni_ensure_read_buffer(oni_ctx ctx)
 {
     // NB: This function can only be called if the device table has been 
     // populated and contains devices that produce data.
@@ -1285,24 +1288,18 @@ static int _oni_read_buffer(oni_ctx ctx, void **data, size_t size)
         if ((size_t)rc != ctx->block_read_size) return ONI_EREADFAILURE;
     }
 
-    // "Read" (i.e. reference) buffer and update buffer read position
-    *data = ctx->shared_rbuf->read_pos;
-    ctx->shared_rbuf->read_pos += size;
-
     return ONI_ESUCCESS;
 }
 
 static int _oni_alloc_write_buffer(oni_ctx ctx, void **data, size_t size)
 {
-    // Remaining bytes in buffer
-    size_t remaining;
-    if (ctx->shared_wbuf != NULL)
-        remaining = ctx->shared_wbuf->end_pos - ctx->shared_wbuf->read_pos;
-    else
-        remaining = 0;
+    // Size request is too large or 0
+    if (size > ctx->block_write_size || size == 0)
+        return ONI_EINVALARG;
 
-    // Size request is too large
-    if (size > ctx->block_write_size) return ONI_EBADALLOC;
+    // Remaining bytes in buffer
+    size_t remaining = ctx->shared_wbuf != NULL ?
+        ctx->shared_wbuf->end_pos - ctx->shared_wbuf->read_pos : 0;
 
     if (remaining < size) {
 
