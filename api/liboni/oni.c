@@ -5,8 +5,6 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -14,7 +12,7 @@
 #include "onidriverloader.h"
 
 // Device hash table overhead factor
-#define ONI_DEVHASHOVERHEAD (10.0)
+#define ONI_DEVHASHOVERHEAD 10
 
 // NB: 255 in sub-address is invalid in this implementation,
 // so we can use this to clear the hash table
@@ -114,7 +112,7 @@ static int _oni_cobs_unstuff(uint8_t *dst, const uint8_t *src, size_t size);
 static inline int _oni_write_config(oni_ctx ctx, oni_config_t reg, oni_reg_val_t value);
 static inline int _oni_read_config(oni_ctx, oni_config_t reg, oni_reg_val_t *value);
 static int _oni_alloc_write_buffer(oni_ctx ctx, void **data, size_t size);
-static int _oni_read_buffer(oni_ctx ctx, void **data, size_t size, int);
+static int _oni_ensure_read_buffer(oni_ctx ctx);
 static void _oni_dump_buffers(oni_ctx ctx);
 static void _oni_destroy_buffer(const struct ref *ref);
 static inline void _ref_inc(struct ref *ref);
@@ -650,18 +648,16 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
     // a different thread
     assert(ctx->run_state >= IDLE && "Context is not acquiring.");
 
-    // No devices produce data
-    if (ctx->max_read_frame_size == 0)
-        return ONI_ENOREADDEV;
-
     // Get the device index and data size from the buffer
     // TODO: what is the point of having an oni_fifo_t if we are hard coding the header size anyway?
-    uint8_t *header = NULL;
-    int rc = _oni_read_buffer(ctx,
-                              (void **)&header,
-                              ONI_RFRAMEHEADERSZ,
-                              1);
+    int rc = _oni_ensure_read_buffer(ctx);
     if (rc) return rc;
+
+    // "Read" (i.e. reference) buffer and update buffer read position
+    assert(ctx->shared_rbuf->read_pos + ONI_RFRAMEHEADERSZ <= ctx->shared_rbuf->end_pos
+           && "Attempted to read past buffer end");
+    uint8_t *header = ctx->shared_rbuf->read_pos;
+    ctx->shared_rbuf->read_pos += ONI_RFRAMEHEADERSZ;
 
     // Allocate frame and buffer
     oni_frame_impl_t *iframe = malloc(sizeof(oni_frame_impl_t));
@@ -692,8 +688,10 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
     total_size += rsize;
 
     // Direct frame data's view into the pre-collected buffer
-    rc = _oni_read_buffer(ctx, (void **)&iframe->private.f.data, rsize, 0);
-    if (rc) return rc;
+    assert(ctx->shared_rbuf->read_pos + rsize <= ctx->shared_rbuf->end_pos 
+        && "Attempted to read past buffer end");
+    iframe->private.f.data = ctx->shared_rbuf->read_pos;
+    ctx->shared_rbuf->read_pos += rsize;
 
     // Update buffer ref count and provide reference to frame
     _ref_inc(&(ctx->shared_rbuf->count));
@@ -1230,22 +1228,23 @@ static inline int _oni_read_config(oni_ctx ctx, oni_config_t reg, oni_reg_val_t 
     return ctx->driver.read_config(ctx->driver.ctx, reg, value);
 }
 
-static int _oni_read_buffer(oni_ctx ctx, void **data, size_t size, int allow_refill)
+static int _oni_ensure_read_buffer(oni_ctx ctx)
 {
-    // Remaining bytes in buffer
-    size_t remaining;
-    if (ctx->shared_rbuf != NULL)
-        remaining = ctx->shared_rbuf->end_pos - ctx->shared_rbuf->read_pos;
-    else
-        remaining = 0;
+    // NB: This function can only be called if the device table has been 
+    // populated and contains devices that produce data.
+    if (ctx->max_read_frame_size == 0)
+        return ONI_EINVALARG;
 
-    // TODO: Is there a way to get rid of allow_refill?
-    // NB: Frames must reference a single buffer, so we must refill if less
-    // than max possible frame size on the first read within oni_read_frame().
-    // Making this limit smaller will result in memory corruption, so don't do
-    // it.  Allowing refills multiple times during one call to oni_read_frame()
-    // will also cause memory corruption.
-    if (remaining < ctx->max_read_frame_size && allow_refill) {
+    // Remaining bytes in buffer
+    size_t remaining = ctx->shared_rbuf != NULL ?
+        ctx->shared_rbuf->end_pos - ctx->shared_rbuf->read_pos : 0;
+
+    // NB: Refill when remaining < max_read_frame_size to guarantee that after
+    // this call the buffer holds enough data for both the frame header and its
+    // maximum-sized payload. This allows _oni_consume_buffer to read the payload
+    // without ever triggering a second refill, keeping each frame inside a single
+    // buffer object.
+    if (remaining < ctx->max_read_frame_size) {
 
         assert(ctx->max_read_frame_size <= ctx->block_read_size &&
             "Block read size is too small given the possible read frame size.");
@@ -1289,30 +1288,18 @@ static int _oni_read_buffer(oni_ctx ctx, void **data, size_t size, int allow_ref
         if ((size_t)rc != ctx->block_read_size) return ONI_EREADFAILURE;
     }
 
-    // TODO: Another reason to remove allow_refill.
-    // Ensure that allow_refill did not prevent allocation even when shared_rbuf
-    // was NULL
-    if (ctx->shared_rbuf == NULL)
-        return ONI_EINVALARG; 
-
-    // "Read" (i.e. reference) buffer and update buffer read position
-    *data = ctx->shared_rbuf->read_pos;
-    ctx->shared_rbuf->read_pos += size;
-
     return ONI_ESUCCESS;
 }
 
 static int _oni_alloc_write_buffer(oni_ctx ctx, void **data, size_t size)
 {
-    // Remaining bytes in buffer
-    size_t remaining;
-    if (ctx->shared_wbuf != NULL)
-        remaining = ctx->shared_wbuf->end_pos - ctx->shared_wbuf->read_pos;
-    else
-        remaining = 0;
+    // Size request is too large or 0
+    if (size > ctx->block_write_size || size == 0)
+        return ONI_EINVALARG;
 
-    // Size request is too large
-    if (size > ctx->block_write_size) return ONI_EBADALLOC;
+    // Remaining bytes in buffer
+    size_t remaining = ctx->shared_wbuf != NULL ?
+        ctx->shared_wbuf->end_pos - ctx->shared_wbuf->read_pos : 0;
 
     if (remaining < size) {
 
