@@ -52,7 +52,7 @@ typedef pthread_mutex_t oni_ft600_mutex_t;
 
 #if defined(_WIN32) && defined(DRIVER_1308_WORKAROUND)
 #define FT_ReadPipeEx FT_ReadPipe
-#endif 
+#endif
 
 
 #define DEFAULT_OVERLAPPED 4
@@ -79,7 +79,7 @@ const char usbdesc[] = "Open Ephys FT600 USB board";
 #define CHECK_NULL(exp) {if(exp==NULL){oni_ft600_free_ctx(ctx);return ONI_EBADALLOC;}}
 #define CHECK_ERR(exp) {if(exp==0){oni_ft600_free_ctx(ctx);return ONI_EINIT;}}
 
-typedef enum 
+typedef enum
 {
 	STATE_NOINIT = 0,
 	STATE_INIT,
@@ -170,7 +170,7 @@ enum ft600_pipeid
 };
 #endif
 
-void fill_control_buffers(oni_ft600_ctx ctx, ULONG transferred)
+static void fill_control_buffers(oni_ft600_ctx ctx, ULONG transferred)
 {
 	size_t index = 0;
 	size_t lastIndex = 0;
@@ -217,9 +217,9 @@ void oni_ft600_usb_callback(PVOID context, E_FT_NOTIFICATION_CALLBACK_TYPE type,
 	oni_ft600_ctx ctx = (oni_ft600_ctx)context;
 	ULONG transferred;
     ULONG total = 0;
-	
+
 	do {
-#ifdef _WIN32		
+#ifdef _WIN32
 
         FT_ReadPipe(ctx->ftHandle,
                     info->ucEndpointNo,
@@ -245,7 +245,7 @@ void oni_ft600_usb_callback(PVOID context, E_FT_NOTIFICATION_CALLBACK_TYPE type,
         total += transferred;
     } while (total < info->ulRecvNotificationLength);
 
-	
+
 
 
 	if (total > 0)
@@ -254,8 +254,8 @@ void oni_ft600_usb_callback(PVOID context, E_FT_NOTIFICATION_CALLBACK_TYPE type,
 	}
 
 }
-#else 
-void oni_ft600_update_control(oni_ft600_ctx ctx)
+#else
+static void oni_ft600_update_control(oni_ft600_ctx ctx)
 {
 	FT_STATUS ftStatus;
 	DWORD toread = ctx->auxSize;
@@ -290,7 +290,7 @@ void oni_ft600_update_control(oni_ft600_ctx ctx)
 
 static inline oni_conf_off_t _oni_register_offset(oni_config_t reg);
 
-inline void oni_ft600_restart_acq(oni_ft600_ctx ctx)
+static inline void oni_ft600_restart_acq(oni_ft600_ctx ctx)
 {
 	ctx->nextReadIndex = 0;
     ctx->lastReadIndex = 0;
@@ -299,7 +299,7 @@ inline void oni_ft600_restart_acq(oni_ft600_ctx ctx)
 	ctx->state = STATE_INIT;
 }
 
-inline void oni_ft600_reset_ctx(oni_ft600_ctx ctx)
+static inline void oni_ft600_reset_ctx(oni_ft600_ctx ctx)
 {
 	ctx->sigState = SIG_CMD;
 	ctx->sigOffset = 0;
@@ -324,7 +324,7 @@ static inline void oni_ft600_reset_acq(oni_ft600_ctx ctx, int hard)
 	Sleep(1);
 }
 
-inline void oni_ft600_stop_acq(oni_ft600_ctx ctx)
+static inline void oni_ft600_stop_acq(oni_ft600_ctx ctx)
 {
     ctx->state = STATE_INIT;
 	Sleep(10);
@@ -350,7 +350,7 @@ static inline int oni_ft600_sendcmd(oni_ft600_ctx ctx, uint8_t* buffer, size_t s
 		ftStatus = FT_WritePipeEx(ctx->ftHandle, pipeid_control, buffer + total, size - total, &transferred, 1000);
 		if (ftStatus != FT_OK && ftStatus != FT_TIMEOUT && ftStatus != FT_IO_PENDING) return ONI_ESEEKFAILURE;
 #endif
-		if (ftStatus == FT_OK) 
+		if (ftStatus == FT_OK)
 			total += transferred;
 	} while (total < size);
 	return ONI_ESUCCESS;
@@ -374,7 +374,7 @@ oni_driver_ctx oni_driver_create_ctx(void)
 	return ctx;
 }
 
-void oni_ft600_free_ctx(oni_ft600_ctx ctx)
+static void oni_ft600_free_ctx(oni_ft600_ctx ctx)
 {
 	if (ctx->inBuffer != NULL) free(ctx->inBuffer);
 	if (ctx->auxBuffer != NULL) free(ctx->auxBuffer);
@@ -509,7 +509,7 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
     }
 
 #endif
-   
+
 
 #ifdef _WIN32
 	FT_InitializeOverlapped(ctx->ftHandle, &ctx->outOverlapped);
@@ -535,7 +535,7 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 	CHECK_ERR(circBufferInit(&ctx->regBuffer));
 	ctx->auxBuffer = malloc(ctx->auxSize);
 	CHECK_NULL(ctx->auxBuffer);
-    
+
 #ifndef POLL_CONTROL
 	CHECK_FTERR(FT_SetNotificationCallback(ctx->ftHandle, oni_ft600_usb_callback, ctx));
 #endif
@@ -572,7 +572,7 @@ int oni_driver_destroy_ctx(oni_driver_ctx driver_ctx)
 	CTX_CAST;
 	assert(ctx != NULL && "Driver context is NULL");
 	//Let's keep the device in a cool, reset state
-    if (ctx->ftHandle != NULL) 
+    if (ctx->ftHandle != NULL)
 	{
         FT_WriteGPIO(ctx->ftHandle, 0x01, 0x01);
     }
@@ -602,7 +602,7 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 		}
 		circBufferRead(&ctx->signalBuffer, data, size);
 		return size;
-	} 
+	}
 	else if (stream == ONI_READ_STREAM_DATA)
 	{
         while (ctx->state != STATE_RUNNING)
@@ -789,7 +789,7 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
 		size = 9;
 	}
 
-	if (reg == ONI_CONFIG_RESET && value != 0) 
+	if (reg == ONI_CONFIG_RESET && value != 0)
 	{
 	    oni_ft600_stop_acq(ctx);
 	}
@@ -807,7 +807,7 @@ int oni_driver_read_config(oni_driver_ctx driver_ctx, oni_config_t reg, oni_reg_
 	int res = oni_ft600_sendcmd(ctx, buffer, 5);
 	if (res != ONI_ESUCCESS) return res;
 
-	while (!circBufferCanRead(&ctx->regBuffer, sizeof(oni_reg_val_t))) 
+	while (!circBufferCanRead(&ctx->regBuffer, sizeof(oni_reg_val_t)))
 	{
 #ifdef POLL_CONTROL
 		oni_ft600_update_control(ctx);
@@ -823,7 +823,7 @@ int oni_driver_read_config(oni_driver_ctx driver_ctx, oni_config_t reg, oni_reg_
 }
 
 
-inline void oni_ft600_start_acq(oni_ft600_ctx ctx)
+static inline void oni_ft600_start_acq(oni_ft600_ctx ctx)
 {
 
 	for (size_t i = 0; i < ctx->numInOverlapped; i++)
@@ -852,7 +852,7 @@ int oni_driver_set_opt_callback(oni_driver_ctx driver_ctx,
 		if (*(uint32_t*)value == 0)
 		{
 			oni_ft600_stop_acq(ctx);
-		} 
+		}
 		else
 		{
 			oni_ft600_start_acq(ctx);
@@ -904,7 +904,7 @@ int oni_driver_get_opt(oni_driver_ctx driver_ctx,
 	size_t* option_len)
 {
     CTX_CAST;
-	
+
 	if (!ctx->ftHandle)
 	{
         return ONI_EINVALSTATE;
@@ -930,7 +930,7 @@ int oni_driver_get_opt(oni_driver_ctx driver_ctx,
 	return ONI_EINVALOPT;
 }
 
-const oni_driver_info_t* oni_driver_info(void) 
+const oni_driver_info_t* oni_driver_info(void)
 {
     return &driverInfo;
 }

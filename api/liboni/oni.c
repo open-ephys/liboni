@@ -983,10 +983,9 @@ static int _oni_reset_routine(oni_ctx ctx)
     else
         return ONI_EBADALLOC;
 
-    size_t i;
     ctx->max_read_frame_size = 0;
     ctx->max_write_frame_size = 0;
-    for (i = 0; i < ctx->num_dev; i++) {
+    for (size_t i = 0; i < ctx->num_dev; i++) {
 
         sig_type = NULLSIG;
         uint8_t buffer[ONI_COBSBUFFERSIZE];
@@ -1009,19 +1008,18 @@ static int _oni_reset_routine(oni_ctx ctx)
     }
 
     // Clear the table
-    for (i = 0; i < ctx->dev_hash_len; i++) {
+    for (size_t i = 0; i < ctx->dev_hash_len; i++) {
         ctx->dev_hash_table[i].idx = ONI_DEVIDXNULL;
     }
 
     // Sort device_table
     // Check that dev_idx entries are unique (required for hash)
     // Fill the hash_table table
-    for (i = 0; i < ctx->num_dev; i++) {
+    for (size_t i = 0; i < ctx->num_dev; i++) {
 
         // NB: i = ctx->num_dev - 1 will not loop
-        size_t j;
         size_t min_idx = i;
-        for (j = i + 1; j < ctx->num_dev; j++) {
+        for (size_t j = i + 1; j < ctx->num_dev; j++) {
 
             if (ctx->dev_table[i].idx == ctx->dev_table[j].idx)
                 return ONI_EDEVIDXREPEAT;
@@ -1031,9 +1029,9 @@ static int _oni_reset_routine(oni_ctx ctx)
         }
 
         // Swap place device i and min_idx
-        oni_device_t temp = ctx->dev_table[min_idx];
+        oni_device_t tmpDev = ctx->dev_table[min_idx];
         ctx->dev_table[min_idx] = ctx->dev_table[i];
-        ctx->dev_table[i] = temp;
+        ctx->dev_table[i] = tmpDev;
 
         // Hashing with open addressing
         size_t probe;
@@ -1054,10 +1052,7 @@ static int _oni_reset_routine(oni_ctx ctx)
     // for high bandwidth performance and good for closed-loop delay. The opposite is true
     // for write frames (to an extent) so this is defaulted to something large.
     size_t align = sizeof(oni_fifo_dat_t);
-    size_t r = ctx->max_read_frame_size % align;
     ctx->block_read_size = (ctx->max_read_frame_size + align - 1) & ~(align - 1);
-
-    r = ctx->max_write_frame_size % align;
     ctx->block_write_size = (ctx->max_write_frame_size + align - 1) & ~(align - 1);
 
     // Set the block read size in the driver, in case it needs it
