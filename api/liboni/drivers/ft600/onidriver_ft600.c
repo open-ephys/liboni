@@ -94,7 +94,7 @@ typedef enum
 } oni_ft600_sigstate;
 
 const oni_driver_info_t driverInfo
-    = {.name = "ft600", .major = 1, .minor = 0, .patch = 5, .pre_release = NULL};
+    = {.name = "ft600", .major = 1, .minor = 0, .patch = 6, .pre_release = NULL};
 
 struct oni_ft600_ctx_impl {
 	oni_size_t inBlockSize;
@@ -125,6 +125,7 @@ struct oni_ft600_ctx_impl {
 	OVERLAPPED sigOverlapped;
 	OVERLAPPED outOverlapped;
 #endif
+    uint8_t mustStart;
 	struct {
 		oni_dev_idx_t dev_idx;
 		oni_reg_addr_t dev_addr;
@@ -296,6 +297,7 @@ static inline void oni_ft600_restart_acq(oni_ft600_ctx ctx)
     ctx->lastReadIndex = 0;
 	ctx->lastReadOffset = 0;
 	ctx->lastReadRead = 0;
+    ctx->mustStart = 0;
 	ctx->state = STATE_INIT;
 }
 
@@ -326,12 +328,12 @@ static inline void oni_ft600_reset_acq(oni_ft600_ctx ctx, int hard)
 
 static inline void oni_ft600_stop_acq(oni_ft600_ctx ctx)
 {
-    ctx->state = STATE_INIT;
 	Sleep(10);
     FT_AbortPipe(ctx->ftHandle, pipe_in);
 #ifndef _WIN32
-    FT_FlushPipe(ctx->ftHandle, pipe_in);
+        FT_FlushPipe(ctx->ftHandle, pipe_in);
 #endif
+    ctx->state = STATE_INIT;
 	oni_ft600_restart_acq(ctx);
 }
 
@@ -605,10 +607,34 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 	}
 	else if (stream == ONI_READ_STREAM_DATA)
 	{
+        FT_STATUS ftStatus;
         while (ctx->state != STATE_RUNNING)
             ;
+
+		if (ctx->mustStart) {
+            ctx->mustStart = 0;
+            for (size_t i = 0; i < ctx->numInOverlapped; i++) {
+#if _WIN32
+                ftStatus = FT_ReadPipeEx(ctx->ftHandle,
+                                         pipe_in,
+                                         ctx->inBuffer + (i * ctx->inBlockSize),
+                                         ctx->inBlockSize,
+                                         &ctx->inTransferred[i],
+                                         &ctx->inOverlapped[i]);
+#else
+#ifdef LINUX_ASYNC
+                ftStatus
+                    = FT_ReadPipeAsync(ctx->ftHandle,
+                                       pipeid_data,
+                                       ctx->inBuffer + (i * ctx->inBlockSize),
+                                       ctx->inBlockSize,
+                                       &ctx->inTransferred[i],
+                                       &ctx->inOverlapped[i]);
+#endif
+#endif
+            }
+        }
 		size_t remaining = ((size >> 2) << 2);//round to 32bit boundaries;
-		FT_STATUS ftStatus;
 		int read = 0;
 		if (remaining < ctx->inBlockSize) return ONI_EINVALREADSIZE;
 #if defined _WIN32 || defined LINUX_ASYNC
@@ -644,10 +670,10 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 			transferred = ctx->inTransferred[simIndex];
 			//read in the next part of the double buffer
 #ifdef _WIN32
-			FT_ReadPipeEx(ctx->ftHandle, pipe_in, ctx->inBuffer + ((size_t)nextIndex * ctx->inBlockSize), ctx->inBlockSize,
+			ftStatus = FT_ReadPipeEx(ctx->ftHandle, pipe_in, ctx->inBuffer + ((size_t)nextIndex * ctx->inBlockSize), ctx->inBlockSize,
 				&ctx->inTransferred[simIndex], &ctx->inOverlapped[simIndex]);
 #else
-			FT_ReadPipeAsync(ctx->ftHandle, pipeid_data, ctx->inBuffer + ((size_t)nextIndex * ctx->inBlockSize), ctx->inBlockSize,
+			ftStatus = FT_ReadPipeAsync(ctx->ftHandle, pipeid_data, ctx->inBuffer + ((size_t)nextIndex * ctx->inBlockSize), ctx->inBlockSize,
 				&ctx->inTransferred[simIndex], &ctx->inOverlapped[simIndex]);
 #endif
 			srcPtr = ctx->inBuffer + ctx->inBlockSize * (size_t)ctx->nextReadIndex;
@@ -825,18 +851,8 @@ int oni_driver_read_config(oni_driver_ctx driver_ctx, oni_config_t reg, oni_reg_
 
 static inline void oni_ft600_start_acq(oni_ft600_ctx ctx)
 {
-
-	for (size_t i = 0; i < ctx->numInOverlapped; i++)
-	{
-#if _WIN32
-		FT_ReadPipeEx(ctx->ftHandle, pipe_in, ctx->inBuffer + (i * ctx->inBlockSize), ctx->inBlockSize, &ctx->inTransferred[i], &ctx->inOverlapped[i]);
-#else
-#ifdef LINUX_ASYNC
-		FT_ReadPipeAsync(ctx->ftHandle, pipeid_data, ctx->inBuffer + (i * ctx->inBlockSize), ctx->inBlockSize, &ctx->inTransferred[i], &ctx->inOverlapped[i]);
-#endif
-#endif
-	}
-
+    int ftStatus;
+    ctx->mustStart = 1;
 	ctx->state = STATE_RUNNING;
 }
 
