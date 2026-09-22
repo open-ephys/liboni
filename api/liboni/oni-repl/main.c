@@ -1,18 +1,18 @@
 #include <assert.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <math.h>
 #include <time.h>
 
+#include "ketopt.h"
+#include "oelogo.h"
 #include "oni.h"
 #include "onix.h"
-#include "oelogo.h"
-#include "ketopt.h"
 
 // Version macros for compile-time program version
 // NB: see https://semver.org/
@@ -36,9 +36,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #else
-#include <unistd.h>
 #include <pthread.h>
-#define Sleep(x) usleep((x)*1000)
+#include <unistd.h>
+#define Sleep(x) usleep((x) * 1000)
 #endif
 
 // Options
@@ -72,12 +72,12 @@ int parse_reg_cmd(const char *cmd, long *values, int len)
 {
     char *end;
     int k = 0;
-    for (long i = strtol(cmd, &end, 10);
-         cmd != end;
-         i = strtol(cmd, &end, 10))
-    {
+    for (long i = strtol(cmd, &end, 10); cmd != end;
+         i = strtol(cmd, &end, 10)) {
         cmd = end;
-        if (errno == ERANGE){ return -1; }
+        if (errno == ERANGE) {
+            return -1;
+        }
 
         values[k++] = i;
         if (k == len)
@@ -91,7 +91,8 @@ int parse_reg_cmd(const char *cmd, long *values, int len)
 }
 
 // Write register initialization file
-int write_reg_file(FILE *file) {
+int write_reg_file(FILE *file)
+{
 
     char buf[1000];
 
@@ -111,7 +112,8 @@ int write_reg_file(FILE *file) {
         oni_size_t val = (oni_size_t)values[2];
 
         rc = oni_write_reg(ctx, dev_idx, addr, val);
-        if (rc) printf("%s\n", oni_error_str(rc));
+        if (rc)
+            printf("%s\n", oni_error_str(rc));
     }
 
     return 0;
@@ -149,12 +151,12 @@ void *read_loop(void *vargp)
     oni_create_frame(ctx, &w_frame, 8, 4);
 #endif
 
-    while (!quit)  {
+    while (!quit) {
 
         int rc = 0;
         oni_frame_t *frame = NULL;
         rc = oni_read_frame(ctx, &frame);
-        //printf("frame %d\n", frame->dev_idx);
+        // printf("frame %d\n", frame->dev_idx);
         if (rc < 0) {
             printf("Error: %s\n", oni_error_str(rc));
             quit = 1;
@@ -162,25 +164,25 @@ void *read_loop(void *vargp)
         }
 
         int i = find_dev(frame->dev_idx);
-        if (i == -1) goto next;
+        if (i == -1)
+            goto next;
 
         if (dump && devices[i].id != ONIX_NULL) {
             fwrite(frame->data, 1, frame->data_sz, dump_files[i]);
         }
 
-        if (display
-            && (display_every_n <= 1 || counter % display_every_n == 0)
-            && (num_frames_to_display == 0 || print_count < num_frames_to_display)
-            && (!device_idx_filter_en || devices[i].idx == device_idx_filter)
-            ) {
+        if (display && (display_every_n <= 1 || counter % display_every_n == 0)
+            && (num_frames_to_display == 0
+                || print_count < num_frames_to_display)
+            && (!device_idx_filter_en || devices[i].idx == device_idx_filter)) {
 
             oni_device_t this_dev = devices[i];
 
             this_cnt++;
             printf("\t[%" PRIu64 "] Dev: %u (%s) \n",
-                frame->time,
-                frame->dev_idx,
-                onix_device_str(this_dev.id));
+                   frame->time,
+                   frame->dev_idx,
+                   onix_device_str(this_dev.id));
 
             size_t i;
             printf("\tData: [");
@@ -193,7 +195,7 @@ void *read_loop(void *vargp)
 
 #ifdef FEEDBACKLOOP
         // Feedback loop test
-         if (frame->dev_idx == 7) {
+        if (frame->dev_idx == 7) {
 
             int16_t sample = *(int16_t *)(frame->data + 10);
 
@@ -203,16 +205,16 @@ void *read_loop(void *vargp)
                 out_count++;
 
                 int rc = oni_write_frame(ctx, w_frame);
-                if (rc < 0) { printf("Error: %s\n", oni_error_str(rc)); }
-
+                if (rc < 0) {
+                    printf("Error: %s\n", oni_error_str(rc));
+                }
             }
 
             last_sample = sample;
         }
 #endif
 
-
-next:
+    next:
         counter++;
         oni_destroy_frame(frame);
     }
@@ -224,73 +226,74 @@ next:
     return NULL;
 }
 
-//#ifdef _WIN32
-//DWORD WINAPI write_loop(LPVOID lpParam)
-//#else
-//void *write_loop(void *vargp)
-//#endif
+// #ifdef _WIN32
+// DWORD WINAPI write_loop(LPVOID lpParam)
+// #else
+// void *write_loop(void *vargp)
+// #endif
 //{
-//    // Pre-allocate write frame
-//    // TODO: hardcoded dev_idx not good
-//    oni_frame_t *w_frame = NULL;
-//    int rc = oni_create_frame(ctx, &w_frame, 6, &out_count, sizeof(out_count));
-//    if (rc < 0) {
-//        printf("Error: %s\n", oni_error_str(rc));
-//        goto error;
-//    }
+//     // Pre-allocate write frame
+//     // TODO: hardcoded dev_idx not good
+//     oni_frame_t *w_frame = NULL;
+//     int rc = oni_create_frame(ctx, &w_frame, 6, &out_count,
+//     sizeof(out_count)); if (rc < 0) {
+//         printf("Error: %s\n", oni_error_str(rc));
+//         goto error;
+//     }
 //
-//    // Loop count
-//    // uint32_t count = 0;
+//     // Loop count
+//     // uint32_t count = 0;
 //
-//    // Cycle through writable devices and write counter to their data
-//    while (!quit) {
+//     // Cycle through writable devices and write counter to their data
+//     while (!quit) {
 //
 //
-//        int rc = oni_write_frame(ctx, w_frame);
-//        if (rc < 0) {
-//            printf("Error: %s\n", oni_error_str(rc));
-//            goto error;
-//        }
+//         int rc = oni_write_frame(ctx, w_frame);
+//         if (rc < 0) {
+//             printf("Error: %s\n", oni_error_str(rc));
+//             goto error;
+//         }
 //
-//        memcpy(w_frame->data, &out_count, 4);
-//        out_count++;
+//         memcpy(w_frame->data, &out_count, 4);
+//         out_count++;
 //
-//        // count++;
+//         // count++;
 //
-//#ifdef _WIN32
-//        Sleep(1);
-//#else
-//        usleep(1000);
-//#endif
-//    }
+// #ifdef _WIN32
+//         Sleep(1);
+// #else
+//         usleep(1000);
+// #endif
+//     }
 //
-//error:
-//    oni_destroy_frame(w_frame);
-//    return NULL;
-//}
+// error:
+//     oni_destroy_frame(w_frame);
+//     return NULL;
+// }
 
 static void start_threads()
 {
     quit = 0;
 
-    // Generate data read_thread and continue here config/signal handling in parallel
+    // Generate data read_thread and continue here config/signal handling in
+    // parallel
 #ifdef _WIN32
     DWORD read_tid;
     read_thread = CreateThread(NULL, 0, read_loop, NULL, 0, &read_tid);
 
-    //DWORD write_tid;
-    //write_thread = CreateThread(NULL, 0, write_loop, NULL, 0, &write_tid);
+    // DWORD write_tid;
+    // write_thread = CreateThread(NULL, 0, write_loop, NULL, 0, &write_tid);
 
 #ifdef RT
     if (!SetThreadPriority(read_thread, THREAD_PRIORITY_TIME_CRITICAL))
         printf("Unable to set read thread priority.\n");
-    //if (!SetThreadPriority(write_thread, THREAD_PRIORITY_HIGHEST))
-    //    printf("Unable to set read thread priority.\n");
+    // if (!SetThreadPriority(write_thread, THREAD_PRIORITY_HIGHEST))
+    //     printf("Unable to set read thread priority.\n");
 #endif
 
 #else
     pthread_create(&read_tid, NULL, read_loop, NULL);
-    //pthread_create(&write_tid, NULL, write_loop, NULL);
+    // pthread_create(&write_tid, NULL, write_loop, NULL);
 #endif
 }
 
@@ -304,17 +307,19 @@ static void stop_threads()
     WaitForSingleObject(read_thread, INFINITE);
     CloseHandle(read_thread);
 
-    //WaitForSingleObject(write_thread, 200);
-    //CloseHandle(write_thread);
+    // WaitForSingleObject(write_thread, 200);
+    // CloseHandle(write_thread);
 #else
     if (running)
         pthread_join(read_tid, NULL);
-    //pthread_join(write_tid, NULL);
+    // pthread_join(write_tid, NULL);
 #endif
 
     oni_size_t run = 0;
     int rc = oni_set_opt(ctx, ONI_OPT_RUNNING, &run, sizeof(run));
-    if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
+    if (rc) {
+        printf("Error: %s\n", oni_error_str(rc));
+    }
 }
 
 void print_version()
@@ -324,17 +329,25 @@ void print_version()
     int patch;
     oni_version(&major, &minor, &patch);
     printf("oni-repl v%d.%d.%d (liboni v%d.%d.%d)\n",
-            ONI_REPL_VERSION_MAJOR, ONI_REPL_VERSION_MINOR,
-            ONI_REPL_VERSION_PATCH, major, minor, patch);
+           ONI_REPL_VERSION_MAJOR,
+           ONI_REPL_VERSION_MINOR,
+           ONI_REPL_VERSION_PATCH,
+           major,
+           minor,
+           patch);
 }
 
 void print_dev_table(oni_device_t *devices, size_t num_devs)
 {
     // Show device table
-    printf("   +--------------------+-------+-------+-------+-------+---------------------\n");
+    printf("   "
+           "+--------------------+-------+-------+-------+-------+-------------"
+           "--------\n");
     printf("   |        \t\t|  \t|Firm.\t|Read\t|Wrt. \t|     \n");
     printf("   |Dev. idx\t\t|ID\t|ver. \t|size\t|size \t|Desc.\n");
-    printf("   +--------------------+-------+-------+-------+-------+---------------------\n");
+    printf("   "
+           "+--------------------+-------+-------+-------+-------+-------------"
+           "--------\n");
 
     size_t dev_idx;
     for (dev_idx = 0; dev_idx < num_devs; dev_idx++) {
@@ -353,7 +366,9 @@ void print_dev_table(oni_device_t *devices, size_t num_devs)
                dev_str);
     }
 
-    printf("   +--------------------+-------+-------+-------+-------+---------------------\n");
+    printf("   "
+           "+--------------------+-------+-------+-------+-------+-------------"
+           "--------\n");
 }
 
 void print_hub_info(size_t hub_idx)
@@ -442,15 +457,15 @@ int main(int argc, char *argv[])
         if (c == 'v' || c == 307) {
             print_version();
             goto exit;
-        }
-        else if (c == 'q')
+        } else if (c == 'q')
             quit_before_repl = 1;
         else if (c == 'd')
             display = 1;
         else if (c == 'D') {
             float percent = atoi(opt.arg);
             if (percent <= 0 || percent > 100) {
-                printf("Error: invalid value for -D. Pick a value within (0.0, 100.0].\n");
+                printf("Error: invalid value for -D. Pick a value within (0.0, "
+                       "100.0].\n");
                 goto usage;
             }
             display_every_n = (int)(100.0 / percent);
@@ -481,8 +496,7 @@ int main(int argc, char *argv[])
         } else if (c == '?') {
             printf("Unknown option: -%c\n", opt.opt ? opt.opt : ':');
             goto usage;
-        }
-        else if (c == ':') {
+        } else if (c == ':') {
             printf("Missing argument: -%c\n", opt.opt ? opt.opt : ':');
             goto usage;
         }
@@ -495,23 +509,46 @@ int main(int argc, char *argv[])
         host_idx = atoi(argv[opt.ind + 1]);
     } else {
 
-usage:
-        printf("Usage: %s <driver> [slot] [-q] [-d] [-D <value>] [-n <value>] [-i <device index>] [--rbytes=<bytes>] [--wbytes=<bytes>] [--dformat=<hex,dec>] [--dumppath=<path>] [--regpath=<path>] [-h,--help] [-v,--version]\n\n", argv[0]);
+    usage:
+        printf("Usage: %s <driver> [slot] [-q] [-d] [-D <value>] [-n <value>] "
+               "[-i <device index>] [--rbytes=<bytes>] [--wbytes=<bytes>] "
+               "[--dformat=<hex,dec>] [--dumppath=<path>] [--regpath=<path>] "
+               "[-h,--help] [-v,--version]\n\n",
+               argv[0]);
 
-        printf("\t driver \t\tHardware driver to dynamically link (e.g. riffa, ft600, test, etc.)\n");
-        printf("\t slot \t\t\tIndex specifying the physical slot occupied by hardware being controlled. If none is provided, the driver-defined default will be used.\n");
-        printf("\t -q \t\t\tQuit after initialization. If specified, quit before entering repl but after after establishing a connection with hardware, obtaining the device table, and writing to registers specified in --regpath.\n");
-        printf("\t -d \t\t\tDisplay frames. If specified, frames produced by the oni hardware will be printed to the console.\n");
-        printf("\t -D <percent> \t\tThe percent of frames printed to the console if frames are displayed. Percent should be a value in (0, 100.0].\n");
-        printf("\t -n <count> \t\tDisplay at most count frames. Reset only on program restart. Useful for examining the start of the data stream. If set to 0, then this option is ignored.\n");
-        printf("\t -i <index> \t\tOnly display frames from device with specified index value.\n");
-        printf("\t --rbytes=<bytes> \tSet block read size in bytes. (default: %d bytes)\n", DEFAULT_BLK_READ_BYTES);
-        printf("\t --wbytes=<bytes> \tSet write pre-allocation size in bytes. (default: %d bytes)\n", DEFAULT_BLK_WRITE_BYTES);
-        printf("\t --dformat=<hex,dec> \tSet the format of frame data printed to the console to hexidecimal (default) or decimal.\n");
-        printf("\t --dumppath=<path> \tPath to folder to dump raw device data. \
+        printf("\t driver \t\tHardware driver to dynamically link (e.g. riffa, "
+               "ft600, test, etc.)\n");
+        printf("\t slot \t\t\tIndex specifying the physical slot occupied by "
+               "hardware being controlled. If none is provided, the "
+               "driver-defined default will be used.\n");
+        printf("\t -q \t\t\tQuit after initialization. If specified, quit "
+               "before entering repl but after after establishing a connection "
+               "with hardware, obtaining the device table, and writing to "
+               "registers specified in --regpath.\n");
+        printf("\t -d \t\t\tDisplay frames. If specified, frames produced by "
+               "the oni hardware will be printed to the console.\n");
+        printf("\t -D <percent> \t\tThe percent of frames printed to the "
+               "console if frames are displayed. Percent should be a value in "
+               "(0, 100.0].\n");
+        printf("\t -n <count> \t\tDisplay at most count frames. Reset only on "
+               "program restart. Useful for examining the start of the data "
+               "stream. If set to 0, then this option is ignored.\n");
+        printf("\t -i <index> \t\tOnly display frames from device with "
+               "specified index value.\n");
+        printf("\t --rbytes=<bytes> \tSet block read size in bytes. (default: "
+               "%d bytes)\n",
+               DEFAULT_BLK_READ_BYTES);
+        printf("\t --wbytes=<bytes> \tSet write pre-allocation size in bytes. "
+               "(default: %d bytes)\n",
+               DEFAULT_BLK_WRITE_BYTES);
+        printf("\t --dformat=<hex,dec> \tSet the format of frame data printed "
+               "to the console to hexidecimal (default) or decimal.\n");
+        printf(
+            "\t --dumppath=<path> \tPath to folder to dump raw device data. \
 If not defined, no data will be written. A flat binary file with name <index>_idx-<id>_id-<datetime>.raw will be created for each device in the device table that produces streaming \
 data. The bit-wise frame definition in the ONI device datasheet (as required by the ONI spec) will describe frame data is organized in each file.\n");
-        printf("\t --regpath=<path> \tPath to a text file containing a table of the form:\n \
+        printf(
+            "\t --regpath=<path> \tPath to a text file containing a table of the form:\n \
                                     \t dev_addr_0 reg_address reg_value\n \
                                     \t dev_addr_1 reg_address reg_value\n \
                                     \t ...\n \
@@ -520,7 +557,7 @@ data. The bit-wise frame definition in the ONI device datasheet (as required by 
         printf("\t --help, -h \t\tDisplay this message and exit.\n");
         printf("\t --version, -v \t\tDisplay version information.\n");
 
-exit:
+    exit:
         exit(1);
     }
 
@@ -540,7 +577,10 @@ exit:
 
     // Generate context
     ctx = oni_create_ctx(driver);
-    if (!ctx) { printf("Failed to create context\n"); exit(EXIT_FAILURE); }
+    if (!ctx) {
+        printf("Failed to create context\n");
+        exit(EXIT_FAILURE);
+    }
 
     // Print the driver translator information
     const oni_driver_info_t *di = oni_get_driver_info(ctx);
@@ -563,17 +603,19 @@ exit:
     rc = oni_init_ctx(ctx, host_idx);
     if (rc) {
         printf("Error: %s\n", oni_error_str(rc));
-        printf("Failed to initialize context. Perhaps another program is currently accessing "
-                "the hardware or the hardware requires a firmware update to use this version "
-                "of oni-repl.\n");
+        printf("Failed to initialize context. Perhaps another program is "
+               "currently accessing "
+               "the hardware or the hardware requires a firmware update to use "
+               "this version "
+               "of oni-repl.\n");
         oni_destroy_ctx(ctx);
         exit(EXIT_FAILURE);
     }
 
     //// Set ONIX_FLAG0 to turn on pass-through and issue reset
-    //oni_reg_val_t val = 1;
-    //rc = oni_set_opt(ctx, ONIX_OPT_PASSTHROUGH, &val, sizeof(val));
-    //rc = oni_set_opt(ctx, ONI_OPT_RESET, &val, sizeof(val));
+    // oni_reg_val_t val = 1;
+    // rc = oni_set_opt(ctx, ONIX_OPT_PASSTHROUGH, &val, sizeof(val));
+    // rc = oni_set_opt(ctx, ONI_OPT_RESET, &val, sizeof(val));
 
     // Examine device table
     update_dev_table();
@@ -644,56 +686,72 @@ reset:
 
     printf("Setting block read size to: %u bytes\n", block_read_size);
     size_t block_size_sz = sizeof(block_read_size);
-    rc = oni_set_opt(ctx, ONI_OPT_BLOCKREADSIZE, &block_read_size, block_size_sz);
-    if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
+    rc = oni_set_opt(
+        ctx, ONI_OPT_BLOCKREADSIZE, &block_read_size, block_size_sz);
+    if (rc) {
+        printf("Error: %s\n", oni_error_str(rc));
+    }
     assert(!rc && "Failure to set block read size");
 
     oni_size_t temp;
     oni_get_opt(ctx, ONI_OPT_BLOCKREADSIZE, &temp, &block_size_sz);
-    assert(temp == block_read_size && "Setting block read size was unsucessful.");
+    assert(temp == block_read_size
+           && "Setting block read size was unsucessful.");
     printf("Block read size: %u bytes\n", block_read_size);
 
-    printf("Setting write pre-allocation buffer to: %u bytes\n", block_write_size);
+    printf("Setting write pre-allocation buffer to: %u bytes\n",
+           block_write_size);
     block_size_sz = sizeof(block_write_size);
-    rc = oni_set_opt(ctx, ONI_OPT_BLOCKWRITESIZE, &block_write_size, block_size_sz);
-    if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
+    rc = oni_set_opt(
+        ctx, ONI_OPT_BLOCKWRITESIZE, &block_write_size, block_size_sz);
+    if (rc) {
+        printf("Error: %s\n", oni_error_str(rc));
+    }
 
     oni_get_opt(ctx, ONI_OPT_BLOCKWRITESIZE, &temp, &block_size_sz);
-    assert(temp == block_write_size && "Setting block write pre-allocation size was unsucessful.");
+    assert(temp == block_write_size
+           && "Setting block write pre-allocation size was unsucessful.");
     assert(!rc && "Register read failure.");
     printf("Write pre-allocation size: %u bytes\n", block_write_size);
 
     oni_size_t reg = (oni_size_t)0;
     size_t reg_sz = sizeof(reg);
     rc = oni_get_opt(ctx, ONI_OPT_SYSCLKHZ, &reg, &reg_sz);
-    if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
+    if (rc) {
+        printf("Error: %s\n", oni_error_str(rc));
+    }
     assert(!rc && "Register read failure.");
     printf("System clock rate: %u Hz\n", reg);
 
     rc = oni_get_opt(ctx, ONI_OPT_ACQCLKHZ, &reg, &reg_sz);
-    if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
+    if (rc) {
+        printf("Error: %s\n", oni_error_str(rc));
+    }
     assert(!rc && "Register read failure.");
     printf("Frame counter clock rate: %u Hz\n", reg);
 
     // NB: This option is essentially deprecated
-    //reg = 42;
-    //rc = oni_set_opt(ctx, ONI_OPT_HWADDRESS, &reg, sizeof(oni_size_t));
-    //assert(!rc && "Register write failure.");
+    // reg = 42;
+    // rc = oni_set_opt(ctx, ONI_OPT_HWADDRESS, &reg, sizeof(oni_size_t));
+    // assert(!rc && "Register write failure.");
 
-    //rc = oni_get_opt(ctx, ONI_OPT_HWADDRESS, &reg, &reg_sz);
-    //if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
-    //assert(!rc && "Register read failure.");
-    //printf("Hardware address: 0x%08x\n", reg);
+    // rc = oni_get_opt(ctx, ONI_OPT_HWADDRESS, &reg, &reg_sz);
+    // if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
+    // assert(!rc && "Register read failure.");
+    // printf("Hardware address: 0x%08x\n", reg);
 
     // Start reading and writing threads
     start_threads();
     Sleep(500);
 
     rc = oni_get_opt(ctx, ONI_OPT_RUNNING, &reg, &reg_sz);
-    if (rc) {printf("Error: %s\n", oni_error_str(rc)); }
+    if (rc) {
+        printf("Error: %s\n", oni_error_str(rc));
+    }
     assert(!rc && "Register read failure.");
     printf("Hardware run state: %d\n", reg);
-    printf("Resetting acquisition clock and starting hardware run simultaneously...\n");
+    printf("Resetting acquisition clock and starting hardware run "
+           "simultaneously...\n");
 
     // Restart acquisition clock counter and start acquisition simultaneously
     reg = 2;
@@ -701,7 +759,9 @@ reset:
     assert(!rc && "Register write failure.");
 
     rc = oni_get_opt(ctx, ONI_OPT_RUNNING, &reg, &reg_sz);
-    if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
+    if (rc) {
+        printf("Error: %s\n", oni_error_str(rc));
+    }
     assert(!rc && "Register read failure.");
     assert(reg == 1 && "ONI_OPT_RUNNING should be 1.");
     printf("Hardware run state: %d\n", reg);
@@ -713,7 +773,8 @@ reset:
         printf("Enter a command and press enter:\n");
         printf("\td - toggle frame display\n");
         printf("\tD - change the percent of frames displayed\n");
-        printf("\ti - set a filter to display frames only from a particular device\n");
+        printf("\ti - set a filter to display frames only from a particular "
+               "device\n");
         printf("\tt - print current device table\n");
         printf("\tp - toggle running/pause register\n");
         printf("\tr[m|i[x]] - read from device register.\n");
@@ -733,9 +794,12 @@ reset:
 
         char *cmd = NULL;
         size_t cmd_len = 0;
-        char fcmd[3] = {0, 0 ,0};
+        char fcmd[3] = {0, 0, 0};
         rc = getline(&cmd, &cmd_len, stdin);
-        if (rc == -1) { printf("Error: bad command\n"); continue; }
+        if (rc == -1) {
+            printf("Error: bad command\n");
+            continue;
+        }
         c = cmd[0];
         for (size_t i = 0; i < 3; i++)
             fcmd[i] = i < cmd_len ? cmd[i] : '\0';
@@ -752,8 +816,7 @@ reset:
                 }
                 running = 0;
                 printf("Acquisition Paused\n");
-            }
-            else {
+            } else {
                 start_threads();
                 oni_size_t run = 1;
                 rc = oni_set_opt(ctx, ONI_OPT_RUNNING, &run, sizeof(run));
@@ -763,19 +826,18 @@ reset:
                 running = 1;
                 printf("Acquisition started\n");
             }
-        }
-        else if (c == 'x') {
+        } else if (c == 'x') {
             stop_threads();
             oni_size_t reset = 1;
             rc = oni_set_opt(ctx, ONI_OPT_RESET, &reset, sizeof(reset));
-            if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
+            if (rc) {
+                printf("Error: %s\n", oni_error_str(rc));
+            }
             update_dev_table();
             goto reset;
-        }
-        else if (c == 'd') {
+        } else if (c == 'd') {
             display = (display == 0) ? 1 : 0;
-        }
-        else if (c == 'D') {
+        } else if (c == 'D') {
 
             float display_rate = 100.0 * 1.0 / (float)display_every_n;
 
@@ -787,41 +849,47 @@ reset:
             char *buf = NULL;
             size_t len = 0;
             rc = getline(&buf, &len, stdin);
-            if (rc == -1) { printf("Error: bad command\n"); continue;}
+            if (rc == -1) {
+                printf("Error: bad command\n");
+                continue;
+            }
 
             display_rate = atof(buf);
 
             if (display_rate <= 0 || display_rate > 100) {
-                printf("Error: invalid number. Pick a value within (0.0, 100.0].\n");
+                printf("Error: invalid number. Pick a value within (0.0, "
+                       "100.0].\n");
                 continue;
             }
 
             display_every_n = (int)(100.0 / display_rate);
             printf("Display rate set to %.3f%%\n", display_rate);
-        }
-        else if (c == 'i') {
+        } else if (c == 'i') {
             printf("Change the device index display filter.\n");
-            printf("Enter the device index you wish to display or -1 for no filter\n");
+            printf("Enter the device index you wish to display or -1 for no "
+                   "filter\n");
             printf(">>> ");
 
             char *buf = NULL;
             size_t len = 0;
             rc = getline(&buf, &len, stdin);
-            if (rc == -1) { printf("Error: bad command\n"); continue; }
+            if (rc == -1) {
+                printf("Error: bad command\n");
+                continue;
+            }
 
             int idx = atoi(buf);
             device_idx_filter_en = idx < 0 ? 0 : 1;
             device_idx_filter = (size_t)idx;
 
             if (device_idx_filter_en)
-                printf("Only displaying frames from device at index %d\n", device_idx_filter);
+                printf("Only displaying frames from device at index %d\n",
+                       device_idx_filter);
             else
                 puts("Displaying frames from all devices");
-        }
-        else if (c == 't') {
+        } else if (c == 't') {
             print_dev_table(devices, num_devs);
-        }
-        else if (c == 'w') {
+        } else if (c == 'w') {
             int nargs;
             printf("Write to a device register.\n");
             if (fcmd[1] == 'i') {
@@ -837,25 +905,29 @@ reset:
             char *buf = NULL;
             size_t len = 0;
             rc = getline(&buf, &len, stdin);
-            if (rc == -1) { printf("Error: bad command\n"); continue; }
+            if (rc == -1) {
+                printf("Error: bad command\n");
+                continue;
+            }
 
             // Parse the command string
             long values[4];
             rc = parse_reg_cmd(buf, values, nargs);
-            if (rc == -1) { printf("Error: bad command\n"); continue; }
+            if (rc == -1) {
+                printf("Error: bad command\n");
+                continue;
+            }
             free(buf);
 
             size_t dev_idx = (size_t)values[0];
             oni_size_t addr;
             oni_size_t val;
-            if (fcmd[1] == 'i')
-            {
-                addr = get_i2c_reg_address(values[1],values[2],(fcmd[2] == 'x') ? 1 : 0);
+            if (fcmd[1] == 'i') {
+                addr = get_i2c_reg_address(
+                    values[1], values[2], (fcmd[2] == 'x') ? 1 : 0);
                 val = (oni_size_t)values[3];
-            }
-            else if (fcmd[1] == 'm')
-            {
-                addr = (oni_size_t)(values[1] | (1<<15));
+            } else if (fcmd[1] == 'm') {
+                addr = (oni_size_t)(values[1] | (1 << 15));
                 val = (oni_size_t)values[2];
 
             } else {
@@ -865,8 +937,7 @@ reset:
 
             rc = oni_write_reg(ctx, dev_idx, addr, val);
             printf("%s\n", oni_error_str(rc));
-        }
-        else if (c == 'r') {
+        } else if (c == 'r') {
             int nargs;
             printf("Read a device register.\n");
             if (fcmd[1] == 'i') {
@@ -882,12 +953,18 @@ reset:
             char *buf = NULL;
             size_t len = 0;
             rc = getline(&buf, &len, stdin);
-            if (rc == -1) { printf("Error: bad command\n"); continue; }
+            if (rc == -1) {
+                printf("Error: bad command\n");
+                continue;
+            }
 
             // Parse the command string
             long values[3];
             rc = parse_reg_cmd(buf, values, nargs);
-            if (rc == -1) { printf("Error: bad command\n"); continue; }
+            if (rc == -1) {
+                printf("Error: bad command\n");
+                continue;
+            }
             free(buf);
 
             size_t dev_idx = (size_t)values[0];
@@ -935,8 +1012,7 @@ reset:
             size_t hub_idx = (size_t)values[0] & 0x0000FF00;
             print_hub_info(hub_idx);
 
-        }
-        else if (c == 'H') {
+        } else if (c == 'H') {
 
             size_t last_hub = 0;
             print_hub_info(0);
@@ -950,10 +1026,10 @@ reset:
                     last_hub = hub;
                 }
             }
-        }
-        else if (c == 'a') {
+        } else if (c == 'a') {
             reg = 1;
-            rc = oni_set_opt(ctx, ONI_OPT_RESETACQCOUNTER, &reg, sizeof(oni_size_t));
+            rc = oni_set_opt(
+                ctx, ONI_OPT_RESETACQCOUNTER, &reg, sizeof(oni_size_t));
             assert(!rc && "Register write failure.");
             printf("Acquisition clock counter reset issued.\n");
         }
@@ -971,9 +1047,11 @@ reset:
     }
 
     // Stop hardware
-    oni_size_t run = 0 ;
+    oni_size_t run = 0;
     rc = oni_set_opt(ctx, ONI_OPT_RUNNING, &run, sizeof(run));
-    if (rc) { printf("Error: %s\n", oni_error_str(rc)); }
+    if (rc) {
+        printf("Error: %s\n", oni_error_str(rc));
+    }
 
     // Free dynamic stuff
     oni_destroy_ctx(ctx);

@@ -1,12 +1,12 @@
 #include <assert.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <math.h>
 
 #include "oni.h"
 #include "onix.h"
@@ -20,7 +20,7 @@
 #include <unistd.h>
 #endif
 
-//default values
+// default values
 #define DEF_BLOCK_READ_SIZE 2048;
 #define DEF_MEM_STEPS_TIMEOUT 10
 #define DEF_LOADTEST_BLOCK_SIZE 100
@@ -40,7 +40,8 @@ uint32_t threshold = 0;
 int num_steps = DEF_MEM_STEPS_TIMEOUT;
 oni_reg_val_t start_rate = DEF_LOADTEST_START_RATE;
 
-inline void error_exit(int rc, const char* str) {
+inline void error_exit(int rc, const char *str)
+{
     puts(str);
     printf("Error: %s (%d)\n", oni_error_str(rc), rc);
     if (devices != NULL)
@@ -50,7 +51,7 @@ inline void error_exit(int rc, const char* str) {
     exit(1);
 }
 
-void reset_board(int setwidth) 
+void reset_board(int setwidth)
 {
     int rc = ONI_ESUCCESS;
     oni_reg_val_t val = 1;
@@ -68,11 +69,12 @@ void reset_board(int setwidth)
     }
 }
 
-float bandwidth(oni_reg_val_t hz) {
+float bandwidth(oni_reg_val_t hz)
+{
     return (2.0 * (float)loadtest_size + 8.0) * hz;
 }
 
-int main(int argc, char* argv[]) 
+int main(int argc, char *argv[])
 {
     oni_reg_val_t val;
 
@@ -90,15 +92,18 @@ int main(int argc, char* argv[])
         case 1:
             break;
         default:
-        printf("Usage:\n\t %s [block_read_size] [loadtest_frame_words] [timeout_seconds] [threshold_bytes] [start_rate_hz]\n", argv[0]);
-        exit(1);
+            printf("Usage:\n\t %s [block_read_size] [loadtest_frame_words] "
+                   "[timeout_seconds] [threshold_bytes] [start_rate_hz]\n",
+                   argv[0]);
+            exit(1);
     }
 
     if (threshold == 0)
         threshold = 100 * loadtest_size;
 
     printf("Bandwdith tester. Usage:\n\t %s [block_read_size] "
-           "[loadtest_frame_words] [timeout_seconds] [threshold_32bit_words] [start_rate_hz]\n",
+           "[loadtest_frame_words] [timeout_seconds] [threshold_32bit_words] "
+           "[start_rate_hz]\n",
            argv[0]);
     printf("Selected settings:\nBlock read size: %d Bytes\nLoad tester words "
            "per frame %d 16bit-words\nTimeout: %d seconds\nBuffer threshold: "
@@ -140,7 +145,7 @@ int main(int argc, char* argv[])
     }
     oni_get_opt(ctx, ONI_OPT_DEVICETABLE, devices, &devices_sz);
 
-    //look for load test and memory devices
+    // look for load test and memory devices
     for (oni_size_t i = 0; i < num_devs; i++) {
         if (devices[i].id == ONIX_LOADTEST)
             loadtest = &devices[i];
@@ -190,7 +195,6 @@ int main(int argc, char* argv[])
     oni_reg_val_t loadtest_hz, loadtest_hz_last;
     loadtest_hz = start_rate;
     loadtest_hz_last = start_rate;
- 
 
     int done = 0;
     int mode = 0;
@@ -200,13 +204,16 @@ int main(int argc, char* argv[])
 
     while (!done) {
         loadtest_div = loadtest_clk / loadtest_hz;
-        printf("%u Hz (%u Hz) (%.0f MB/s): ", loadtest_hz, loadtest_clk/loadtest_div, bandwidth(loadtest_clk/loadtest_div)/1048576);
+        printf("%u Hz (%u Hz) (%.0f MB/s): ",
+               loadtest_hz,
+               loadtest_clk / loadtest_div,
+               bandwidth(loadtest_clk / loadtest_div) / 1048576);
         rc = oni_write_reg(ctx, loadtest->idx, 1, loadtest_div);
         if (rc)
             error_exit(rc, "Error setting load test clock divisor\n");
         reset_board(1);
 
-         //start acquiring
+        // start acquiring
         val = 1;
         rc = oni_set_opt(ctx, ONI_OPT_RUNNING, &val, sizeof(val));
         if (rc)
@@ -221,8 +228,9 @@ int main(int argc, char* argv[])
                 error_exit(rc, "Error reading frame\n");
 
             if (frame->dev_idx == memusage->idx) {
-                uint16_t* data = (uint16_t *)frame->data;
-                uint32_t usage = ((uint32_t)data[4] << 16) | ((uint32_t)data[5]);
+                uint16_t *data = (uint16_t *)frame->data;
+                uint32_t usage
+                    = ((uint32_t)data[4] << 16) | ((uint32_t)data[5]);
                 memvalues[step] = usage;
                 if (usage < threshold) {
                     step++;
@@ -234,21 +242,23 @@ int main(int argc, char* argv[])
                     run = 0;
                 }
             }
-            oni_destroy_frame(frame);        
+            oni_destroy_frame(frame);
         }
         val = 0;
         rc = oni_set_opt(ctx, ONI_OPT_RUNNING, &val, sizeof(val));
         if (rc)
             error_exit(rc, "Error stopping acquisition\n");
-        
-        if (step < num_steps) { //memory filled
+
+        if (step < num_steps) { // memory filled
             printf("OVERFLOW at step %d values ", step);
             for (int i = 0; i <= step; i++)
                 printf("%u ", memvalues[i]);
             printf(" (32-bit words)\n");
             mode++;
-            if (mode == 1) hz_step = loadtest_hz_last;
-            else hz_step = hz_step / 10;
+            if (mode == 1)
+                hz_step = loadtest_hz_last;
+            else
+                hz_step = hz_step / 10;
             loadtest_hz = loadtest_hz_last;
         } else {
             float mean = 0;
@@ -273,19 +283,20 @@ int main(int argc, char* argv[])
                 break;
             default:
                 done = 1;
-        } 
+        }
         if (loadtest_hz_tmp > loadtest_clk) {
-            printf("Unable to continue. Next value of %lu Hz is faster than the "
-                   "device capabilities. Please adjust threshold and/or "
-                   "timeout\n", loadtest_hz_tmp);
+            printf(
+                "Unable to continue. Next value of %lu Hz is faster than the "
+                "device capabilities. Please adjust threshold and/or "
+                "timeout\n",
+                loadtest_hz_tmp);
             done = 1;
         } else
             loadtest_hz = loadtest_hz_tmp;
-
     }
     printf("Last good value: %u Hz %.0f B/s\n",
            loadtest_hz_last,
-           bandwidth(loadtest_hz_last)); 
+           bandwidth(loadtest_hz_last));
 
     free(memvalues);
     oni_destroy_ctx(ctx);

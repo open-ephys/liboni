@@ -1,7 +1,8 @@
 // This is a very simple ONI-compliant hardware emulator. It has some
 // limitations:
 //
-// 1. ONI_OPT_RUNNING does not enable/disable data. To make it work, data would need to be
+// 1. ONI_OPT_RUNNING does not enable/disable data. To make it work, data would
+// need to be
 //    produced on a separate thread and passed through a blocking FIFO
 // 2. Writing data to the device does nothing (data is just ignored)
 
@@ -12,8 +13,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../../onidefs.h"
 #include "../../oni.h"
+#include "../../onidefs.h"
 #include "../../onidriver.h"
 #include "../../onix.h"
 #include "../../test/testfunc.h"
@@ -25,11 +26,13 @@
 
 #define UNUSED(x) (void)(x)
 
-#define ONI_RFRAMEHEADERSZ sizeof(oni_fifo_time_t) + 2 * sizeof(oni_fifo_dat_t) // [time, dev_idx, data_sz]
+#define ONI_RFRAMEHEADERSZ                                                     \
+    sizeof(oni_fifo_time_t)                                                    \
+        + 2 * sizeof(oni_fifo_dat_t) // [time, dev_idx, data_sz]
 
 // NB: To save some repetition
 #define CTX_CAST const oni_test_ctx ctx = (oni_test_ctx)driver_ctx
-#define MIN(a,b) ((a<b) ? a : b)
+#define MIN(a, b) ((a < b) ? a : b)
 
 const oni_driver_info_t driverInfo
     = {.name = "test", .major = 2, .minor = 1, .patch = 0, .pre_release = NULL};
@@ -76,7 +79,7 @@ struct oni_test_ctx_impl {
     // Internal read stream buffer
     size_t max_frame_size; // Max single frame size including header
     size_t buff_pos;       // Read position must be saved between buffer fills
-    char *read_buff; // Buffer that will fit worst case amount of frames
+    char *read_buff;       // Buffer that will fit worst case amount of frames
 
     // Configuration registers
     struct conf_reg conf;
@@ -90,32 +93,28 @@ struct oni_test_ctx_impl {
     int enabled_idx[NUMTESTDEVICES];
 };
 
-typedef struct oni_test_ctx_impl* oni_test_ctx;
+typedef struct oni_test_ctx_impl *oni_test_ctx;
 
 typedef enum oni_signal {
-    NULLSIG             = (1u << 0),
-    CONFIGWACK          = (1u << 1), // Configuration write-acknowledgment
-    CONFIGWNACK         = (1u << 2), // Configuration no-write-acknowledgment
-    CONFIGRACK          = (1u << 3), // Configuration read-acknowledgment
-    CONFIGRNACK         = (1u << 4), // Configuration no-read-acknowledgment
-    DEVICEMAPACK        = (1u << 5), // Device map start acknowledgment
-    DEVICEINST          = (1u << 6), // Device map instance
+    NULLSIG = (1u << 0),
+    CONFIGWACK = (1u << 1),   // Configuration write-acknowledgment
+    CONFIGWNACK = (1u << 2),  // Configuration no-write-acknowledgment
+    CONFIGRACK = (1u << 3),   // Configuration read-acknowledgment
+    CONFIGRNACK = (1u << 4),  // Configuration no-read-acknowledgment
+    DEVICEMAPACK = (1u << 5), // Device map start acknowledgment
+    DEVICEINST = (1u << 6),   // Device map instance
 } oni_signal_t;
 
-static void _fill_read_buffer(oni_test_ctx ctx,
-                              void *data,
-                              size_t num_words);
+static void _fill_read_buffer(oni_test_ctx ctx, void *data, size_t num_words);
 static int _send_msg_signal(oni_test_ctx ctx, oni_signal_t type);
-static int _send_data_signal(oni_test_ctx ctx,
-                             oni_signal_t type,
-                             void *data,
-                             size_t n);
+static int
+_send_data_signal(oni_test_ctx ctx, oni_signal_t type, void *data, size_t n);
 static int _find_dev(oni_test_ctx ctx, oni_dev_idx_t idx);
 static int _find_hub_mgr(oni_dev_idx_t idx);
 
 // TODO:
-//static const size_t write_stream_width = 4;
-//static const size_t read_stream_width = 4;
+// static const size_t write_stream_width = 4;
+// static const size_t read_stream_width = 4;
 static const oni_size_t write_block_size = 1024;
 
 oni_driver_ctx oni_driver_create_ctx()
@@ -147,14 +146,19 @@ oni_driver_ctx oni_driver_create_ctx()
         for (int j = 0; j < NUMTESTDEVICESPERHUB; j++) {
             int k = i * NUMTESTDEVICESPERHUB + j;
 
-            ctx->dev_table[k].dev.idx = (i << 8) + j; // All dev_idx 0 to n on different hubs
+            ctx->dev_table[k].dev.idx
+                = (i << 8) + j; // All dev_idx 0 to n on different hubs
             ctx->dev_table[k].dev.id = ONIX_TEST0;
             ctx->dev_table[k].dev.version = 2;
-            ctx->dev_table[k].dev.read_size = 8 + 2 + 2 * (2 * i + 1); // [8: hub counter, 2: message word, 2 * (i + 1): dummy counter words]
+            ctx->dev_table[k].dev.read_size
+                = 8 + 2 + 2 * (2 * i + 1); // [8: hub counter, 2: message word,
+                                           // 2 * (i + 1): dummy counter words]
             ctx->dev_table[k].dev.write_size = 32;
             ctx->dev_table[k].stream_enabled = 1;
             ctx->dev_table[k].message = (uint16_t)(i * 42);
-            ctx->dev_table[k].dummy_words = 2 * i + 1; // This needs to be odd to enfornce 32-bit boundaries on frame data
+            ctx->dev_table[k].dummy_words
+                = 2 * i + 1; // This needs to be odd to enfornce 32-bit
+                             // boundaries on frame data
             ctx->dev_table[k].counter = 0;
             ctx->dev_table[k].hubhwid = 5;
             ctx->dev_table[k].hubfirmver = 1600;
@@ -216,10 +220,8 @@ int oni_driver_destroy_ctx(oni_driver_ctx driver_ctx)
     return ONI_ESUCCESS;
 }
 
-static int _send_data_signal(oni_test_ctx ctx,
-                             oni_signal_t type,
-                             void *data,
-                             size_t n)
+static int
+_send_data_signal(oni_test_ctx ctx, oni_signal_t type, void *data, size_t n)
 {
     size_t packet_size = sizeof(oni_signal_t) + n;
 
@@ -242,8 +244,8 @@ static int _send_data_signal(oni_test_ctx ctx,
     // COBS data, 1 overhead byte + 0x0 delimiter
     size_t i;
     for (i = 0; i < packet_size + 2; i++)
-       if (queue_u8_enqueue(ctx->sig_queue, dst[i]) == -1)
-           return -1;
+        if (queue_u8_enqueue(ctx->sig_queue, dst[i]) == -1)
+            return -1;
 
     free(src);
 
@@ -251,8 +253,9 @@ static int _send_data_signal(oni_test_ctx ctx,
 }
 
 // Generate frames
-// TODO: Second thread puts frames into FIFO whenever it reaches XX fraction of full would be a better
-// simulator of true hardware because right now the API is doing all the work (creating the data for itself).
+// TODO: Second thread puts frames into FIFO whenever it reaches XX fraction of
+// full would be a better simulator of true hardware because right now the API
+// is doing all the work (creating the data for itself).
 int oni_driver_read_stream(oni_driver_ctx driver_ctx,
                            oni_read_stream_t stream,
                            void *data,
@@ -261,24 +264,21 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
     CTX_CAST;
     int rc;
 
-    if (stream == ONI_READ_STREAM_DATA)
-    {
+    if (stream == ONI_READ_STREAM_DATA) {
         _fill_read_buffer(ctx, data, size);
-       return size;
-    }
-    else if (stream == ONI_READ_STREAM_SIGNAL)
-    {
+        return size;
+    } else if (stream == ONI_READ_STREAM_SIGNAL) {
         // Might actually need a blocking FIFO here.
         oni_size_t read = 0;
-        while (read < size)
-        {
+        while (read < size) {
             rc = queue_u8_dequeue(ctx->sig_queue, (uint8_t *)data + read);
-            if (rc < 0) return ONI_EREADFAILURE;
+            if (rc < 0)
+                return ONI_EREADFAILURE;
             read++;
         }
         return read;
-    }
-    else return ONI_EPATHINVALID;
+    } else
+        return ONI_EPATHINVALID;
 }
 
 // Accept frame data and side effect frames in some way
@@ -292,12 +292,14 @@ int oni_driver_write_stream(oni_driver_ctx driver_ctx,
     size_t to_send, sent;
     uint32_t *ptr = (uint32_t *)data;
 
-    if (stream != ONI_WRITE_STREAM_DATA) return ONI_EPATHINVALID;
+    if (stream != ONI_WRITE_STREAM_DATA)
+        return ONI_EPATHINVALID;
 
     while (remaining > 0) {
         to_send = MIN(remaining, write_block_size);
         sent = to_send; // TODO: Some side effect instead of nothing
-        if (sent != to_send) return ONI_EWRITEFAILURE;
+        if (sent != to_send)
+            return ONI_EWRITEFAILURE;
         ptr += sent;
         remaining -= sent;
     }
@@ -364,10 +366,14 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
                 } else if (ctx->conf.reg_addr == 1) { // Register 1 (message)
                     ctx->conf.reg_value = ctx->dev_table[i].message;
                     _send_msg_signal(ctx, CONFIGRACK);
-                } else if (ctx->conf.reg_addr == 2) { // Register 2 (read-only number of test words following message)
+                } else if (ctx->conf.reg_addr
+                           == 2) { // Register 2 (read-only number of test words
+                                   // following message)
                     ctx->conf.reg_value = ctx->dev_table[i].dummy_words;
                     _send_msg_signal(ctx, CONFIGRACK);
-                } else if (ctx->conf.reg_addr == 3) { // Register 3 (read-only frame rate in Hz with 0 being undefined)
+                } else if (ctx->conf.reg_addr
+                           == 3) { // Register 3 (read-only frame rate in Hz
+                                   // with 0 being undefined)
                     ctx->conf.reg_value = 0;
                     _send_msg_signal(ctx, CONFIGRACK);
                 } else {
@@ -376,8 +382,9 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
             } else if (value) { // write
                 if (hub_mgr) {
                     _send_msg_signal(ctx, CONFIGWNACK); // Read only
-                } else if (ctx->conf.reg_addr == 0) { // Register 0 (enable)
-                    ctx->dev_table[i].stream_enabled = (short)ctx->conf.reg_value;
+                } else if (ctx->conf.reg_addr == 0) {   // Register 0 (enable)
+                    ctx->dev_table[i].stream_enabled
+                        = (short)ctx->conf.reg_value;
                     _send_msg_signal(ctx, CONFIGWACK);
                 } else if (ctx->conf.reg_addr == 1) { // Register 1 (message)
                     ctx->dev_table[i].message = (short)ctx->conf.reg_value;
@@ -388,39 +395,43 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
             }
 
             break;
-
         }
         case ONI_CONFIG_RUNNING:
-            // TODO: To do this, we need data to be produced on a separate thread
-            // and passed through a blocking FIFO
+            // TODO: To do this, we need data to be produced on a separate
+            // thread and passed through a blocking FIFO
             ctx->conf.running = value;
 
             // Lock in the devices that are enabled
             if (value) {
 
-                 int i, k = 0;
-                 for (i = 0; i < ctx->num_devs; i++) {
+                int i, k = 0;
+                for (i = 0; i < ctx->num_devs; i++) {
 
                     if (ctx->dev_table[i].stream_enabled) {
                         ctx->enabled_idx[k] = i;
                         k++;
                     }
-                 }
-                 ctx->num_enabled = k;
+                }
+                ctx->num_enabled = k;
             }
 
             break;
         case ONI_CONFIG_RESET: {
 
-            if (value == 0) return ONI_ESUCCESS;
+            if (value == 0)
+                return ONI_ESUCCESS;
 
             // Put the device map onto the signal stream fifo
-            _send_data_signal(ctx, DEVICEMAPACK, &ctx->num_devs, sizeof(ctx->num_devs));
+            _send_data_signal(
+                ctx, DEVICEMAPACK, &ctx->num_devs, sizeof(ctx->num_devs));
 
             // Loop through devices
             int i;
             for (i = 0; i < ctx->num_devs; i++)
-                _send_data_signal(ctx, DEVICEINST, &ctx->dev_table[i].dev, sizeof(oni_device_t));
+                _send_data_signal(ctx,
+                                  DEVICEINST,
+                                  &ctx->dev_table[i].dev,
+                                  sizeof(oni_device_t));
 
             break;
         }
@@ -498,11 +509,10 @@ int oni_driver_set_opt_callback(oni_driver_ctx driver_ctx,
     UNUSED(oni_option);
     UNUSED(option_len);
 
-    if (oni_option == ONI_OPT_BLOCKREADSIZE)
-    {
-            ctx->block_read_size = *(oni_size_t *)value;
-            ctx->read_buff = (char *)realloc(ctx->read_buff,
-                          ctx->block_read_size + ctx->max_frame_size);
+    if (oni_option == ONI_OPT_BLOCKREADSIZE) {
+        ctx->block_read_size = *(oni_size_t *)value;
+        ctx->read_buff = (char *)realloc(
+            ctx->read_buff, ctx->block_read_size + ctx->max_frame_size);
     }
 
     return ONI_ESUCCESS;
@@ -538,7 +548,8 @@ const oni_driver_info_t *oni_driver_info()
     return &driverInfo;
 }
 
-// NB: Right now,32-bit boundaries on the frame data is enforced through the selection of dummy_words.
+// NB: Right now,32-bit boundaries on the frame data is enforced through the
+// selection of dummy_words.
 static void _fill_read_buffer(oni_test_ctx ctx, void *data, size_t size)
 {
     // Here we are dealing with uint32_t data
@@ -546,8 +557,10 @@ static void _fill_read_buffer(oni_test_ctx ctx, void *data, size_t size)
     // 2. data_sz (4)
     // 3. timer (8)
     // 4. Data ([8: counter, 2: message, 2: dummy counter])
-    int d = ctx->enabled_idx[rand() % ctx->num_enabled]; // Select a random device (that is generating data)
-    for (; // static i
+    int d = ctx->enabled_idx[rand()
+                             % ctx->num_enabled]; // Select a random device
+                                                  // (that is generating data)
+    for (;                                        // static i
          ctx->buff_pos < size;
          ctx->buff_pos
          += (ONI_RFRAMEHEADERSZ + ctx->dev_table[d].dev.read_size),
@@ -555,7 +568,8 @@ static void _fill_read_buffer(oni_test_ctx ctx, void *data, size_t size)
 
         // Header
         *((uint64_t *)(ctx->read_buff + ctx->buff_pos)) = ctx->frame_num++;
-        *((uint32_t *)(ctx->read_buff + ctx->buff_pos + 8)) = ctx->dev_table[d].dev.idx;
+        *((uint32_t *)(ctx->read_buff + ctx->buff_pos + 8))
+            = ctx->dev_table[d].dev.idx;
         *((uint32_t *)(ctx->read_buff + ctx->buff_pos + 12))
             = ctx->dev_table[d].dev.read_size;
 
@@ -568,7 +582,8 @@ static void _fill_read_buffer(oni_test_ctx ctx, void *data, size_t size)
             = ctx->dev_table[d].message;
 
         // Dummy Counter
-        for (int16_t j = 0, k = 0; j < ctx->dev_table[d].dummy_words; j++, k+=2)
+        for (int16_t j = 0, k = 0; j < ctx->dev_table[d].dummy_words;
+             j++, k += 2)
             *((int16_t *)(ctx->read_buff + ctx->buff_pos + 26 + k)) = j;
     }
 

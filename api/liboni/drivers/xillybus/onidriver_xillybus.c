@@ -5,8 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "onidriver_xillybus.h"
 #include "../../onidriver.h"
+#include "onidriver_xillybus.h"
 
 #ifdef _WIN32
 #include <io.h>
@@ -41,23 +41,27 @@ struct oni_xillybus_ctx_impl {
     enum { CLOSED, OPEN } file_state;
 };
 
-typedef struct oni_xillybus_ctx_impl* oni_xillybus_ctx;
+typedef struct oni_xillybus_ctx_impl *oni_xillybus_ctx;
 
 // Configuration file offsets
 typedef enum oni_conf_reg_off {
     // Register R/W interface
-    CONFDEVIDXOFFSET = 0,   // Configuration device index register byte offset
+    CONFDEVIDXOFFSET = 0, // Configuration device index register byte offset
     CONFADDROFFSET = 4,   // Configuration register address register byte offset
-    CONFVALUEOFFSET = 8,   // Configuration register value register byte offset
-    CONFRWOFFSET = 12,  // Configuration register read/write register byte offset
-    CONFTRIGOFFSET = 16,  // Configuration read/write trigger register byte offset
+    CONFVALUEOFFSET = 8,  // Configuration register value register byte offset
+    CONFRWOFFSET = 12, // Configuration register read/write register byte offset
+    CONFTRIGOFFSET = 16, // Configuration read/write trigger register byte
+                         // offset
 
     // Global configuration
-    CONFRUNNINGOFFSET = 20,  // Configuration run hardware register byte offset
-    CONFRESETOFFSET = 24,  // Configuration reset hardware register byte offset
-    CONFSYSCLKHZOFFSET = 28,  // Configuration base clock frequency register byte offset
-    CONFACQCLKHZOFFSET = 32, // Configuration frame counter clock frequency register byte offset
-    CONFRESETACQCOUNTER = 36, // Configuration frame counter clock reset register byte offset
+    CONFRUNNINGOFFSET = 20, // Configuration run hardware register byte offset
+    CONFRESETOFFSET = 24,   // Configuration reset hardware register byte offset
+    CONFSYSCLKHZOFFSET = 28, // Configuration base clock frequency register byte
+                             // offset
+    CONFACQCLKHZOFFSET = 32, // Configuration frame counter clock frequency
+                             // register byte offset
+    CONFRESETACQCOUNTER = 36, // Configuration frame counter clock reset
+                              // register byte offset
     CONFHWADDRESS = 40 // Configuration hardware address register byte offset
 } oni_conf_off_t;
 
@@ -88,20 +92,20 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
     // Open the device files
     ctx->config.fid = open(ctx->config.path, O_RDWR | _O_BINARY);
     if (ctx->config.fid == -1) {
-        //fprintf(stderr, "%s: %s\n", strerror(errno), ctx->config.path);
+        // fprintf(stderr, "%s: %s\n", strerror(errno), ctx->config.path);
         return ONI_EPATHINVALID;
     }
 
     ctx->signal.fid = open(ctx->signal.path, O_RDONLY | _O_BINARY);
     if (ctx->signal.fid == -1) {
-        //fprintf(stderr, "%s: %s\n", strerror(errno), ctx->signal.path);
+        // fprintf(stderr, "%s: %s\n", strerror(errno), ctx->signal.path);
         close(ctx->config.fid);
         return ONI_EPATHINVALID;
     }
 
     ctx->read.fid = open(ctx->read.path, O_RDONLY | _O_BINARY);
     if (ctx->read.fid == -1) {
-        //fprintf(stderr, "%s: %s\n", strerror(errno), ctx->read.path);
+        // fprintf(stderr, "%s: %s\n", strerror(errno), ctx->read.path);
         close(ctx->config.fid);
         close(ctx->signal.fid);
         return ONI_EPATHINVALID;
@@ -109,7 +113,7 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 
     ctx->write.fid = open(ctx->write.path, O_WRONLY | _O_BINARY);
     if (ctx->write.fid == -1) {
-        //fprintf(stderr, "%s: %s\n", strerror(errno), ctx->write.path);
+        // fprintf(stderr, "%s: %s\n", strerror(errno), ctx->write.path);
         close(ctx->config.fid);
         close(ctx->signal.fid);
         close(ctx->read.fid);
@@ -128,10 +132,14 @@ int oni_driver_destroy_ctx(oni_driver_ctx driver_ctx)
 
     if (ctx->file_state >= OPEN) {
 
-        if (close(ctx->config.fid) == -1) goto oni_close_ctx_fail;
-        if (close(ctx->read.fid) == -1) goto oni_close_ctx_fail;
-        if (close(ctx->write.fid) == -1) goto oni_close_ctx_fail;
-        if (close(ctx->signal.fid) == -1) goto oni_close_ctx_fail;
+        if (close(ctx->config.fid) == -1)
+            goto oni_close_ctx_fail;
+        if (close(ctx->read.fid) == -1)
+            goto oni_close_ctx_fail;
+        if (close(ctx->write.fid) == -1)
+            goto oni_close_ctx_fail;
+        if (close(ctx->signal.fid) == -1)
+            goto oni_close_ctx_fail;
     }
 
     free(ctx->config.path);
@@ -191,13 +199,12 @@ int oni_driver_write_stream(oni_driver_ctx driver_ctx,
     size_t written = 0;
 
     int data_fd;
-    switch (stream)
-    {
-    case ONI_WRITE_STREAM_DATA:
-        data_fd = ctx->write.fid;
-        break;
-    default:
-        return ONI_EPATHINVALID;
+    switch (stream) {
+        case ONI_WRITE_STREAM_DATA:
+            data_fd = ctx->write.fid;
+            break;
+        default:
+            return ONI_EPATHINVALID;
     }
 
     while (written < size) {
@@ -233,7 +240,9 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
     return ONI_ESUCCESS;
 }
 
-int oni_driver_read_config(oni_driver_ctx driver_ctx, oni_config_t reg, oni_reg_val_t* value)
+int oni_driver_read_config(oni_driver_ctx driver_ctx,
+                           oni_config_t reg,
+                           oni_reg_val_t *value)
 {
     CTX_CAST;
     oni_conf_off_t read_offset = _oni_register_offset(reg);
@@ -248,7 +257,7 @@ int oni_driver_read_config(oni_driver_ctx driver_ctx, oni_config_t reg, oni_reg_
     return ONI_ESUCCESS;
 }
 
-//Right now we do not do anything for the common options
+// Right now we do not do anything for the common options
 int oni_driver_set_opt_callback(oni_driver_ctx driver_ctx,
                                 int oni_option,
                                 const void *value,
@@ -269,7 +278,8 @@ int oni_driver_set_opt(oni_driver_ctx driver_ctx,
     CTX_CAST;
     switch (driver_option) {
         case ONI_XILLYBUS_CONFIGSTREAMPATH: {
-            assert(ctx->file_state == CLOSED && "Context state must be UNINITIALIZED.");
+            assert(ctx->file_state == CLOSED
+                   && "Context state must be UNINITIALIZED.");
             if (ctx->file_state != CLOSED)
                 return ONI_EINVALSTATE;
             ctx->config.path = realloc(ctx->config.path, option_len);
@@ -277,7 +287,8 @@ int oni_driver_set_opt(oni_driver_ctx driver_ctx,
             break;
         }
         case ONI_XILLYBUS_READSTREAMPATH: {
-            assert(ctx->file_state == CLOSED && "Context state must be UNINITIALIZED.");
+            assert(ctx->file_state == CLOSED
+                   && "Context state must be UNINITIALIZED.");
             if (ctx->file_state != CLOSED)
                 return ONI_EINVALSTATE;
             ctx->read.path = realloc(ctx->read.path, option_len);
@@ -285,7 +296,8 @@ int oni_driver_set_opt(oni_driver_ctx driver_ctx,
             break;
         }
         case ONI_XILLYBUS_WRITESTREAMPATH: {
-            assert(ctx->file_state == CLOSED && "Context state must be UNINITIALIZED.");
+            assert(ctx->file_state == CLOSED
+                   && "Context state must be UNINITIALIZED.");
             if (ctx->file_state != CLOSED)
                 return ONI_EINVALSTATE;
             ctx->write.path = realloc(ctx->write.path, option_len);
@@ -293,7 +305,8 @@ int oni_driver_set_opt(oni_driver_ctx driver_ctx,
             break;
         }
         case ONI_XILLYBUS_SIGNALSTREAMPATH: {
-            assert(ctx->file_state == CLOSED && "Context state must be UNINITIALIZED.");
+            assert(ctx->file_state == CLOSED
+                   && "Context state must be UNINITIALIZED.");
             if (ctx->file_state != CLOSED)
                 return ONI_EINVALSTATE;
             ctx->signal.path = realloc(ctx->signal.path, option_len);
@@ -355,7 +368,7 @@ int oni_driver_get_opt(oni_driver_ctx driver_ctx,
     return ONI_ESUCCESS;
 }
 
-const char* oni_driver_str()
+const char *oni_driver_str()
 {
     return XILLYBUS_DRIVER_NAME;
 }

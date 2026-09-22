@@ -1,8 +1,8 @@
 #include <math.h>
 #include <stddef.h>
 
-#include "testfunc.h"
 #include "../onidefs.h"
+#include "testfunc.h"
 
 #define FINISHBLOCK(X) (*code_ptr = (X), code_ptr = dst++, code = 0x01)
 
@@ -21,7 +21,7 @@ int cobs_stuff(uint8_t *dst, const uint8_t *src, size_t size)
             FINISHBLOCK(code);
         else { // No encoding required
             *dst++ = *src;
-            if (++code == 0xFF) //Data exceeds 254 byte len
+            if (++code == 0xFF) // Data exceeds 254 byte len
                 return ONI_ECOBSPACK;
         }
         src++;
@@ -75,7 +75,8 @@ void usleep(__int64 usec)
     CloseHandle(timer);
 }
 
-size_t getline(char **lineptr, size_t *n, FILE *stream) {
+size_t getline(char **lineptr, size_t *n, FILE *stream)
+{
     char *bufptr = NULL;
     char *p = bufptr;
     size_t size;
@@ -132,12 +133,12 @@ size_t getline(char **lineptr, size_t *n, FILE *stream) {
 timespec_t timediff(timespec_t start, timespec_t end)
 {
     timespec_t temp;
-    if ((end.tv_nsec-start.tv_nsec)<0) {
-        temp.tv_sec = end.tv_sec-start.tv_sec-1;
-        temp.tv_nsec = 1000000000+end.tv_nsec-start.tv_nsec;
+    if ((end.tv_nsec - start.tv_nsec) < 0) {
+        temp.tv_sec = end.tv_sec - start.tv_sec - 1;
+        temp.tv_nsec = 1000000000 + end.tv_nsec - start.tv_nsec;
     } else {
-        temp.tv_sec = end.tv_sec-start.tv_sec;
-        temp.tv_nsec = end.tv_nsec-start.tv_nsec;
+        temp.tv_sec = end.tv_sec - start.tv_sec;
+        temp.tv_nsec = end.tv_nsec - start.tv_nsec;
     }
     return temp;
 }
