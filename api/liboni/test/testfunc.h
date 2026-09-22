@@ -1,15 +1,15 @@
 #ifndef __ONI_TESTFUNC_H__
 #define __ONI_TESTFUNC_H__
 
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 int cobs_stuff(uint8_t *dst, const uint8_t *src, size_t size);
 double randn(double mu, double sigma);
 
 #ifdef _WIN32
-#include <windows.h>
 #include <stdio.h>
+#include <windows.h>
 
 // Windows stdlib does not have a usleep()
 // https://www.c-plusplus.net/forum/topic/109539/usleep-unter-window

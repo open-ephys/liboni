@@ -1,8 +1,8 @@
 #ifndef __QUEUE_U8_H__
 #define __QUEUE_U8_H__
 
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 // Simple uint8_t queue
 

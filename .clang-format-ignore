@@ -1,0 +1,7 @@
+#ignore riffa code
+drivers/**
+
+#ignore ftdi code
+api/liboni/drivers/ft600/ft3dxx/**
+
+**/ketopt.h

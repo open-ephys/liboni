@@ -156,8 +156,7 @@ const char *onix_hub_str(int dev_id)
         case ONIX_HUB_HSNP1EH: {
             return "Open Ephys ONIX Headstage-Neuropixels1.0e-Hirose";
         }
-        case ONIX_HUB_ACQBOARD:
-        {
+        case ONIX_HUB_ACQBOARD: {
             return "Open Ephys Acquisition Board";
         }
         case ONIX_HUB_RHYTHM: {

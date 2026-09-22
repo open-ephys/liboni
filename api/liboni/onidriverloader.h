@@ -15,21 +15,34 @@ typedef void *lib_handle_t;
 #endif
 
 // Function pointers for common access
-typedef oni_driver_ctx(*oni_driver_create_ctx_f)(void);
-typedef int(*oni_driver_init_f)(oni_driver_ctx, int);
-typedef int(*oni_driver_destroy_ctx_f)(oni_driver_ctx);
+typedef oni_driver_ctx (*oni_driver_create_ctx_f)(void);
+typedef int (*oni_driver_init_f)(oni_driver_ctx, int);
+typedef int (*oni_driver_destroy_ctx_f)(oni_driver_ctx);
 
-typedef int(*oni_driver_read_stream_f)(oni_driver_ctx, oni_read_stream_t, void *, size_t);
-typedef int(*oni_driver_write_stream_f)(oni_driver_ctx, oni_write_stream_t, const char *, size_t);
+typedef int (*oni_driver_read_stream_f)(oni_driver_ctx,
+                                        oni_read_stream_t,
+                                        void *,
+                                        size_t);
+typedef int (*oni_driver_write_stream_f)(oni_driver_ctx,
+                                         oni_write_stream_t,
+                                         const char *,
+                                         size_t);
 
-typedef int(*oni_driver_read_config_f)(oni_driver_ctx, oni_config_t, oni_reg_val_t *);
-typedef int(*oni_driver_write_config_f)(oni_driver_ctx, oni_config_t, oni_reg_val_t);
+typedef int (*oni_driver_read_config_f)(oni_driver_ctx,
+                                        oni_config_t,
+                                        oni_reg_val_t *);
+typedef int (*oni_driver_write_config_f)(oni_driver_ctx,
+                                         oni_config_t,
+                                         oni_reg_val_t);
 
-typedef int(*oni_driver_set_opt_f)(oni_driver_ctx, int, const void *, size_t);
-typedef int(*oni_driver_get_opt_f)(oni_driver_ctx, int, void *, size_t *);
-typedef int(*oni_driver_set_opt_callback_f)(oni_driver_ctx, int, const void *, size_t);
+typedef int (*oni_driver_set_opt_f)(oni_driver_ctx, int, const void *, size_t);
+typedef int (*oni_driver_get_opt_f)(oni_driver_ctx, int, void *, size_t *);
+typedef int (*oni_driver_set_opt_callback_f)(oni_driver_ctx,
+                                             int,
+                                             const void *,
+                                             size_t);
 
-typedef const oni_driver_info_t*(*oni_driver_info_f)(void);
+typedef const oni_driver_info_t *(*oni_driver_info_f)(void);
 
 // Driver field with function table and driver context
 typedef struct oni_driver {

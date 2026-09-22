@@ -1,18 +1,17 @@
-#include <iostream>
-#include <string>
 #include <errno.h>
-#include <vector>
-#include <thread>
+#include <iostream>
 #include <memory>
 #include <sstream>
 #include <string>
+#include <thread>
+#include <vector>
 
 #include "oelogo.h"
 #include "oni.hpp"
 #include "onix.hpp"
 
 // Dump raw device streams to files?
-//#define DUMPFILES
+// #define DUMPFILES
 
 #ifdef DUMPFILES
 std::vector<FILE *> dump_files;
@@ -21,12 +20,12 @@ std::vector<FILE *> dump_files;
 // Windows- and UNIX-specific includes etc
 #ifdef _WIN32
 #include <windows.h>
-//#pragma comment(lib, "liboni")
+// #pragma comment(lib, "liboni")
 #include <stdio.h>
 #include <stdlib.h>
 #else
-#include <unistd.h>
 #include <pthread.h>
+#include <unistd.h>
 #endif
 
 volatile int quit = 0;
@@ -58,10 +57,14 @@ int parse_reg_cmd(const char *cmd, long *values, int len)
 void print_dev_table(oni::device_map_t devices)
 {
     // Show device table
-    printf("   +--------------------+-------+-------+-------+---------------------\n");
+    printf("   "
+           "+--------------------+-------+-------+-------+---------------------"
+           "\n");
     printf("   |        \t\t|  \t|Read\t|Wrt. \t|     \n");
     printf("   |Dev. idx\t\t|ID\t|size\t|size \t|Desc.\n");
-    printf("   +--------------------+-------+-------+-------+---------------------\n");
+    printf("   "
+           "+--------------------+-------+-------+-------+---------------------"
+           "\n");
 
     int k = 0;
     for (const auto &d : devices) {
@@ -79,7 +82,9 @@ void print_dev_table(oni::device_map_t devices)
                dev_str);
     }
 
-    printf("   +--------------------+-------+-------+-------+---------------------\n");
+    printf("   "
+           "+--------------------+-------+-------+-------+---------------------"
+           "\n");
 }
 
 void data_loop(std::shared_ptr<oni::context_t> ctx)
@@ -94,18 +99,22 @@ void data_loop(std::shared_ptr<oni::context_t> ctx)
 
             auto frame = ctx->read_frame();
 
-
             auto data = frame.data<uint16_t>();
 
 #ifdef DUMPFILES
-            fwrite(data.data(), sizeof(uint16_t), data.size(), dump_files[frame.device_index()]);
+            fwrite(data.data(),
+                   sizeof(uint16_t),
+                   data.size(),
+                   dump_files[frame.device_index()]);
 #endif
 
             if (display && counter % 1000 == 0) {
 
-                std::cout << "\t [" << frame.time() << "] Dev: " << frame.device_index() << " ("
-                          << onix::device_str(dev_map.at(frame.device_index()).id)
-                          << ")\n";
+                std::cout
+                    << "\t [" << frame.time()
+                    << "] Dev: " << frame.device_index() << " ("
+                    << onix::device_str(dev_map.at(frame.device_index()).id)
+                    << ")\n";
 
                 std::cout << "\tData: [";
 
@@ -175,15 +184,17 @@ int main(int argc, char *argv[])
                   << ctx->get_opt<uint32_t>(ONI_OPT_MAXREADFRAMESIZE)
                   << " bytes\n";
 
-        std::cout << "Setting block read size to: " << block_read_size << " bytes\n";
+        std::cout << "Setting block read size to: " << block_read_size
+                  << " bytes\n";
         ctx->set_opt(ONI_OPT_BLOCKREADSIZE, block_read_size);
 
         std::cout << "Block read size: "
                   << ctx->get_opt<oni_size_t>(ONI_OPT_BLOCKREADSIZE)
                   << " bytes\n";
 
-        std::cout << "Setting write pre-allocation buffer to: " << block_write_size
-                  << " bytes\n";
+        std::cout
+            << "Setting write pre-allocation buffer to: " << block_write_size
+            << " bytes\n";
         ctx->set_opt(ONI_OPT_BLOCKWRITESIZE, block_write_size);
 
         std::cout << "Write pre-allocation size: "
@@ -279,7 +290,7 @@ int main(int argc, char *argv[])
             }
         }
 
-        //ctx->write<uint32_t>(8, std::vector<uint32_t>{1, 2});
+        // ctx->write<uint32_t>(8, std::vector<uint32_t>{1, 2});
 
         // Join data and signal threads
         quit = 1;

@@ -22,7 +22,9 @@
 #define ONI_COBSBUFFERSIZE 255
 
 // Frame constants
-#define ONI_RFRAMEHEADERSZ sizeof(oni_fifo_time_t) + 2 * sizeof(oni_fifo_dat_t) // [time, dev_idx, data_sz]
+#define ONI_RFRAMEHEADERSZ                                                     \
+    sizeof(oni_fifo_time_t)                                                    \
+        + 2 * sizeof(oni_fifo_dat_t) // [time, dev_idx, data_sz]
 #define ONI_WFRAMEHEADERSZ 2 * sizeof(oni_fifo_dat_t) // [dev_idx, data_sz]
 
 // Reference counter
@@ -79,38 +81,41 @@ struct oni_ctx_impl {
     struct oni_buf_impl *shared_wbuf;
 
     // Acquisition state
-    enum {
-        CTXNULL = 0,
-        UNINITIALIZED,
-        IDLE,
-        RUNNING
-    } run_state;
+    enum { CTXNULL = 0, UNINITIALIZED, IDLE, RUNNING } run_state;
 };
 
 // Signal flags
 typedef enum {
-    NULLSIG             = (1u << 0),
-    CONFIGWACK          = (1u << 1), // Configuration write-acknowledgment
-    CONFIGWNACK         = (1u << 2), // Configuration no-write-acknowledgment
-    CONFIGRACK          = (1u << 3), // Configuration read-acknowledgment
-    CONFIGRNACK         = (1u << 4), // Configuration no-read-acknowledgment
-    DEVICETABLEACK      = (1u << 5), // Device table start acknowledgment
-    DEVICEINST          = (1u << 6), // Device table instance
+    NULLSIG = (1u << 0),
+    CONFIGWACK = (1u << 1),     // Configuration write-acknowledgment
+    CONFIGWNACK = (1u << 2),    // Configuration no-write-acknowledgment
+    CONFIGRACK = (1u << 3),     // Configuration read-acknowledgment
+    CONFIGRNACK = (1u << 4),    // Configuration no-read-acknowledgment
+    DEVICETABLEACK = (1u << 5), // Device table start acknowledgment
+    DEVICEINST = (1u << 6),     // Device table instance
 } oni_signal_t;
 
 // Helpers
 static inline oni_dev_idx_t _oni_hash32(oni_dev_idx_t x);
 static inline int _oni_hash32_find(oni_ctx ctx, oni_dev_idx_t x);
 static int _oni_reset_routine(oni_ctx ctx);
-static inline int _oni_read(oni_ctx ctx, oni_read_stream_t stream, void *data, size_t size);
-static inline int _oni_write(oni_ctx ctx, oni_write_stream_t stream, const char* data, size_t size);
+static inline int
+_oni_read(oni_ctx ctx, oni_read_stream_t stream, void *data, size_t size);
+static inline int _oni_write(oni_ctx ctx,
+                             oni_write_stream_t stream,
+                             const char *data,
+                             size_t size);
 static int _oni_read_signal_packet(oni_ctx ctx, uint8_t *buffer);
-static int _oni_read_signal_data(oni_ctx ctx, oni_signal_t *type, void *data, size_t size);
+static int
+_oni_read_signal_data(oni_ctx ctx, oni_signal_t *type, void *data, size_t size);
 static int _oni_pump_signal_type(oni_ctx ctx, int flags, oni_signal_t *type);
-static int _oni_pump_signal_data(oni_ctx ctx, int flags, oni_signal_t *type, void *data, int size);
+static int _oni_pump_signal_data(
+    oni_ctx ctx, int flags, oni_signal_t *type, void *data, int size);
 static int _oni_cobs_unstuff(uint8_t *dst, const uint8_t *src, size_t size);
-static inline int _oni_write_config(oni_ctx ctx, oni_config_t reg, oni_reg_val_t value);
-static inline int _oni_read_config(oni_ctx, oni_config_t reg, oni_reg_val_t *value);
+static inline int
+_oni_write_config(oni_ctx ctx, oni_config_t reg, oni_reg_val_t value);
+static inline int
+_oni_read_config(oni_ctx, oni_config_t reg, oni_reg_val_t *value);
 static int _oni_alloc_write_buffer(oni_ctx ctx, void **data, size_t size);
 static int _oni_ensure_read_buffer(oni_ctx ctx);
 static void _oni_dump_buffers(oni_ctx ctx);
@@ -118,7 +123,7 @@ static void _oni_destroy_buffer(const struct ref *ref);
 static inline void _ref_inc(struct ref *ref);
 static inline void _ref_dec(struct ref *ref);
 
-oni_ctx oni_create_ctx(const char* drv_name)
+oni_ctx oni_create_ctx(const char *drv_name)
 {
     oni_ctx ctx = calloc(1, sizeof(struct oni_ctx_impl));
 
@@ -149,18 +154,21 @@ int oni_init_ctx(oni_ctx ctx, int host_idx)
         return ONI_EINVALSTATE;
 
     int rc = ctx->driver.init(ctx->driver.ctx, host_idx);
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
     // NB: Trigger reset routine (populates device table and key acquisition
     // parameters) Success will set ctx->run_state to IDLE
 
     // Set the reset register
     rc = _oni_write_config(ctx, ONI_CONFIG_RESET, 1);
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
     // Get device table etc
     rc = _oni_reset_routine(ctx);
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
     // Run state is now IDLE
     ctx->run_state = IDLE;
@@ -172,7 +180,8 @@ int oni_destroy_ctx(oni_ctx ctx)
 {
     assert(ctx != NULL && "Context is NULL");
     int rc = oni_destroy_driver(&ctx->driver);
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
     // NB: _ref_dec is only called when a new shared buffer is created. We must
     // therefore explicitly decrement the active shared buffers here to balance
@@ -201,7 +210,8 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
     switch (ctx_opt) {
         case ONI_OPT_DEVICETABLE: {
 
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -215,7 +225,8 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
         }
         case ONI_OPT_NUMDEVICES: {
 
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -229,7 +240,8 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
         }
         case ONI_OPT_RUNNING: {
 
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -237,14 +249,16 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
                 return ONI_EBUFFERSIZE;
 
             int rc = _oni_read_config(ctx, ONI_CONFIG_RUNNING, value);
-            if (rc) return rc;
+            if (rc)
+                return rc;
 
             *option_len = ONI_REGSZ;
             break;
         }
         case ONI_OPT_SYSCLKHZ: {
 
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -252,14 +266,16 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
                 return ONI_EBUFFERSIZE;
 
             int rc = _oni_read_config(ctx, ONI_CONFIG_SYSCLKHZ, value);
-            if (rc) return rc;
+            if (rc)
+                return rc;
 
             *option_len = ONI_REGSZ;
             break;
         }
         case ONI_OPT_ACQCLKHZ: {
 
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -267,14 +283,16 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
                 return ONI_EBUFFERSIZE;
 
             int rc = _oni_read_config(ctx, ONI_CONFIG_ACQCLKHZ, value);
-            if (rc) return rc;
+            if (rc)
+                return rc;
 
             *option_len = ONI_REGSZ;
             break;
         }
         case ONI_OPT_HWADDRESS: {
 
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -282,14 +300,16 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
                 return ONI_EBUFFERSIZE;
 
             int rc = _oni_read_config(ctx, ONI_CONFIG_HWADDRESS, value);
-            if (rc) return rc;
+            if (rc)
+                return rc;
 
             *option_len = ONI_REGSZ;
             break;
         }
         case ONI_OPT_MAXREADFRAMESIZE: {
 
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -303,7 +323,8 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
         }
         case ONI_OPT_MAXWRITEFRAMESIZE: {
 
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -317,9 +338,10 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
         }
         case ONI_OPT_BLOCKREADSIZE: {
 
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
-                 return ONI_EINVALSTATE;
+                return ONI_EINVALSTATE;
 
             if (*option_len < ONI_REGSZ)
                 return ONI_EBUFFERSIZE;
@@ -330,7 +352,8 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
         }
         case ONI_OPT_BLOCKWRITESIZE: {
 
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -348,11 +371,13 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
 
             // Attempt to read to custom (outside ONI spec) configuration
             // option
-            assert(ctx_opt >= ONI_OPT_CUSTOMBEGIN && "Invalid custom configuration register.");
+            assert(ctx_opt >= ONI_OPT_CUSTOMBEGIN
+                   && "Invalid custom configuration register.");
             if (ctx_opt < ONI_OPT_CUSTOMBEGIN)
                 return ONI_EPROTCONFIG;
 
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -360,9 +385,11 @@ int oni_get_opt(const oni_ctx ctx, int ctx_opt, void *value, size_t *option_len)
                 return ONI_EBUFFERSIZE;
 
             int rc = _oni_read_config(ctx,
-                                      ONI_CONFIG_CUSTOMBEGIN + (ctx_opt - ONI_OPT_CUSTOMBEGIN),
+                                      ONI_CONFIG_CUSTOMBEGIN
+                                          + (ctx_opt - ONI_OPT_CUSTOMBEGIN),
                                       value);
-            if (rc) return rc;
+            if (rc)
+                return rc;
 
             *option_len = ONI_REGSZ;
 
@@ -378,7 +405,8 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
 
     switch (ctx_opt) {
         case ONI_OPT_RUNNING: {
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -386,8 +414,9 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
                 return ONI_EBUFFERSIZE;
 
             int rc = _oni_write_config(
-                ctx, ONI_CONFIG_RUNNING, *(oni_reg_val_t*)value);
-            if (rc) return rc;
+                ctx, ONI_CONFIG_RUNNING, *(oni_reg_val_t *)value);
+            if (rc)
+                return rc;
 
             // Dump buffers
             // TODO: Is this always the right thing to do? In the case our
@@ -413,18 +442,21 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
             if (*(oni_reg_val_t *)value != 0) {
 
                 int rc = _oni_write_config(
-                    ctx, ONI_CONFIG_RESET, *(oni_reg_val_t*)value);
-                if (rc) return rc;
+                    ctx, ONI_CONFIG_RESET, *(oni_reg_val_t *)value);
+                if (rc)
+                    return rc;
 
                 // Get device table etc
                 rc = _oni_reset_routine(ctx);
-                if (rc) return rc;
+                if (rc)
+                    return rc;
             }
 
             break;
         }
         case ONI_OPT_RESETACQCOUNTER: {
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -435,13 +467,15 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
 
                 int rc = _oni_write_config(
                     ctx, ONI_CONFIG_RESETACQCOUNTER, *(oni_reg_val_t *)value);
-                if (rc) return rc;
+                if (rc)
+                    return rc;
             }
 
             break;
         }
         case ONI_OPT_HWADDRESS: {
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -450,7 +484,8 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
 
             int rc = _oni_write_config(
                 ctx, ONI_CONFIG_HWADDRESS, *(oni_reg_val_t *)value);
-            if (rc) return rc;
+            if (rc)
+                return rc;
 
             break;
         }
@@ -479,7 +514,6 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
             ctx->block_read_size = block_read_size;
 
             break;
-
         }
         case ONI_OPT_BLOCKWRITESIZE: {
             // NB: If we are careful, this could be changed during RUNNING
@@ -518,11 +552,13 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
 
             // Attempt to write to custom (outside ONI spec) configuration
             // option
-            assert(ctx_opt >= ONI_OPT_CUSTOMBEGIN && "Invalid custom configuration register.");
+            assert(ctx_opt >= ONI_OPT_CUSTOMBEGIN
+                   && "Invalid custom configuration register.");
             if (ctx_opt < ONI_OPT_CUSTOMBEGIN)
                 return ONI_EPROTCONFIG;
 
-            assert(ctx->run_state > UNINITIALIZED && "Context state must be IDLE or RUNNING.");
+            assert(ctx->run_state > UNINITIALIZED
+                   && "Context state must be IDLE or RUNNING.");
             if (ctx->run_state < IDLE)
                 return ONI_EINVALSTATE;
 
@@ -530,23 +566,32 @@ int oni_set_opt(oni_ctx ctx, int ctx_opt, const void *value, size_t option_len)
                 return ONI_EBUFFERSIZE;
 
             int rc = _oni_write_config(ctx,
-                                       ONI_CONFIG_CUSTOMBEGIN + (ctx_opt - ONI_OPT_CUSTOMBEGIN),
+                                       ONI_CONFIG_CUSTOMBEGIN
+                                           + (ctx_opt - ONI_OPT_CUSTOMBEGIN),
                                        *(oni_reg_val_t *)value);
-            if (rc) return rc;
+            if (rc)
+                return rc;
 
             break;
         }
     }
 
-    return ctx->driver.set_opt_callback(ctx->driver.ctx, ctx_opt, value, option_len);
+    return ctx->driver.set_opt_callback(
+        ctx->driver.ctx, ctx_opt, value, option_len);
 }
 
-int oni_get_driver_opt(const oni_ctx ctx, int drv_opt, void* value, size_t *option_len)
+int oni_get_driver_opt(const oni_ctx ctx,
+                       int drv_opt,
+                       void *value,
+                       size_t *option_len)
 {
     return ctx->driver.get_opt(ctx->driver.ctx, drv_opt, value, option_len);
 }
 
-int oni_set_driver_opt(oni_ctx ctx, int drv_opt, const void* value, size_t option_len)
+int oni_set_driver_opt(oni_ctx ctx,
+                       int drv_opt,
+                       const void *value,
+                       size_t option_len)
 {
     return ctx->driver.set_opt(ctx->driver.ctx, drv_opt, value, option_len);
 }
@@ -562,32 +607,41 @@ int oni_write_reg(const oni_ctx ctx,
     // Make sure we are not already in config triggered state
     oni_reg_val_t trig = 0;
     int rc = _oni_read_config(ctx, ONI_CONFIG_TRIG, &trig);
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
-    if (trig != 0) return ONI_ERETRIG;
+    if (trig != 0)
+        return ONI_ERETRIG;
 
     // Set config registers and trigger a write
     rc = _oni_write_config(ctx, ONI_CONFIG_DEV_IDX, dev_idx);
-    if (rc) return rc;
+    if (rc)
+        return rc;
     rc = _oni_write_config(ctx, ONI_CONFIG_REG_ADDR, addr);
-    if (rc) return rc;
+    if (rc)
+        return rc;
     rc = _oni_write_config(ctx, ONI_CONFIG_REG_VALUE, value);
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
     oni_reg_val_t rw = 1;
     rc = _oni_write_config(ctx, ONI_CONFIG_RW, rw);
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
     trig = 1;
     rc = _oni_write_config(ctx, ONI_CONFIG_TRIG, trig);
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
     // Wait for response from hardware
     oni_signal_t type;
     rc = _oni_pump_signal_type(ctx, CONFIGWACK | CONFIGWNACK, &type);
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
-    if (type == CONFIGWNACK) return ONI_EWRITEFAILURE;
+    if (type == CONFIGWNACK)
+        return ONI_EWRITEFAILURE;
 
     return ONI_ESUCCESS;
 }
@@ -603,33 +657,42 @@ int oni_read_reg(const oni_ctx ctx,
     // Make sure we are not already in config triggered state
     oni_reg_val_t trig = 0;
     int rc = _oni_read_config(ctx, ONI_CONFIG_TRIG, &trig);
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
-    if (trig != 0) return ONI_ERETRIG;
+    if (trig != 0)
+        return ONI_ERETRIG;
 
     // Set configuration registers and trigger a write
     rc = _oni_write_config(ctx, ONI_CONFIG_DEV_IDX, dev_idx);
-    if (rc) return rc;
+    if (rc)
+        return rc;
     rc = _oni_write_config(ctx, ONI_CONFIG_REG_ADDR, addr);
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
     oni_reg_val_t rw = 0;
     rc = _oni_write_config(ctx, ONI_CONFIG_RW, rw);
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
     trig = 1;
     rc = _oni_write_config(ctx, ONI_CONFIG_TRIG, trig);
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
     // Wait for response from hardware
     oni_signal_t type;
     rc = _oni_pump_signal_type(ctx, CONFIGRACK | CONFIGRNACK, &type);
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
-    if (type == CONFIGRNACK) return ONI_EREADFAILURE;
+    if (type == CONFIGRNACK)
+        return ONI_EREADFAILURE;
 
     rc = _oni_read_config(ctx, ONI_CONFIG_REG_VALUE, value);
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
     return ONI_ESUCCESS;
 }
@@ -637,9 +700,9 @@ int oni_read_reg(const oni_ctx ctx,
 // NB: Although it seems that with fixed sized reads, we should be able to just
 // point the frame header into the shared buffer, the issue is that
 // we still need to know what device we are dealing with, which requires that we
-// look at the buffer. So there needs to be two _oni_read_buffer's in here no matter
-// what, as far as I can tell. But these are basically just function call overhead
-// unless there is an allocation event anyway.
+// look at the buffer. So there needs to be two _oni_read_buffer's in here no
+// matter what, as far as I can tell. But these are basically just function call
+// overhead unless there is an allocation event anyway.
 int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
 {
     assert(ctx != NULL && "Context is NULL");
@@ -649,12 +712,15 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
     assert(ctx->run_state >= IDLE && "Context is not acquiring.");
 
     // Get the device index and data size from the buffer
-    // TODO: what is the point of having an oni_fifo_t if we are hard coding the header size anyway?
+    // TODO: what is the point of having an oni_fifo_t if we are hard coding the
+    // header size anyway?
     int rc = _oni_ensure_read_buffer(ctx);
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
     // "Read" (i.e. reference) buffer and update buffer read position
-    assert(ctx->shared_rbuf->read_pos + ONI_RFRAMEHEADERSZ <= ctx->shared_rbuf->end_pos
+    assert(ctx->shared_rbuf->read_pos + ONI_RFRAMEHEADERSZ
+               <= ctx->shared_rbuf->end_pos
            && "Attempted to read past buffer end");
     uint8_t *header = ctx->shared_rbuf->read_pos;
     ctx->shared_rbuf->read_pos += ONI_RFRAMEHEADERSZ;
@@ -673,7 +739,8 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
     // 2. data_sz (4)
     memcpy((void *)&iframe->private.f.time, header, ONI_RFRAMEHEADERSZ);
     assert(iframe->private.f.data_sz > 0 && "Zero-sized frame");
-    assert(iframe->private.f.data_sz <= ctx->max_read_frame_size && "Invalid frame size");
+    assert(iframe->private.f.data_sz <= ctx->max_read_frame_size
+           && "Invalid frame size");
 
     // TODO: max_read_frame_size contains the header as well so the upper bound
     // check is too relaxed.
@@ -688,8 +755,8 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
     total_size += rsize;
 
     // Direct frame data's view into the pre-collected buffer
-    assert(ctx->shared_rbuf->read_pos + rsize <= ctx->shared_rbuf->end_pos 
-        && "Attempted to read past buffer end");
+    assert(ctx->shared_rbuf->read_pos + rsize <= ctx->shared_rbuf->end_pos
+           && "Attempted to read past buffer end");
     iframe->private.f.data = ctx->shared_rbuf->read_pos;
     ctx->shared_rbuf->read_pos += rsize;
 
@@ -720,7 +787,8 @@ int oni_create_frame(const oni_ctx ctx,
 
     // Get the device hash index
     int i = _oni_hash32_find(ctx, dev_idx);
-    if (i < 0) return ONI_EDEVIDX;
+    if (i < 0)
+        return ONI_EDEVIDX;
 
     // Check that the devices accepts data
     if (ctx->dev_hash_table[i].write_size == 0)
@@ -745,11 +813,14 @@ int oni_create_frame(const oni_ctx ctx,
 
     // Allocate data storage
     char *buffer_start = NULL;
-    int rc = _oni_alloc_write_buffer(ctx, (void **)&buffer_start, ONI_WFRAMEHEADERSZ + asize);
-    if (rc) return rc;
+    int rc = _oni_alloc_write_buffer(
+        ctx, (void **)&buffer_start, ONI_WFRAMEHEADERSZ + asize);
+    if (rc)
+        return rc;
 
     // Fill out public fields
-    // NB: https://stackoverflow.com/questions/9691404/how-to-initialize-const-in-a-struct-in-c-with-malloc
+    // NB:
+    // https://stackoverflow.com/questions/9691404/how-to-initialize-const-in-a-struct-in-c-with-malloc
     *(oni_size_t *)&iframe->private.f.dev_idx = dev_idx;
     *(oni_size_t *)&iframe->private.f.data_sz = data_sz;
     iframe->private.f.data = buffer_start + ONI_WFRAMEHEADERSZ;
@@ -758,7 +829,8 @@ int oni_create_frame(const oni_ctx ctx,
     // 0. index (4)
     // 1. data_sz (4)
     *((oni_fifo_dat_t *)buffer_start + 0) = iframe->private.f.dev_idx;
-    *((oni_fifo_dat_t *)buffer_start + 1) = iframe->private.f.data_sz >> BYTE_TO_FIFO_SHIFT;
+    *((oni_fifo_dat_t *)buffer_start + 1)
+        = iframe->private.f.data_sz >> BYTE_TO_FIFO_SHIFT;
 
     // Copy data into frame
     memcpy(iframe->private.f.data, data, data_sz);
@@ -787,8 +859,12 @@ int oni_write_frame(const oni_ctx ctx, const oni_frame_t *frame)
 
     // Continuous frame starts ONI_WFRAMEHEADERSZ back in shared buffer
     size_t wsize = iframe->private.f.data_sz + ONI_WFRAMEHEADERSZ;
-    int rc = _oni_write(ctx, ONI_WRITE_STREAM_DATA, iframe->private.f.data - ONI_WFRAMEHEADERSZ, wsize);
-    if (rc != (int)wsize) return ONI_EWRITEFAILURE;
+    int rc = _oni_write(ctx,
+                        ONI_WRITE_STREAM_DATA,
+                        iframe->private.f.data - ONI_WFRAMEHEADERSZ,
+                        wsize);
+    if (rc != (int)wsize)
+        return ONI_EWRITEFAILURE;
 
     return rc;
 }
@@ -797,7 +873,7 @@ void oni_destroy_frame(oni_frame_t *frame)
 {
     if (frame != NULL) {
 
-        oni_frame_impl_t* iframe = (oni_frame_impl_t*)frame;
+        oni_frame_impl_t *iframe = (oni_frame_impl_t *)frame;
 
         // Decrement buffer reference count
         _ref_dec(&(iframe->private.buffer->count));
@@ -814,7 +890,7 @@ void oni_version(int *major, int *minor, int *patch)
     *patch = ONI_VERSION_PATCH;
 }
 
-const oni_driver_info_t* oni_get_driver_info(const oni_ctx ctx)
+const oni_driver_info_t *oni_get_driver_info(const oni_ctx ctx)
 {
     return ctx->driver.info();
 }
@@ -896,7 +972,8 @@ const char *oni_error_str(int err)
                    "the device table";
         }
         case ONI_EWRITEONLY: {
-            return "Attempted to read from a write only object (register, context "
+            return "Attempted to read from a write only object (register, "
+                   "context "
                    "option, etc)";
         }
         case ONI_EINIT: {
@@ -912,16 +989,14 @@ const char *oni_error_str(int err)
         case ONI_EDEVIDXREPEAT: {
             return "Device table contains repeated device indices";
         }
-        case ONI_EPROTCONFIG : {
+        case ONI_EPROTCONFIG: {
             return "Attempted to directly read or write a protected "
                    "configuration option";
         }
-        case ONI_EBADFRAME:
-        {
+        case ONI_EBADFRAME: {
             return "Received malformed frame";
         }
-        case ONI_EBADCONTROLLER :
-        {
+        case ONI_EBADCONTROLLER: {
             return "ONI Controller is not compatible with driver translator";
         }
         default:
@@ -941,11 +1016,12 @@ static inline int _oni_hash32_find(oni_ctx ctx, oni_dev_idx_t x)
 {
     int probe;
 
-    // TODO: Not sure if this ideal. We are using a hashing function that has no collisions but this
-    // is not true when doing the modulo here and requires and explicitly check == x for that reason.
+    // TODO: Not sure if this ideal. We are using a hashing function that has no
+    // collisions but this is not true when doing the modulo here and requires
+    // and explicitly check == x for that reason.
     for (probe = _oni_hash32(x) % ctx->dev_hash_len;
-        ctx->dev_hash_table[probe].idx != ONI_DEVIDXNULL;
-        probe = (probe + 1) % ctx->dev_hash_len) {
+         ctx->dev_hash_table[probe].idx != ONI_DEVIDXNULL;
+         probe = (probe + 1) % ctx->dev_hash_len) {
 
         if (ctx->dev_hash_table[probe].idx == x)
             return probe;
@@ -960,14 +1036,15 @@ static int _oni_reset_routine(oni_ctx ctx)
     oni_signal_t sig_type = NULLSIG;
     int rc = _oni_pump_signal_data(
         ctx, DEVICETABLEACK, &sig_type, &(ctx->num_dev), sizeof(ctx->num_dev));
-    if (rc) return rc;
+    if (rc)
+        return rc;
 
     // Hash table size
     ctx->dev_hash_len = ctx->num_dev * ONI_DEVHASHOVERHEAD + 1;
 
     // Make space for the device table
-    oni_device_t *temp = realloc(ctx->dev_table,
-                                 ctx->num_dev * sizeof(oni_device_t));
+    oni_device_t *temp
+        = realloc(ctx->dev_table, ctx->num_dev * sizeof(oni_device_t));
 
     if (temp)
         ctx->dev_table = temp;
@@ -990,7 +1067,8 @@ static int _oni_reset_routine(oni_ctx ctx)
         sig_type = NULLSIG;
         uint8_t buffer[ONI_COBSBUFFERSIZE];
         rc = _oni_read_signal_data(ctx, &sig_type, buffer, ONI_COBSBUFFERSIZE);
-        if (rc) return rc;
+        if (rc)
+            return rc;
 
         // We should see num_dev device instances appear on the signal stream
         if (sig_type != DEVICEINST)
@@ -1049,11 +1127,14 @@ static int _oni_reset_routine(oni_ctx ctx)
     ctx->max_write_frame_size += ONI_WFRAMEHEADERSZ;
 
     // NB: Default the block read size to a single max sized frame. This is bad
-    // for high bandwidth performance and good for closed-loop delay. The opposite is true
-    // for write frames (to an extent) so this is defaulted to something large.
+    // for high bandwidth performance and good for closed-loop delay. The
+    // opposite is true for write frames (to an extent) so this is defaulted to
+    // something large.
     size_t align = sizeof(oni_fifo_dat_t);
-    ctx->block_read_size = (ctx->max_read_frame_size + align - 1) & ~(align - 1);
-    ctx->block_write_size = (ctx->max_write_frame_size + align - 1) & ~(align - 1);
+    ctx->block_read_size
+        = (ctx->max_read_frame_size + align - 1) & ~(align - 1);
+    ctx->block_write_size
+        = (ctx->max_write_frame_size + align - 1) & ~(align - 1);
 
     // Set the block read size in the driver, in case it needs it
     ctx->driver.set_opt_callback(ctx->driver.ctx,
@@ -1064,12 +1145,16 @@ static int _oni_reset_routine(oni_ctx ctx)
     return ONI_ESUCCESS;
 }
 
-static inline int _oni_read(oni_ctx ctx, oni_read_stream_t stream, void *data, size_t size)
+static inline int
+_oni_read(oni_ctx ctx, oni_read_stream_t stream, void *data, size_t size)
 {
     return ctx->driver.read_stream(ctx->driver.ctx, stream, data, size);
 }
 
-static inline int _oni_write(oni_ctx ctx, oni_write_stream_t stream, const char *data, size_t size)
+static inline int _oni_write(oni_ctx ctx,
+                             oni_write_stream_t stream,
+                             const char *data,
+                             size_t size)
 {
     return ctx->driver.write_stream(ctx->driver.ctx, stream, data, size);
 }
@@ -1082,7 +1167,8 @@ static inline int _oni_read_signal_packet(oni_ctx ctx, uint8_t *buffer)
     int bad_delim = 0;
     while (curr_byte != 0) {
         int rc = _oni_read(ctx, ONI_READ_STREAM_SIGNAL, &curr_byte, 1);
-        if (rc != 1) return rc;
+        if (rc != 1)
+            return rc;
 
         if (i < 255)
             buffer[i] = curr_byte;
@@ -1098,7 +1184,8 @@ static inline int _oni_read_signal_packet(oni_ctx ctx, uint8_t *buffer)
         return --i; // Length of packet without 0 delimiter
 }
 
-static int _oni_read_signal_data(oni_ctx ctx, oni_signal_t *type, void *data, size_t size)
+static int
+_oni_read_signal_data(oni_ctx ctx, oni_signal_t *type, void *data, size_t size)
 {
     if (type == NULL)
         return ONI_EINVALARG;
@@ -1106,11 +1193,13 @@ static int _oni_read_signal_data(oni_ctx ctx, oni_signal_t *type, void *data, si
     uint8_t buffer[255] = {0};
 
     int pack_size = _oni_read_signal_packet(ctx, buffer);
-    if (pack_size < 0) return pack_size;
+    if (pack_size < 0)
+        return pack_size;
 
     // Unstuff the packet
     int rc = _oni_cobs_unstuff(buffer, buffer, pack_size);
-    if (rc < 0) return rc;
+    if (rc < 0)
+        return rc;
 
     // Remove the overhead byte and signal type
     // and make sure the buffer size is sufficient
@@ -1158,7 +1247,8 @@ static int _oni_pump_signal_type(oni_ctx ctx, int flags, oni_signal_t *type)
     return ONI_ESUCCESS;
 }
 
-static int _oni_pump_signal_data(oni_ctx ctx, int flags, oni_signal_t *type, void *data, int size)
+static int _oni_pump_signal_data(
+    oni_ctx ctx, int flags, oni_signal_t *type, void *data, int size)
 {
     oni_signal_t packet_type = NULLSIG;
     int pack_size = 0;
@@ -1213,36 +1303,41 @@ static int _oni_cobs_unstuff(uint8_t *dst, const uint8_t *src, size_t size)
     return ONI_ESUCCESS;
 }
 
-static inline int _oni_write_config(oni_ctx ctx, oni_config_t reg, oni_reg_val_t value)
+static inline int
+_oni_write_config(oni_ctx ctx, oni_config_t reg, oni_reg_val_t value)
 {
     return ctx->driver.write_config(ctx->driver.ctx, reg, value);
 }
 
-static inline int _oni_read_config(oni_ctx ctx, oni_config_t reg, oni_reg_val_t *value)
+static inline int
+_oni_read_config(oni_ctx ctx, oni_config_t reg, oni_reg_val_t *value)
 {
     return ctx->driver.read_config(ctx->driver.ctx, reg, value);
 }
 
 static int _oni_ensure_read_buffer(oni_ctx ctx)
 {
-    // NB: This function can only be called if the device table has been 
+    // NB: This function can only be called if the device table has been
     // populated and contains devices that produce data.
     if (ctx->max_read_frame_size == 0)
         return ONI_EINVALARG;
 
     // Remaining bytes in buffer
-    size_t remaining = ctx->shared_rbuf != NULL ?
-        ctx->shared_rbuf->end_pos - ctx->shared_rbuf->read_pos : 0;
+    size_t remaining
+        = ctx->shared_rbuf != NULL ?
+              ctx->shared_rbuf->end_pos - ctx->shared_rbuf->read_pos :
+              0;
 
     // NB: Refill when remaining < max_read_frame_size to guarantee that after
     // this call the buffer holds enough data for both the frame header and its
-    // maximum-sized payload. This allows _oni_consume_buffer to read the payload
-    // without ever triggering a second refill, keeping each frame inside a single
-    // buffer object.
+    // maximum-sized payload. This allows _oni_consume_buffer to read the
+    // payload without ever triggering a second refill, keeping each frame
+    // inside a single buffer object.
     if (remaining < ctx->max_read_frame_size) {
 
-        assert(ctx->max_read_frame_size <= ctx->block_read_size &&
-            "Block read size is too small given the possible read frame size.");
+        assert(ctx->max_read_frame_size <= ctx->block_read_size
+               && "Block read size is too small given the possible read frame "
+                  "size.");
 
         // New buffer allocated, old_buffer saved
         struct oni_buf_impl *old_buffer = ctx->shared_rbuf;
@@ -1271,16 +1366,18 @@ static int _oni_ensure_read_buffer(oni_ctx ctx)
         }
 
         // (Re)set buffer state
-        ctx->shared_rbuf->count = (struct ref) {_oni_destroy_buffer, 1};
+        ctx->shared_rbuf->count = (struct ref){_oni_destroy_buffer, 1};
         ctx->shared_rbuf->read_pos = ctx->shared_rbuf->buffer;
         ctx->shared_rbuf->end_pos
             = ctx->shared_rbuf->buffer + remaining + ctx->block_read_size;
 
         // Fill the buffer with new data
-        int rc = _oni_read(ctx, ONI_READ_STREAM_DATA,
-                          ctx->shared_rbuf->buffer + remaining,
-                          ctx->block_read_size);
-        if ((size_t)rc != ctx->block_read_size) return ONI_EREADFAILURE;
+        int rc = _oni_read(ctx,
+                           ONI_READ_STREAM_DATA,
+                           ctx->shared_rbuf->buffer + remaining,
+                           ctx->block_read_size);
+        if ((size_t)rc != ctx->block_read_size)
+            return ONI_EREADFAILURE;
     }
 
     return ONI_ESUCCESS;
@@ -1293,13 +1390,16 @@ static int _oni_alloc_write_buffer(oni_ctx ctx, void **data, size_t size)
         return ONI_EINVALARG;
 
     // Remaining bytes in buffer
-    size_t remaining = ctx->shared_wbuf != NULL ?
-        ctx->shared_wbuf->end_pos - ctx->shared_wbuf->read_pos : 0;
+    size_t remaining
+        = ctx->shared_wbuf != NULL ?
+              ctx->shared_wbuf->end_pos - ctx->shared_wbuf->read_pos :
+              0;
 
     if (remaining < size) {
 
-        assert(ctx->max_write_frame_size <= ctx->block_write_size &&
-            "Block write size is too small given the possible write frame size.");
+        assert(ctx->max_write_frame_size <= ctx->block_write_size
+               && "Block write size is too small given the possible write "
+                  "frame size.");
 
         // New buffer allocated, old_buffer saved
         struct oni_buf_impl *old_buffer = ctx->shared_wbuf;
@@ -1322,7 +1422,7 @@ static int _oni_alloc_write_buffer(oni_ctx ctx, void **data, size_t size)
             _ref_dec(&(old_buffer->count));
 
         // (Re)set buffer state
-        ctx->shared_wbuf->count = (struct ref) { _oni_destroy_buffer, 1 };
+        ctx->shared_wbuf->count = (struct ref){_oni_destroy_buffer, 1};
         ctx->shared_wbuf->read_pos = ctx->shared_wbuf->buffer;
         ctx->shared_wbuf->end_pos
             = ctx->shared_wbuf->buffer + ctx->block_write_size;
@@ -1349,7 +1449,7 @@ static void _oni_dump_buffers(oni_ctx ctx)
 
 // NB: Stolen from Linux kernel. Used to get the buffer holding a given
 // reference count for buffer freeing.
-#define container_of(ptr, type, member) \
+#define container_of(ptr, type, member)                                        \
     ((type *)((char *)(ptr) - offsetof(type, member)))
 
 static void _oni_destroy_buffer(const struct ref *ref)
