@@ -1,23 +1,23 @@
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 
 #include "../../onidriver.h"
 #include "circbuffer.h"
 
-//#define DRIVER_1308_WORKAROUND 1
+// #define DRIVER_1308_WORKAROUND 1
 #define FTD3XX_STATIC
 
 #ifdef _WIN32
-#include<Windows.h>
+#include <Windows.h>
 #define SERIAL_LEN 16
 
 #else
-#include <unistd.h>
 #include <sched.h>
-#define Sleep(x) usleep((x)*1000)
+#include <unistd.h>
+#define Sleep(x) usleep((x) * 1000)
 #define TRUE true
 #define FALSE false
 #define SERIAL_LEN 32
@@ -27,7 +27,7 @@
 
 #define POLL_CONTROL
 
-//#define LINUX_ASYNC
+// #define LINUX_ASYNC
 
 #ifdef POLL_CONTROL
 #ifdef _WIN32
@@ -48,12 +48,9 @@ typedef pthread_mutex_t oni_ft600_mutex_t;
 #endif
 #endif
 
-
-
 #if defined(_WIN32) && defined(DRIVER_1308_WORKAROUND)
 #define FT_ReadPipeEx FT_ReadPipe
 #endif
-
 
 #define DEFAULT_OVERLAPPED 4
 #define DEFAULT_AUXSIZE 8192
@@ -74,151 +71,174 @@ const char usbdesc[] = "Open Ephys FT600 USB board";
 
 // NB: To save some repetition
 #define CTX_CAST const oni_ft600_ctx ctx = (oni_ft600_ctx)driver_ctx
-#define MIN(a,b) ((a<b) ? a : b)
-#define CHECK_FTERR(exp) {if(exp!=FT_OK){oni_ft600_free_ctx(ctx);return ONI_EINIT;}}
-#define CHECK_NULL(exp) {if(exp==NULL){oni_ft600_free_ctx(ctx);return ONI_EBADALLOC;}}
-#define CHECK_ERR(exp) {if(exp==0){oni_ft600_free_ctx(ctx);return ONI_EINIT;}}
+#define MIN(a, b) ((a < b) ? a : b)
+#define CHECK_FTERR(exp)                                                       \
+    {                                                                          \
+        if (exp != FT_OK) {                                                    \
+            oni_ft600_free_ctx(ctx);                                           \
+            return ONI_EINIT;                                                  \
+        }                                                                      \
+    }
+#define CHECK_NULL(exp)                                                        \
+    {                                                                          \
+        if (exp == NULL) {                                                     \
+            oni_ft600_free_ctx(ctx);                                           \
+            return ONI_EBADALLOC;                                              \
+        }                                                                      \
+    }
+#define CHECK_ERR(exp)                                                         \
+    {                                                                          \
+        if (exp == 0) {                                                        \
+            oni_ft600_free_ctx(ctx);                                           \
+            return ONI_EINIT;                                                  \
+        }                                                                      \
+    }
 
-typedef enum
-{
-	STATE_NOINIT = 0,
-	STATE_INIT,
-	STATE_RUNNING
-} oni_ft600_state;
+typedef enum { STATE_NOINIT = 0, STATE_INIT, STATE_RUNNING } oni_ft600_state;
 
-typedef enum
-{
-	SIG_CMD = 0,
-	SIG_SIGNAL,
-	SIG_REG
-} oni_ft600_sigstate;
+typedef enum { SIG_CMD = 0, SIG_SIGNAL, SIG_REG } oni_ft600_sigstate;
 
-const oni_driver_info_t driverInfo
-    = {.name = "ft600", .major = 1, .minor = 0, .patch = 5, .pre_release = NULL};
+const oni_driver_info_t driverInfo = {
+    .name = "ft600", .major = 1, .minor = 0, .patch = 6, .pre_release = NULL};
 
 struct oni_ft600_ctx_impl {
-	oni_size_t inBlockSize;
-	oni_size_t outBlockSize;
-	FT_HANDLE ftHandle;
-	circ_buffer_t signalBuffer;
-	circ_buffer_t regBuffer;
-	uint8_t* auxBuffer;
-	size_t auxSize;
-	uint32_t prioValue;
-	volatile oni_ft600_state state;
-	oni_ft600_sigstate sigState;
-	unsigned short sigOffset;
-	unsigned short sigError;
-	unsigned int nextReadIndex;
+    oni_size_t inBlockSize;
+    oni_size_t outBlockSize;
+    FT_HANDLE ftHandle;
+    circ_buffer_t signalBuffer;
+    circ_buffer_t regBuffer;
+    uint8_t *auxBuffer;
+    size_t auxSize;
+    uint32_t prioValue;
+    volatile oni_ft600_state state;
+    oni_ft600_sigstate sigState;
+    unsigned short sigOffset;
+    unsigned short sigError;
+    unsigned int nextReadIndex;
     unsigned int lastReadIndex;
-	size_t lastReadOffset;
-	size_t lastReadRead;
-	uint8_t* inBuffer;
-	unsigned int numInOverlapped;
-	OVERLAPPED* inOverlapped;
-	ULONG* inTransferred;
+    size_t lastReadOffset;
+    size_t lastReadRead;
+    uint8_t *inBuffer;
+    unsigned int numInOverlapped;
+    OVERLAPPED *inOverlapped;
+    ULONG *inTransferred;
 #ifdef POLL_CONTROL
     oni_ft600_mutex_t controlMutex;
 #endif
 #ifdef _WIN32
-	OVERLAPPED cmdOverlapped;
-	OVERLAPPED sigOverlapped;
-	OVERLAPPED outOverlapped;
+    OVERLAPPED cmdOverlapped;
+    OVERLAPPED sigOverlapped;
+    OVERLAPPED outOverlapped;
 #endif
-	struct {
-		oni_dev_idx_t dev_idx;
-		oni_reg_addr_t dev_addr;
-		oni_reg_val_t value;
-		oni_reg_val_t rw;
-	} regOperation;
+    uint8_t mustStart;
+    struct {
+        oni_dev_idx_t dev_idx;
+        oni_reg_addr_t dev_addr;
+        oni_reg_val_t value;
+        oni_reg_val_t rw;
+    } regOperation;
 };
 
-typedef struct oni_ft600_ctx_impl* oni_ft600_ctx;
+typedef struct oni_ft600_ctx_impl *oni_ft600_ctx;
 
 // Configuration file offsets
 typedef enum oni_conf_reg_off {
-	// Register R/W interface
-	CONFDEVIDXOFFSET = 0, // Configuration device index register byte offset
-	CONFADDROFFSET = 1, // Configuration register address register byte offset
-	CONFVALUEOFFSET = 2, // Configuration register value register byte offset
-	CONFRWOFFSET = 3, // Configuration register read/write register byte offset
-	CONFTRIGOFFSET = 4, // Configuration read/write trigger register byte offset
+    // Register R/W interface
+    CONFDEVIDXOFFSET = 0, // Configuration device index register byte offset
+    CONFADDROFFSET = 1,   // Configuration register address register byte offset
+    CONFVALUEOFFSET = 2,  // Configuration register value register byte offset
+    CONFRWOFFSET = 3, // Configuration register read/write register byte offset
+    CONFTRIGOFFSET = 4, // Configuration read/write trigger register byte offset
 
-	// Global configuration
-	CONFRUNNINGOFFSET = 5, // Configuration run register byte offset
-	CONFRESETOFFSET = 6, // Configuration reset register byte offset
-	CONFSYSCLKHZOFFSET = 7, // Configuration base system clock frequency register byte offset
-	CONFACQCLKHZOFFSET = 8, // Configuration frame counter clock frequency register byte offset
-	CONFRESETACQCOUNTER = 9, // Configuration frame counter clock reset register byte offset
-	CONFHWADDRESS = 10 // Configuration hardware address register byte offset
+    // Global configuration
+    CONFRUNNINGOFFSET = 5,   // Configuration run register byte offset
+    CONFRESETOFFSET = 6,     // Configuration reset register byte offset
+    CONFSYSCLKHZOFFSET = 7,  // Configuration base system clock frequency
+                             // register byte offset
+    CONFACQCLKHZOFFSET = 8,  // Configuration frame counter clock frequency
+                             // register byte offset
+    CONFRESETACQCOUNTER = 9, // Configuration frame counter clock reset register
+                             // byte offset
+    CONFHWADDRESS = 10 // Configuration hardware address register byte offset
 
 } oni_conf_off_t;
 
-enum ft600_pipes
-{
-	pipe_in = 0x82,
-	pipe_out = 0x02,
-	pipe_sig = 0x83,
-	pipe_cmd = 0x03
+enum ft600_pipes {
+    pipe_in = 0x82,
+    pipe_out = 0x02,
+    pipe_sig = 0x83,
+    pipe_cmd = 0x03
 };
 
 #ifndef _WIN32
-enum ft600_pipeid
-{
-	pipeid_data = 0,
-	pipeid_control = 1
-};
+enum ft600_pipeid { pipeid_data = 0, pipeid_control = 1 };
 #endif
 
 static void fill_control_buffers(oni_ft600_ctx ctx, ULONG transferred)
 {
-	size_t index = 0;
-	size_t lastIndex = 0;
-	size_t toWrite = 0;
-	do {
-		switch (ctx->sigState)
-		{
-		case SIG_CMD:
-			if (ctx->auxBuffer[index] == SIGRES_SIGNAL)
-				ctx->sigState = SIG_SIGNAL;
-			else if (ctx->auxBuffer[index] == SIGRES_REG)
-				ctx->sigState = SIG_REG;
-			index++;
-			break;
-		case SIG_SIGNAL:
-			lastIndex = index;
-			while (index < transferred && ctx->auxBuffer[index] != 0) { index++; }
-			if (index >= transferred) index--;
-			while (!circBufferCanWrite(&ctx->signalBuffer, index - lastIndex + 1));
-			circBufferWrite(&ctx->signalBuffer, ctx->auxBuffer + lastIndex, index - lastIndex + 1);
-			if (index < transferred && ctx->auxBuffer[index] == 0) ctx->sigState = SIG_CMD;
-			index++;
-			break;
-		case SIG_REG:
-			toWrite = MIN(sizeof(oni_reg_val_t), transferred - index);
-			while (!circBufferCanWrite(&ctx->regBuffer, toWrite));
-			circBufferWrite(&ctx->regBuffer, ctx->auxBuffer + index, toWrite);
-			ctx->sigOffset = (ctx->sigOffset + toWrite) % sizeof(oni_reg_val_t);
-			index += toWrite;
-			if (ctx->sigOffset == 0) ctx->sigState = SIG_CMD;
-			break;
-		}
+    size_t index = 0;
+    size_t lastIndex = 0;
+    size_t toWrite = 0;
+    do {
+        switch (ctx->sigState) {
+            case SIG_CMD:
+                if (ctx->auxBuffer[index] == SIGRES_SIGNAL)
+                    ctx->sigState = SIG_SIGNAL;
+                else if (ctx->auxBuffer[index] == SIGRES_REG)
+                    ctx->sigState = SIG_REG;
+                index++;
+                break;
+            case SIG_SIGNAL:
+                lastIndex = index;
+                while (index < transferred && ctx->auxBuffer[index] != 0) {
+                    index++;
+                }
+                if (index >= transferred)
+                    index--;
+                while (!circBufferCanWrite(&ctx->signalBuffer,
+                                           index - lastIndex + 1))
+                    ;
+                circBufferWrite(&ctx->signalBuffer,
+                                ctx->auxBuffer + lastIndex,
+                                index - lastIndex + 1);
+                if (index < transferred && ctx->auxBuffer[index] == 0)
+                    ctx->sigState = SIG_CMD;
+                index++;
+                break;
+            case SIG_REG:
+                toWrite = MIN(sizeof(oni_reg_val_t), transferred - index);
+                while (!circBufferCanWrite(&ctx->regBuffer, toWrite))
+                    ;
+                circBufferWrite(
+                    &ctx->regBuffer, ctx->auxBuffer + index, toWrite);
+                ctx->sigOffset
+                    = (ctx->sigOffset + toWrite) % sizeof(oni_reg_val_t);
+                index += toWrite;
+                if (ctx->sigOffset == 0)
+                    ctx->sigState = SIG_CMD;
+                break;
+        }
 
-	} while (index < transferred);
+    } while (index < transferred);
 }
 
 #ifndef POLL_CONTROL
-void oni_ft600_usb_callback(PVOID context, E_FT_NOTIFICATION_CALLBACK_TYPE type, PVOID cinfo)
+void oni_ft600_usb_callback(PVOID context,
+                            E_FT_NOTIFICATION_CALLBACK_TYPE type,
+                            PVOID cinfo)
 {
-	FT_STATUS ftStatus;
-	if (type != E_FT_NOTIFICATION_CALLBACK_TYPE_DATA) return;
-	FT_NOTIFICATION_CALLBACK_INFO_DATA* info = (FT_NOTIFICATION_CALLBACK_INFO_DATA*)cinfo;
-	if (!info) return;
-	oni_ft600_ctx ctx = (oni_ft600_ctx)context;
-	ULONG transferred;
+    FT_STATUS ftStatus;
+    if (type != E_FT_NOTIFICATION_CALLBACK_TYPE_DATA)
+        return;
+    FT_NOTIFICATION_CALLBACK_INFO_DATA *info
+        = (FT_NOTIFICATION_CALLBACK_INFO_DATA *)cinfo;
+    if (!info)
+        return;
+    oni_ft600_ctx ctx = (oni_ft600_ctx)context;
+    ULONG transferred;
     ULONG total = 0;
 
-	do {
+    do {
 #ifdef _WIN32
 
         FT_ReadPipe(ctx->ftHandle,
@@ -230,38 +250,33 @@ void oni_ft600_usb_callback(PVOID context, E_FT_NOTIFICATION_CALLBACK_TYPE type,
         ftStatus = FT_GetOverlappedResult(
             ctx->ftHandle, &ctx->sigOverlapped, &transferred, TRUE);
 #else
-	ftStatus = FT_ReadPipe(ctx->ftHandle,
-			 info->ucEndpointNo,
-                   	 ctx->auxBuffer + total,
-                    	info->ulRecvNotificationLength - total,
-                    	&transferred,
-			0);
+        ftStatus = FT_ReadPipe(ctx->ftHandle,
+                               info->ucEndpointNo,
+                               ctx->auxBuffer + total,
+                               info->ulRecvNotificationLength - total,
+                               &transferred,
+                               0);
 #endif
 
         if (ftStatus != FT_OK) {
-		ctx->sigError = 1;
-		return;
-	}
+            ctx->sigError = 1;
+            return;
+        }
         total += transferred;
     } while (total < info->ulRecvNotificationLength);
 
-
-
-
-	if (total > 0)
-	{
-		fill_control_buffers(ctx, transferred);
-	}
-
+    if (total > 0) {
+        fill_control_buffers(ctx, transferred);
+    }
 }
 #else
 static void oni_ft600_update_control(oni_ft600_ctx ctx)
 {
-	FT_STATUS ftStatus;
-	DWORD toread = ctx->auxSize;
-	ULONG transferred;
+    FT_STATUS ftStatus;
+    DWORD toread = ctx->auxSize;
+    ULONG transferred;
 
-	if (mutex_trylock(&ctx->controlMutex)) {
+    if (mutex_trylock(&ctx->controlMutex)) {
 
 #ifdef _WIN32
         ftStatus = FT_ReadPipeEx(
@@ -292,135 +307,152 @@ static inline oni_conf_off_t _oni_register_offset(oni_config_t reg);
 
 static inline void oni_ft600_restart_acq(oni_ft600_ctx ctx)
 {
-	ctx->nextReadIndex = 0;
+    ctx->nextReadIndex = 0;
     ctx->lastReadIndex = 0;
-	ctx->lastReadOffset = 0;
-	ctx->lastReadRead = 0;
-	ctx->state = STATE_INIT;
+    ctx->lastReadOffset = 0;
+    ctx->lastReadRead = 0;
+    ctx->mustStart = 0;
+    ctx->state = STATE_INIT;
 }
 
 static inline void oni_ft600_reset_ctx(oni_ft600_ctx ctx)
 {
-	ctx->sigState = SIG_CMD;
-	ctx->sigOffset = 0;
-	ctx->sigError = 0;
-	oni_ft600_restart_acq(ctx);
+    ctx->sigState = SIG_CMD;
+    ctx->sigOffset = 0;
+    ctx->sigError = 0;
+    oni_ft600_restart_acq(ctx);
 }
 
 static inline void oni_ft600_reset_acq(oni_ft600_ctx ctx, int hard)
 {
-	if (hard) {
-		FT_WriteGPIO(ctx->ftHandle, 0x01, 0x01);
-		Sleep(10);
-	}
-	FT_AbortPipe(ctx->ftHandle, pipe_in);
-	FT_AbortPipe(ctx->ftHandle, pipe_out);
+    if (hard) {
+        FT_WriteGPIO(ctx->ftHandle, 0x01, 0x01);
+        Sleep(10);
+    }
+    FT_AbortPipe(ctx->ftHandle, pipe_in);
+    FT_AbortPipe(ctx->ftHandle, pipe_out);
 #ifndef _WIN32
-        FT_FlushPipe(ctx->ftHandle, pipe_in);
-        FT_FlushPipe(ctx->ftHandle, pipe_out);
+    FT_FlushPipe(ctx->ftHandle, pipe_in);
+    FT_FlushPipe(ctx->ftHandle, pipe_out);
 #endif
-	oni_ft600_reset_ctx(ctx);
-	FT_WriteGPIO(ctx->ftHandle, 0x01, 0x00);
-	Sleep(1);
+    oni_ft600_reset_ctx(ctx);
+    FT_WriteGPIO(ctx->ftHandle, 0x01, 0x00);
+    Sleep(1);
 }
 
 static inline void oni_ft600_stop_acq(oni_ft600_ctx ctx)
 {
-    ctx->state = STATE_INIT;
-	Sleep(10);
+    Sleep(10);
     FT_AbortPipe(ctx->ftHandle, pipe_in);
 #ifndef _WIN32
     FT_FlushPipe(ctx->ftHandle, pipe_in);
 #endif
-	oni_ft600_restart_acq(ctx);
+    ctx->state = STATE_INIT;
+    oni_ft600_restart_acq(ctx);
 }
 
-static inline int oni_ft600_sendcmd(oni_ft600_ctx ctx, uint8_t* buffer, size_t size)
+static inline int
+oni_ft600_sendcmd(oni_ft600_ctx ctx, uint8_t *buffer, size_t size)
 {
-	ULONG transferred = 0;
-	ULONG total = 0;
-	FT_STATUS ftStatus;
-	do
-	{
+    ULONG transferred = 0;
+    ULONG total = 0;
+    FT_STATUS ftStatus;
+    do {
 #ifdef _WIN32
-		FT_WritePipe(ctx->ftHandle, pipe_cmd, buffer + total, size - total, &transferred, &ctx->cmdOverlapped);
-		ftStatus = FT_GetOverlappedResult(ctx->ftHandle, &ctx->cmdOverlapped, &transferred, TRUE);
-		if (ftStatus != FT_OK) return ONI_ESEEKFAILURE;
+        FT_WritePipe(ctx->ftHandle,
+                     pipe_cmd,
+                     buffer + total,
+                     size - total,
+                     &transferred,
+                     &ctx->cmdOverlapped);
+        ftStatus = FT_GetOverlappedResult(
+            ctx->ftHandle, &ctx->cmdOverlapped, &transferred, TRUE);
+        if (ftStatus != FT_OK)
+            return ONI_ESEEKFAILURE;
 #else
-		ftStatus = FT_WritePipeEx(ctx->ftHandle, pipeid_control, buffer + total, size - total, &transferred, 1000);
-		if (ftStatus != FT_OK && ftStatus != FT_TIMEOUT && ftStatus != FT_IO_PENDING) return ONI_ESEEKFAILURE;
+        ftStatus = FT_WritePipeEx(ctx->ftHandle,
+                                  pipeid_control,
+                                  buffer + total,
+                                  size - total,
+                                  &transferred,
+                                  1000);
+        if (ftStatus != FT_OK && ftStatus != FT_TIMEOUT
+            && ftStatus != FT_IO_PENDING)
+            return ONI_ESEEKFAILURE;
 #endif
-		if (ftStatus == FT_OK)
-			total += transferred;
-	} while (total < size);
-	return ONI_ESUCCESS;
+        if (ftStatus == FT_OK)
+            total += transferred;
+    } while (total < size);
+    return ONI_ESUCCESS;
 }
 
 oni_driver_ctx oni_driver_create_ctx(void)
 {
-	oni_ft600_ctx ctx;
-	ctx = calloc(1, sizeof(struct oni_ft600_ctx_impl));
-	if (ctx == NULL)
-		return NULL;
-	ctx->ftHandle = NULL;
-	oni_ft600_reset_ctx(ctx);
-	ctx->state = STATE_NOINIT;
-	ctx->auxSize = DEFAULT_AUXSIZE;
-	ctx->inBlockSize = DEFAULT_BLOCKREAD;
-	ctx->outBlockSize = DEFAULT_BLOCKWRITE;
-	ctx->regBuffer.size = DEFAULT_REGSIZE;
-	ctx->signalBuffer.size = DEFAULT_SIGNALSIZE;
-	ctx->numInOverlapped = DEFAULT_OVERLAPPED;
-	return ctx;
+    oni_ft600_ctx ctx;
+    ctx = calloc(1, sizeof(struct oni_ft600_ctx_impl));
+    if (ctx == NULL)
+        return NULL;
+    ctx->ftHandle = NULL;
+    oni_ft600_reset_ctx(ctx);
+    ctx->state = STATE_NOINIT;
+    ctx->auxSize = DEFAULT_AUXSIZE;
+    ctx->inBlockSize = DEFAULT_BLOCKREAD;
+    ctx->outBlockSize = DEFAULT_BLOCKWRITE;
+    ctx->regBuffer.size = DEFAULT_REGSIZE;
+    ctx->signalBuffer.size = DEFAULT_SIGNALSIZE;
+    ctx->numInOverlapped = DEFAULT_OVERLAPPED;
+    return ctx;
 }
 
 static void oni_ft600_free_ctx(oni_ft600_ctx ctx)
 {
-	if (ctx->inBuffer != NULL) free(ctx->inBuffer);
-	if (ctx->auxBuffer != NULL) free(ctx->auxBuffer);
-	circBufferRelease(&ctx->signalBuffer);
-	circBufferRelease(&ctx->regBuffer);
-	if (ctx->ftHandle != NULL)
-	{
+    if (ctx->inBuffer != NULL)
+        free(ctx->inBuffer);
+    if (ctx->auxBuffer != NULL)
+        free(ctx->auxBuffer);
+    circBufferRelease(&ctx->signalBuffer);
+    circBufferRelease(&ctx->regBuffer);
+    if (ctx->ftHandle != NULL) {
 #ifndef POLL_CONTROL
-		FT_ClearNotificationCallback(ctx->ftHandle);
+        FT_ClearNotificationCallback(ctx->ftHandle);
 #endif
-		FT_AbortPipe(ctx->ftHandle, pipe_in);
-		FT_AbortPipe(ctx->ftHandle, pipe_out);
-		FT_AbortPipe(ctx->ftHandle, pipe_cmd);
-		FT_AbortPipe(ctx->ftHandle, pipe_sig);
+        FT_AbortPipe(ctx->ftHandle, pipe_in);
+        FT_AbortPipe(ctx->ftHandle, pipe_out);
+        FT_AbortPipe(ctx->ftHandle, pipe_cmd);
+        FT_AbortPipe(ctx->ftHandle, pipe_sig);
 #ifdef _WIN32
-		FT_ReleaseOverlapped(ctx->ftHandle, &ctx->outOverlapped);
-		FT_ReleaseOverlapped(ctx->ftHandle, &ctx->sigOverlapped);
-		FT_ReleaseOverlapped(ctx->ftHandle, &ctx->cmdOverlapped);
+        FT_ReleaseOverlapped(ctx->ftHandle, &ctx->outOverlapped);
+        FT_ReleaseOverlapped(ctx->ftHandle, &ctx->sigOverlapped);
+        FT_ReleaseOverlapped(ctx->ftHandle, &ctx->cmdOverlapped);
 #endif
-		if (ctx->inOverlapped != NULL) {
-			for (unsigned int i = 0; i < ctx->numInOverlapped; i++)
-				FT_ReleaseOverlapped(ctx->ftHandle, &ctx->inOverlapped[i]);
-			free(ctx->inOverlapped);
-		}
-		if (ctx->inTransferred != NULL) free(ctx->inTransferred);
+        if (ctx->inOverlapped != NULL) {
+            for (unsigned int i = 0; i < ctx->numInOverlapped; i++)
+                FT_ReleaseOverlapped(ctx->ftHandle, &ctx->inOverlapped[i]);
+            free(ctx->inOverlapped);
+        }
+        if (ctx->inTransferred != NULL)
+            free(ctx->inTransferred);
 #ifdef POLL_CONTROL
-		mutex_destroy(&ctx->controlMutex);
+        mutex_destroy(&ctx->controlMutex);
 #endif
 #ifndef _WIN32
-		FT_FlushPipe(ctx->ftHandle, pipe_in);
-		FT_FlushPipe(ctx->ftHandle, pipe_out);
-		FT_FlushPipe(ctx->ftHandle, pipe_cmd);
-		FT_FlushPipe(ctx->ftHandle, pipe_sig);
+        FT_FlushPipe(ctx->ftHandle, pipe_in);
+        FT_FlushPipe(ctx->ftHandle, pipe_out);
+        FT_FlushPipe(ctx->ftHandle, pipe_cmd);
+        FT_FlushPipe(ctx->ftHandle, pipe_sig);
 #endif
-		FT_Close(ctx->ftHandle);
-		ctx->ftHandle = NULL;
-	}
+        FT_Close(ctx->ftHandle);
+        ctx->ftHandle = NULL;
+    }
 }
 
 int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 {
-	CTX_CAST;
-	DWORD numDevs = 0;
-	FT_STATUS ftStatus;
-	int tries = 0;
-	int devIdx = 0;
+    CTX_CAST;
+    DWORD numDevs = 0;
+    FT_STATUS ftStatus;
+    int tries = 0;
+    int devIdx = 0;
 
 #ifndef _WIN32
     FT_TRANSFER_CONF ftTransfer;
@@ -444,38 +476,37 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
     CHECK_FTERR(FT_SetTransferParams(&ftTransfer, 3));
 #endif
 
-	ftStatus = FT_CreateDeviceInfoList(&numDevs);
-	if (ftStatus != FT_OK || numDevs == 0) return ONI_EDEVID;
-	FT_DEVICE_LIST_INFO_NODE* devInfo = (FT_DEVICE_LIST_INFO_NODE*)malloc(sizeof(FT_DEVICE_LIST_INFO_NODE) * numDevs);
-	if (devInfo == NULL) return ONI_EINIT;
-	ftStatus = FT_GetDeviceInfoList(devInfo, &numDevs);
-	if (ftStatus != FT_OK)
-	{
-		free(devInfo);
-		return ONI_EINIT;
-	}
+    ftStatus = FT_CreateDeviceInfoList(&numDevs);
+    if (ftStatus != FT_OK || numDevs == 0)
+        return ONI_EDEVID;
+    FT_DEVICE_LIST_INFO_NODE *devInfo = (FT_DEVICE_LIST_INFO_NODE *)malloc(
+        sizeof(FT_DEVICE_LIST_INFO_NODE) * numDevs);
+    if (devInfo == NULL)
+        return ONI_EINIT;
+    ftStatus = FT_GetDeviceInfoList(devInfo, &numDevs);
+    if (ftStatus != FT_OK) {
+        free(devInfo);
+        return ONI_EINIT;
+    }
 
-	for (DWORD dev = 0; dev < numDevs; dev++)
-	{
-		if (strncmp(devInfo[dev].Description, usbdesc, 32) == 0)
-		{
-			if (!(devInfo[dev].Flags & FT_FLAGS_OPENED))
-			{
+    for (DWORD dev = 0; dev < numDevs; dev++) {
+        if (strncmp(devInfo[dev].Description, usbdesc, 32) == 0) {
+            if (!(devInfo[dev].Flags & FT_FLAGS_OPENED)) {
                 if (host_idx < 0 || devIdx == host_idx) {
-                tries++;
-                ftStatus = FT_Create(devInfo[dev].SerialNumber,
-                                     FT_OPEN_BY_SERIAL_NUMBER,
-                                     &ctx->ftHandle);
-                if (ftStatus != FT_OK)
-                    ctx->ftHandle = NULL;
-                else
-					break;
-				}
-			}
-			devIdx++;
-		}
-	}
-	free(devInfo);
+                    tries++;
+                    ftStatus = FT_Create(devInfo[dev].SerialNumber,
+                                         FT_OPEN_BY_SERIAL_NUMBER,
+                                         &ctx->ftHandle);
+                    if (ftStatus != FT_OK)
+                        ctx->ftHandle = NULL;
+                    else
+                        break;
+                }
+            }
+            devIdx++;
+        }
+    }
+    free(devInfo);
     if (tries == 0)
         return ONI_EDEVIDX;
     else if (ctx->ftHandle == NULL)
@@ -484,25 +515,21 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 #ifdef POLL_CONTROL
     FT_60XCONFIGURATION chipConfig;
     ftStatus = FT_GetChipConfiguration(ctx->ftHandle, &chipConfig);
-    if (ftStatus != FT_OK)
-    {
+    if (ftStatus != FT_OK) {
         FT_Close(ctx->ftHandle);
         ctx->ftHandle = NULL;
         return ONI_EINIT;
     }
     int configOk = 1;
-    if (chipConfig.FIFOMode != CONFIGURATION_FIFO_MODE_600)
-    {
+    if (chipConfig.FIFOMode != CONFIGURATION_FIFO_MODE_600) {
         configOk = 0;
     }
     if (chipConfig.OptionalFeatureSupport
-        != CONFIGURATION_OPTIONAL_FEATURE_DISABLEALL)
-    {
+        != CONFIGURATION_OPTIONAL_FEATURE_DISABLEALL) {
         configOk = 0;
     }
 
-    if (configOk == 0)
-    {
+    if (configOk == 0) {
         FT_Close(ctx->ftHandle);
         ctx->ftHandle = NULL;
         return ONI_EBADCONTROLLER;
@@ -510,127 +537,150 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 
 #endif
 
-
 #ifdef _WIN32
-	FT_InitializeOverlapped(ctx->ftHandle, &ctx->outOverlapped);
-	FT_InitializeOverlapped(ctx->ftHandle, &ctx->sigOverlapped);
-	FT_InitializeOverlapped(ctx->ftHandle, &ctx->cmdOverlapped);
+    FT_InitializeOverlapped(ctx->ftHandle, &ctx->outOverlapped);
+    FT_InitializeOverlapped(ctx->ftHandle, &ctx->sigOverlapped);
+    FT_InitializeOverlapped(ctx->ftHandle, &ctx->cmdOverlapped);
 #endif
-	ctx->inOverlapped = malloc(ctx->numInOverlapped * sizeof(OVERLAPPED));
-	CHECK_NULL(ctx->inOverlapped);
-	for (unsigned int i = 0; i < ctx->numInOverlapped; i++)
-		FT_InitializeOverlapped(ctx->ftHandle, &ctx->inOverlapped[i]);
-	ctx->inTransferred = malloc(ctx->numInOverlapped * sizeof(ULONG));
-	CHECK_NULL(ctx->inTransferred);
-	ctx->inBuffer = malloc(2 * (size_t)ctx->numInOverlapped * ctx->inBlockSize);
-	CHECK_NULL(ctx->inBuffer);
+    ctx->inOverlapped = malloc(ctx->numInOverlapped * sizeof(OVERLAPPED));
+    CHECK_NULL(ctx->inOverlapped);
+    for (unsigned int i = 0; i < ctx->numInOverlapped; i++)
+        FT_InitializeOverlapped(ctx->ftHandle, &ctx->inOverlapped[i]);
+    ctx->inTransferred = malloc(ctx->numInOverlapped * sizeof(ULONG));
+    CHECK_NULL(ctx->inTransferred);
+    ctx->inBuffer = malloc(2 * (size_t)ctx->numInOverlapped * ctx->inBlockSize);
+    CHECK_NULL(ctx->inBuffer);
 #ifdef POLL_CONTROL
-	if (mutex_init(&ctx->controlMutex) != 0)
-	{
-		oni_ft600_free_ctx(ctx);
-		return ONI_EINIT;
-	}
+    if (mutex_init(&ctx->controlMutex) != 0) {
+        oni_ft600_free_ctx(ctx);
+        return ONI_EINIT;
+    }
 #endif
-	CHECK_ERR(circBufferInit(&ctx->signalBuffer));
-	CHECK_ERR(circBufferInit(&ctx->regBuffer));
-	ctx->auxBuffer = malloc(ctx->auxSize);
-	CHECK_NULL(ctx->auxBuffer);
+    CHECK_ERR(circBufferInit(&ctx->signalBuffer));
+    CHECK_ERR(circBufferInit(&ctx->regBuffer));
+    ctx->auxBuffer = malloc(ctx->auxSize);
+    CHECK_NULL(ctx->auxBuffer);
 
 #ifndef POLL_CONTROL
-	CHECK_FTERR(FT_SetNotificationCallback(ctx->ftHandle, oni_ft600_usb_callback, ctx));
+    CHECK_FTERR(
+        FT_SetNotificationCallback(ctx->ftHandle, oni_ft600_usb_callback, ctx));
 #endif
 #ifdef _WIN32
-	CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_in, 0));
-	CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_out, 0));
-	CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_cmd, 0));
-	CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_sig, 0));
+    CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_in, 0));
+    CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_out, 0));
+    CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_cmd, 0));
+    CHECK_FTERR(FT_SetPipeTimeout(ctx->ftHandle, pipe_sig, 0));
 #endif
 
-	//Enable GPIOs
-	CHECK_FTERR(FT_SetGPIOPull(ctx->ftHandle,0x3,0x05))
+    // Enable GPIOs
+    CHECK_FTERR(FT_SetGPIOPull(ctx->ftHandle, 0x3, 0x05))
     CHECK_FTERR(FT_WriteGPIO(ctx->ftHandle, 0x01, 0x00));
-	CHECK_FTERR(FT_EnableGPIO(ctx->ftHandle, 0x01, 0x01));
-	//TODO: check that board is in normal mode and not bootloader
-	//Hardware FIFO reset
-	oni_ft600_reset_acq(ctx, 1);
-	//Set io priority
-	uint8_t buffer[5];
-	buffer[0] = CMD_SETPRIO;
-	*(uint32_t*)(buffer + 1) = DEFAULT_PRIO;
-	int res = oni_ft600_sendcmd(ctx, buffer, 5);
-	if (res != ONI_ESUCCESS)
-	{
-		oni_ft600_free_ctx(ctx);
-		return res;
-	}
-	ctx->state = STATE_INIT;
-	return ONI_ESUCCESS;
+    CHECK_FTERR(FT_EnableGPIO(ctx->ftHandle, 0x01, 0x01));
+    // TODO: check that board is in normal mode and not bootloader
+    // Hardware FIFO reset
+    oni_ft600_reset_acq(ctx, 1);
+    // Set io priority
+    uint8_t buffer[5];
+    buffer[0] = CMD_SETPRIO;
+    *(uint32_t *)(buffer + 1) = DEFAULT_PRIO;
+    int res = oni_ft600_sendcmd(ctx, buffer, 5);
+    if (res != ONI_ESUCCESS) {
+        oni_ft600_free_ctx(ctx);
+        return res;
+    }
+    ctx->state = STATE_INIT;
+    return ONI_ESUCCESS;
 }
 
 int oni_driver_destroy_ctx(oni_driver_ctx driver_ctx)
 {
-	CTX_CAST;
-	assert(ctx != NULL && "Driver context is NULL");
-	//Let's keep the device in a cool, reset state
-    if (ctx->ftHandle != NULL)
-	{
+    CTX_CAST;
+    assert(ctx != NULL && "Driver context is NULL");
+    // Let's keep the device in a cool, reset state
+    if (ctx->ftHandle != NULL) {
         FT_WriteGPIO(ctx->ftHandle, 0x01, 0x01);
     }
-	oni_ft600_free_ctx(ctx);
-	free(ctx);
-	return ONI_ESUCCESS;
+    oni_ft600_free_ctx(ctx);
+    free(ctx);
+    return ONI_ESUCCESS;
 }
 
 int oni_driver_read_stream(oni_driver_ctx driver_ctx,
-	oni_read_stream_t stream,
-	void* data,
-	size_t size)
+                           oni_read_stream_t stream,
+                           void *data,
+                           size_t size)
 {
-	CTX_CAST;
-	if (stream == ONI_READ_STREAM_SIGNAL)
-	{
-		while (!circBufferCanRead(&ctx->signalBuffer, size))
-		{
+    CTX_CAST;
+    if (stream == ONI_READ_STREAM_SIGNAL) {
+        while (!circBufferCanRead(&ctx->signalBuffer, size)) {
 #ifdef POLL_CONTROL
-			oni_ft600_update_control(ctx);
+            oni_ft600_update_control(ctx);
 #endif
-			if (ctx->sigError)
-			{
-				ctx->sigError = 0;
-				return ONI_ESEEKFAILURE;
-			}
-		}
-		circBufferRead(&ctx->signalBuffer, data, size);
-		return size;
-	}
-	else if (stream == ONI_READ_STREAM_DATA)
-	{
-        while (ctx->state != STATE_RUNNING)
-            ;
-		size_t remaining = ((size >> 2) << 2);//round to 32bit boundaries;
-		FT_STATUS ftStatus;
-		int read = 0;
-		if (remaining < ctx->inBlockSize) return ONI_EINVALREADSIZE;
+            if (ctx->sigError) {
+                ctx->sigError = 0;
+                return ONI_ESEEKFAILURE;
+            }
+        }
+        circBufferRead(&ctx->signalBuffer, data, size);
+        return size;
+    } else if (stream == ONI_READ_STREAM_DATA) {
+        FT_STATUS ftStatus;
+        while (ctx->state != STATE_RUNNING) {
+            // NB : Spinlock in case read has been called before acquisition has
+            // started
+        }
+
+        if (ctx->mustStart) {
+            ctx->mustStart = 0;
+            for (size_t i = 0; i < ctx->numInOverlapped; i++) {
+#if _WIN32
+                ftStatus = FT_ReadPipeEx(ctx->ftHandle,
+                                         pipe_in,
+                                         ctx->inBuffer + (i * ctx->inBlockSize),
+                                         ctx->inBlockSize,
+                                         &ctx->inTransferred[i],
+                                         &ctx->inOverlapped[i]);
+#else
+#ifdef LINUX_ASYNC
+                ftStatus
+                    = FT_ReadPipeAsync(ctx->ftHandle,
+                                       pipeid_data,
+                                       ctx->inBuffer + (i * ctx->inBlockSize),
+                                       ctx->inBlockSize,
+                                       &ctx->inTransferred[i],
+                                       &ctx->inOverlapped[i]);
+#endif
+#endif
+                if (ftStatus != FT_OK && ftStatus != FT_IO_PENDING) {
+                    printf("Read failure %d\n", ftStatus);
+                    return ONI_EREADFAILURE;
+                }
+            }
+        }
+        size_t remaining = ((size >> 2) << 2); // round to 32bit boundaries;
+        int read = 0;
+        if (remaining < ctx->inBlockSize)
+            return ONI_EINVALREADSIZE;
 #if defined _WIN32 || defined LINUX_ASYNC
-		size_t to_read;
-		uint8_t* dstPtr = data;
-		uint8_t* srcPtr;
-		unsigned int lastIndex;
-		if (ctx->lastReadOffset != 0)
-		{
+        size_t to_read;
+        uint8_t *dstPtr = data;
+        uint8_t *srcPtr;
+        unsigned int lastIndex;
+        if (ctx->lastReadOffset != 0) {
             lastIndex = ctx->lastReadIndex;
-			to_read = ctx->lastReadRead - ctx->lastReadOffset;
-			srcPtr = ctx->inBuffer + ctx->inBlockSize * (size_t)lastIndex + ctx->lastReadOffset;
-			memcpy(dstPtr, srcPtr, to_read);
-			remaining -= to_read;
-			dstPtr += to_read;
-			read += to_read;
-		}
+            to_read = ctx->lastReadRead - ctx->lastReadOffset;
+            srcPtr = ctx->inBuffer + ctx->inBlockSize * (size_t)lastIndex
+                     + ctx->lastReadOffset;
+            memcpy(dstPtr, srcPtr, to_read);
+            remaining -= to_read;
+            dstPtr += to_read;
+            read += to_read;
+        }
         while (remaining > 0) {
-			unsigned int simIndex = ctx->nextReadIndex % ctx->numInOverlapped;
+            unsigned int simIndex = ctx->nextReadIndex % ctx->numInOverlapped;
             unsigned int nextIndex = (ctx->nextReadIndex + ctx->numInOverlapped)
                                      % (2 * ctx->numInOverlapped);
-			ULONG transferred = 0;
+            ULONG transferred = 0;
 
             ftStatus = FT_GetOverlappedResult(ctx->ftHandle,
                                               &ctx->inOverlapped[simIndex],
@@ -638,288 +688,297 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
                                               TRUE);
 
             if (ftStatus != FT_OK) {
-				printf("Read failure %d\n", ftStatus);
-				return ONI_EREADFAILURE;
-			}
-			transferred = ctx->inTransferred[simIndex];
-			//read in the next part of the double buffer
+                printf("Read failure %d\n", ftStatus);
+                return ONI_EREADFAILURE;
+            }
+            transferred = ctx->inTransferred[simIndex];
+            // read in the next part of the double buffer
 #ifdef _WIN32
-			FT_ReadPipeEx(ctx->ftHandle, pipe_in, ctx->inBuffer + ((size_t)nextIndex * ctx->inBlockSize), ctx->inBlockSize,
-				&ctx->inTransferred[simIndex], &ctx->inOverlapped[simIndex]);
+            ftStatus = FT_ReadPipeEx(
+                ctx->ftHandle,
+                pipe_in,
+                ctx->inBuffer + ((size_t)nextIndex * ctx->inBlockSize),
+                ctx->inBlockSize,
+                &ctx->inTransferred[simIndex],
+                &ctx->inOverlapped[simIndex]);
 #else
-			FT_ReadPipeAsync(ctx->ftHandle, pipeid_data, ctx->inBuffer + ((size_t)nextIndex * ctx->inBlockSize), ctx->inBlockSize,
-				&ctx->inTransferred[simIndex], &ctx->inOverlapped[simIndex]);
+            ftStatus = FT_ReadPipeAsync(
+                ctx->ftHandle,
+                pipeid_data,
+                ctx->inBuffer + ((size_t)nextIndex * ctx->inBlockSize),
+                ctx->inBlockSize,
+                &ctx->inTransferred[simIndex],
+                &ctx->inOverlapped[simIndex]);
 #endif
-			srcPtr = ctx->inBuffer + ctx->inBlockSize * (size_t)ctx->nextReadIndex;
-			to_read = MIN(remaining, transferred);
-			memcpy(dstPtr, srcPtr, to_read);
-			remaining -= to_read;
-			dstPtr += to_read;
-			read += to_read;
+            if (ftStatus != FT_OK && ftStatus != FT_IO_PENDING) {
+                printf("Read failure %d\n", ftStatus);
+                return ONI_EREADFAILURE;
+            }
+            srcPtr
+                = ctx->inBuffer + ctx->inBlockSize * (size_t)ctx->nextReadIndex;
+            to_read = MIN(remaining, transferred);
+            memcpy(dstPtr, srcPtr, to_read);
+            remaining -= to_read;
+            dstPtr += to_read;
+            read += to_read;
             ctx->lastReadIndex = ctx->nextReadIndex;
             ctx->nextReadIndex
                 = (ctx->nextReadIndex + 1) % (2 * ctx->numInOverlapped);
             if (to_read < transferred) {
-				ctx->lastReadRead = transferred;
-				ctx->lastReadOffset = to_read;
+                ctx->lastReadRead = transferred;
+                ctx->lastReadOffset = to_read;
             } else {
                 ctx->lastReadOffset = 0;
-			}
-		}
+            }
+        }
 #else
-		ULONG transferred;
-        uint8_t* dstPtr = (uint8_t*)data;
-		do
-		{
-			ftStatus = FT_ReadPipeEx(ctx->ftHandle, pipeid_data, dstPtr + read, remaining, &transferred, 1000);
-			if (ftStatus != FT_OK && ftStatus != FT_TIMEOUT && ftStatus != FT_IO_PENDING)
-			{
-				printf("Read failure %d\n", ftStatus);
-				return ONI_EREADFAILURE;
-			}
-			if (ftStatus == FT_OK)
-			{
-				remaining -= transferred;
-				read += transferred;
-			}
-		} while (remaining > 0);
+        ULONG transferred;
+        uint8_t *dstPtr = (uint8_t *)data;
+        do {
+            ftStatus = FT_ReadPipeEx(ctx->ftHandle,
+                                     pipeid_data,
+                                     dstPtr + read,
+                                     remaining,
+                                     &transferred,
+                                     1000);
+            if (ftStatus != FT_OK && ftStatus != FT_TIMEOUT
+                && ftStatus != FT_IO_PENDING) {
+                printf("Read failure %d\n", ftStatus);
+                return ONI_EREADFAILURE;
+            }
+            if (ftStatus == FT_OK) {
+                remaining -= transferred;
+                read += transferred;
+            }
+        } while (remaining > 0);
 #endif
-		return read;
+        return read;
 
-	}
-	else return ONI_EPATHINVALID;
+    } else
+        return ONI_EPATHINVALID;
 }
 
 int oni_driver_write_stream(oni_driver_ctx driver_ctx,
-	oni_write_stream_t stream,
-	const char* data,
-	size_t size)
+                            oni_write_stream_t stream,
+                            const char *data,
+                            size_t size)
 {
-	CTX_CAST;
-	FT_STATUS ftStatus;
-	size_t remaining = ((size >> 2) << 2);//round to 32bit boundaries
-	size_t to_send;
-	ULONG transferred;
-	uint8_t* ptr = (uint8_t*)data; //WritePipe do not have a const qualifier for the buffer, even if it does not modify it, so we need to get rid of it
+    CTX_CAST;
+    FT_STATUS ftStatus;
+    size_t remaining = ((size >> 2) << 2); // round to 32bit boundaries
+    size_t to_send;
+    ULONG transferred;
+    uint8_t *ptr = (uint8_t *)
+        data; // WritePipe do not have a const qualifier for the buffer, even if
+              // it does not modify it, so we need to get rid of it
 
-	if (stream != ONI_WRITE_STREAM_DATA) return ONI_EPATHINVALID;
+    if (stream != ONI_WRITE_STREAM_DATA)
+        return ONI_EPATHINVALID;
 
-	while (remaining > 0)
-	{
-		to_send = MIN(remaining, ctx->outBlockSize);
+    while (remaining > 0) {
+        to_send = MIN(remaining, ctx->outBlockSize);
 #ifdef _WIN32
-		FT_WritePipe(ctx->ftHandle, pipe_out, ptr, to_send, &transferred, &ctx->outOverlapped);
-		ftStatus = FT_GetOverlappedResult(ctx->ftHandle, &ctx->outOverlapped, &transferred, TRUE);
-		if (ftStatus != FT_OK) return ONI_EWRITEFAILURE;
+        FT_WritePipe(ctx->ftHandle,
+                     pipe_out,
+                     ptr,
+                     to_send,
+                     &transferred,
+                     &ctx->outOverlapped);
+        ftStatus = FT_GetOverlappedResult(
+            ctx->ftHandle, &ctx->outOverlapped, &transferred, TRUE);
+        if (ftStatus != FT_OK)
+            return ONI_EWRITEFAILURE;
 #else
-		ftStatus = FT_WritePipeEx(ctx->ftHandle, pipeid_data, ptr, to_send, &transferred, 1000);
-		if (ftStatus != FT_OK && ftStatus != FT_TIMEOUT && ftStatus != FT_IO_PENDING) return ONI_EWRITEFAILURE;
+        ftStatus = FT_WritePipeEx(
+            ctx->ftHandle, pipeid_data, ptr, to_send, &transferred, 1000);
+        if (ftStatus != FT_OK && ftStatus != FT_TIMEOUT
+            && ftStatus != FT_IO_PENDING)
+            return ONI_EWRITEFAILURE;
 #endif
-		if (ftStatus == FT_OK)
-		{
-			ptr += transferred;
-			remaining -= transferred;
-		}
-	}
-	return size;
+        if (ftStatus == FT_OK) {
+            ptr += transferred;
+            remaining -= transferred;
+        }
+    }
+    return size;
 }
 
 int oni_driver_write_config(oni_driver_ctx driver_ctx,
-	oni_config_t reg,
-	oni_reg_val_t value)
+                            oni_config_t reg,
+                            oni_reg_val_t value)
 {
-	CTX_CAST;
-	uint8_t buffer[45];
-	size_t size;
-	//to avoid cluttering the USB interface will all the operations required for a device
-	//register access, we latch them together and send them in a single USB operation
-	if (reg == ONI_CONFIG_DEV_IDX)
-	{
-		ctx->regOperation.dev_idx = value;
-		return ONI_ESUCCESS;
-	}
-	if (reg == ONI_CONFIG_REG_ADDR)
-	{
-		ctx->regOperation.dev_addr = value;
-		return ONI_ESUCCESS;
-	}
-	if (reg == ONI_CONFIG_REG_VALUE)
-	{
-		ctx->regOperation.value = value;
-		return ONI_ESUCCESS;
-	}
-	if (reg == ONI_CONFIG_RW)
-	{
-		ctx->regOperation.rw = value;
-		return ONI_ESUCCESS;
-	}
-	if (reg == ONI_CONFIG_TRIG)
-	{
-		size_t i = 0;
-		buffer[(9*i)] = CMD_WRITEREG;
-		*(uint32_t*)(buffer + 1 + (9 * i)) = _oni_register_offset(ONI_CONFIG_DEV_IDX);
-		*(uint32_t*)(buffer + 5 + (9 * i)) = ctx->regOperation.dev_idx;
-		i++;
-		buffer[(9 * i)] = CMD_WRITEREG;
-		*(uint32_t*)(buffer + 1 + (9 * i)) = _oni_register_offset(ONI_CONFIG_REG_ADDR);
-		*(uint32_t*)(buffer + 5 + (9 * i)) = ctx->regOperation.dev_addr;
-		i++;
-		buffer[(9 * i)] = CMD_WRITEREG;
-		*(uint32_t*)(buffer + 1 + (9 * i)) = _oni_register_offset(ONI_CONFIG_RW);
-		*(uint32_t*)(buffer + 5 + (9 * i)) = ctx->regOperation.rw;
-		i++;
-		if (ctx->regOperation.rw)
-		{
-			buffer[(9 * i)] = CMD_WRITEREG;
-			*(uint32_t*)(buffer + 1 + (9 * i)) = _oni_register_offset(ONI_CONFIG_REG_VALUE);
-			*(uint32_t*)(buffer + 5 + (9 * i)) = ctx->regOperation.value;
-			i++;
-		}
-		buffer[(9 * i)] = CMD_WRITEREG;
-		*(uint32_t*)(buffer + 1 + (9 * i)) = _oni_register_offset(ONI_CONFIG_TRIG);
-		*(uint32_t*)(buffer + 5 + (9 * i)) = 1;
-		i++;
-		size = i * 9;
-	}
-	else
-	{
-		buffer[0] = CMD_WRITEREG;
-		*(uint32_t*)(buffer + 1) = _oni_register_offset(reg);
-		*(uint32_t*)(buffer + 5) = value;
-		size = 9;
-	}
+    CTX_CAST;
+    uint8_t buffer[45];
+    size_t size;
+    // to avoid cluttering the USB interface will all the operations required
+    // for a device register access, we latch them together and send them in a
+    // single USB operation
+    if (reg == ONI_CONFIG_DEV_IDX) {
+        ctx->regOperation.dev_idx = value;
+        return ONI_ESUCCESS;
+    }
+    if (reg == ONI_CONFIG_REG_ADDR) {
+        ctx->regOperation.dev_addr = value;
+        return ONI_ESUCCESS;
+    }
+    if (reg == ONI_CONFIG_REG_VALUE) {
+        ctx->regOperation.value = value;
+        return ONI_ESUCCESS;
+    }
+    if (reg == ONI_CONFIG_RW) {
+        ctx->regOperation.rw = value;
+        return ONI_ESUCCESS;
+    }
+    if (reg == ONI_CONFIG_TRIG) {
+        size_t i = 0;
+        buffer[(9 * i)] = CMD_WRITEREG;
+        *(uint32_t *)(buffer + 1 + (9 * i))
+            = _oni_register_offset(ONI_CONFIG_DEV_IDX);
+        *(uint32_t *)(buffer + 5 + (9 * i)) = ctx->regOperation.dev_idx;
+        i++;
+        buffer[(9 * i)] = CMD_WRITEREG;
+        *(uint32_t *)(buffer + 1 + (9 * i))
+            = _oni_register_offset(ONI_CONFIG_REG_ADDR);
+        *(uint32_t *)(buffer + 5 + (9 * i)) = ctx->regOperation.dev_addr;
+        i++;
+        buffer[(9 * i)] = CMD_WRITEREG;
+        *(uint32_t *)(buffer + 1 + (9 * i))
+            = _oni_register_offset(ONI_CONFIG_RW);
+        *(uint32_t *)(buffer + 5 + (9 * i)) = ctx->regOperation.rw;
+        i++;
+        if (ctx->regOperation.rw) {
+            buffer[(9 * i)] = CMD_WRITEREG;
+            *(uint32_t *)(buffer + 1 + (9 * i))
+                = _oni_register_offset(ONI_CONFIG_REG_VALUE);
+            *(uint32_t *)(buffer + 5 + (9 * i)) = ctx->regOperation.value;
+            i++;
+        }
+        buffer[(9 * i)] = CMD_WRITEREG;
+        *(uint32_t *)(buffer + 1 + (9 * i))
+            = _oni_register_offset(ONI_CONFIG_TRIG);
+        *(uint32_t *)(buffer + 5 + (9 * i)) = 1;
+        i++;
+        size = i * 9;
+    } else {
+        buffer[0] = CMD_WRITEREG;
+        *(uint32_t *)(buffer + 1) = _oni_register_offset(reg);
+        *(uint32_t *)(buffer + 5) = value;
+        size = 9;
+    }
 
-	if (reg == ONI_CONFIG_RESET && value != 0)
-	{
-	    oni_ft600_stop_acq(ctx);
-	}
-	int res = oni_ft600_sendcmd(ctx, buffer, size);
-	if (res != ONI_ESUCCESS) return res;
-	return ONI_ESUCCESS;
+    if (reg == ONI_CONFIG_RESET && value != 0) {
+        oni_ft600_stop_acq(ctx);
+    }
+    int res = oni_ft600_sendcmd(ctx, buffer, size);
+    if (res != ONI_ESUCCESS)
+        return res;
+    return ONI_ESUCCESS;
 }
 
-int oni_driver_read_config(oni_driver_ctx driver_ctx, oni_config_t reg, oni_reg_val_t* value)
+int oni_driver_read_config(oni_driver_ctx driver_ctx,
+                           oni_config_t reg,
+                           oni_reg_val_t *value)
 {
-	CTX_CAST;
-	uint8_t buffer[5];
-	buffer[0] = CMD_READREG;
-	*(uint32_t*)(buffer + 1) = _oni_register_offset(reg);
-	int res = oni_ft600_sendcmd(ctx, buffer, 5);
-	if (res != ONI_ESUCCESS) return res;
+    CTX_CAST;
+    uint8_t buffer[5];
+    buffer[0] = CMD_READREG;
+    *(uint32_t *)(buffer + 1) = _oni_register_offset(reg);
+    int res = oni_ft600_sendcmd(ctx, buffer, 5);
+    if (res != ONI_ESUCCESS)
+        return res;
 
-	while (!circBufferCanRead(&ctx->regBuffer, sizeof(oni_reg_val_t)))
-	{
+    while (!circBufferCanRead(&ctx->regBuffer, sizeof(oni_reg_val_t))) {
 #ifdef POLL_CONTROL
-		oni_ft600_update_control(ctx);
+        oni_ft600_update_control(ctx);
 #endif
-		if (ctx->sigError)
-		{
-			ctx->sigError = 0;
-			return ONI_ESEEKFAILURE;
-		}
-	}
-	circBufferRead(&ctx->regBuffer, (uint8_t*)value, sizeof(oni_reg_val_t));
-	return ONI_ESUCCESS;
+        if (ctx->sigError) {
+            ctx->sigError = 0;
+            return ONI_ESEEKFAILURE;
+        }
+    }
+    circBufferRead(&ctx->regBuffer, (uint8_t *)value, sizeof(oni_reg_val_t));
+    return ONI_ESUCCESS;
 }
-
 
 static inline void oni_ft600_start_acq(oni_ft600_ctx ctx)
 {
-
-	for (size_t i = 0; i < ctx->numInOverlapped; i++)
-	{
-#if _WIN32
-		FT_ReadPipeEx(ctx->ftHandle, pipe_in, ctx->inBuffer + (i * ctx->inBlockSize), ctx->inBlockSize, &ctx->inTransferred[i], &ctx->inOverlapped[i]);
-#else
-#ifdef LINUX_ASYNC
-		FT_ReadPipeAsync(ctx->ftHandle, pipeid_data, ctx->inBuffer + (i * ctx->inBlockSize), ctx->inBlockSize, &ctx->inTransferred[i], &ctx->inOverlapped[i]);
-#endif
-#endif
-	}
-
-	ctx->state = STATE_RUNNING;
+    int ftStatus;
+    ctx->mustStart = 1;
+    ctx->state = STATE_RUNNING;
 }
 
 int oni_driver_set_opt_callback(oni_driver_ctx driver_ctx,
-	int oni_option,
-	const void* value,
-	size_t option_len)
+                                int oni_option,
+                                const void *value,
+                                size_t option_len)
 {
-	CTX_CAST;
-	UNUSED(option_len);
-	if (oni_option == ONI_OPT_RUNNING)
-	{
-		if (*(uint32_t*)value == 0)
-		{
-			oni_ft600_stop_acq(ctx);
-		}
-		else
-		{
-			oni_ft600_start_acq(ctx);
-		}
-	}
-	else if (oni_option == ONI_OPT_RESETACQCOUNTER)
-	{
-		if (*(uint32_t*)value > 1)
-			oni_ft600_start_acq(ctx);
-	}
-	else if (oni_option == ONI_OPT_BLOCKREADSIZE)
-	{
-		if (ctx->state == STATE_RUNNING) return ONI_EINVALSTATE;
-		uint32_t size = *(oni_size_t*)value;
-		if (size % sizeof(uint32_t) != 0) return ONI_EINVALREADSIZE;
-		ctx->inBlockSize = size;
+    CTX_CAST;
+    UNUSED(option_len);
+    if (oni_option == ONI_OPT_RUNNING) {
+        if (*(uint32_t *)value == 0) {
+            oni_ft600_stop_acq(ctx);
+        } else {
+            oni_ft600_start_acq(ctx);
+        }
+    } else if (oni_option == ONI_OPT_RESETACQCOUNTER) {
+        if (*(uint32_t *)value > 1)
+            oni_ft600_start_acq(ctx);
+    } else if (oni_option == ONI_OPT_BLOCKREADSIZE) {
+        if (ctx->state == STATE_RUNNING)
+            return ONI_EINVALSTATE;
+        uint32_t size = *(oni_size_t *)value;
+        if (size % sizeof(uint32_t) != 0)
+            return ONI_EINVALREADSIZE;
+        ctx->inBlockSize = size;
 
-		if (ctx->state == STATE_INIT) //memory already allocated
-		{
-			free(ctx->inBuffer);
-			ctx->inBuffer = malloc(2 * (size_t)ctx->numInOverlapped * ctx->inBlockSize);
-			if (ctx->inBuffer == NULL) return ONI_EBADALLOC;
-		//	FT_ClearStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in);
-		//	FT_SetStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in,size);
-		}
-
-	}
-	return ONI_ESUCCESS;
+        if (ctx->state == STATE_INIT) // memory already allocated
+        {
+            free(ctx->inBuffer);
+            ctx->inBuffer
+                = malloc(2 * (size_t)ctx->numInOverlapped * ctx->inBlockSize);
+            if (ctx->inBuffer == NULL)
+                return ONI_EBADALLOC;
+            //	FT_ClearStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in);
+            //	FT_SetStreamPipe(ctx->ftHandle, FALSE, FALSE, pipe_in,size);
+        }
+    }
+    return ONI_ESUCCESS;
 }
 
 // TODO: there are some options that could be set here
 int oni_driver_set_opt(oni_driver_ctx driver_ctx,
-	int driver_option,
-	const void* value,
-	size_t option_len)
+                       int driver_option,
+                       const void *value,
+                       size_t option_len)
 {
-	UNUSED(driver_ctx);
-	UNUSED(driver_option);
-	UNUSED(value);
-	UNUSED(option_len);
-	return ONI_EINVALOPT;
+    UNUSED(driver_ctx);
+    UNUSED(driver_option);
+    UNUSED(value);
+    UNUSED(option_len);
+    return ONI_EINVALOPT;
 }
 
 // option 0: driver version
 // option 1: library version
 int oni_driver_get_opt(oni_driver_ctx driver_ctx,
-	int driver_option,
-	void* value,
-	size_t* option_len)
+                       int driver_option,
+                       void *value,
+                       size_t *option_len)
 {
     CTX_CAST;
 
-	if (!ctx->ftHandle)
-	{
+    if (!ctx->ftHandle) {
         return ONI_EINVALSTATE;
-	}
+    }
 
-	if (driver_option == 0)
-	{
+    if (driver_option == 0) {
         if (*option_len < sizeof(int32_t))
             return ONI_EBUFFERSIZE;
         if (FT_GetDriverVersion(ctx->ftHandle, value) == FT_OK)
             return ONI_ESUCCESS;
         else
             return ONI_ESEEKFAILURE;
-	}
-    else if (driver_option == 1) {
+    } else if (driver_option == 1) {
         if (*option_len < sizeof(uint32_t))
             return ONI_EBUFFERSIZE;
         if (FT_GetLibraryVersion(value) == FT_OK)
@@ -927,40 +986,40 @@ int oni_driver_get_opt(oni_driver_ctx driver_ctx,
         else
             return ONI_ESEEKFAILURE;
     } else
-	return ONI_EINVALOPT;
+        return ONI_EINVALOPT;
 }
 
-const oni_driver_info_t* oni_driver_info(void)
+const oni_driver_info_t *oni_driver_info(void)
 {
     return &driverInfo;
 }
 
 static inline oni_conf_off_t _oni_register_offset(oni_config_t reg)
 {
-	switch (reg) {
-	case ONI_CONFIG_DEV_IDX:
-		return CONFDEVIDXOFFSET;
-	case ONI_CONFIG_REG_ADDR:
-		return CONFADDROFFSET;
-	case ONI_CONFIG_REG_VALUE:
-		return CONFVALUEOFFSET;
-	case ONI_CONFIG_RW:
-		return CONFRWOFFSET;
-	case ONI_CONFIG_TRIG:
-		return CONFTRIGOFFSET;
-	case ONI_CONFIG_RUNNING:
-		return CONFRUNNINGOFFSET;
-	case ONI_CONFIG_RESET:
-		return CONFRESETOFFSET;
-	case ONI_CONFIG_SYSCLKHZ:
-		return CONFSYSCLKHZOFFSET;
-	case ONI_CONFIG_ACQCLKHZ:
-		return CONFACQCLKHZOFFSET;
-	case ONI_CONFIG_RESETACQCOUNTER:
-		return CONFRESETACQCOUNTER;
-	case ONI_CONFIG_HWADDRESS:
-		return CONFHWADDRESS;
-	default:
-		return 0;
-	}
+    switch (reg) {
+        case ONI_CONFIG_DEV_IDX:
+            return CONFDEVIDXOFFSET;
+        case ONI_CONFIG_REG_ADDR:
+            return CONFADDROFFSET;
+        case ONI_CONFIG_REG_VALUE:
+            return CONFVALUEOFFSET;
+        case ONI_CONFIG_RW:
+            return CONFRWOFFSET;
+        case ONI_CONFIG_TRIG:
+            return CONFTRIGOFFSET;
+        case ONI_CONFIG_RUNNING:
+            return CONFRUNNINGOFFSET;
+        case ONI_CONFIG_RESET:
+            return CONFRESETOFFSET;
+        case ONI_CONFIG_SYSCLKHZ:
+            return CONFSYSCLKHZOFFSET;
+        case ONI_CONFIG_ACQCLKHZ:
+            return CONFACQCLKHZOFFSET;
+        case ONI_CONFIG_RESETACQCOUNTER:
+            return CONFRESETACQCOUNTER;
+        case ONI_CONFIG_HWADDRESS:
+            return CONFHWADDRESS;
+        default:
+            return 0;
+    }
 }
