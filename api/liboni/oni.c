@@ -688,7 +688,7 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
     total_size += rsize;
 
     // Direct frame data's view into the pre-collected buffer
-    assert(ctx->shared_rbuf->read_pos + rsize <= ctx->shared_rbuf->end_pos 
+    assert(ctx->shared_rbuf->read_pos + rsize <= ctx->shared_rbuf->end_pos
         && "Attempted to read past buffer end");
     iframe->private.f.data = ctx->shared_rbuf->read_pos;
     ctx->shared_rbuf->read_pos += rsize;
@@ -1225,7 +1225,7 @@ static inline int _oni_read_config(oni_ctx ctx, oni_config_t reg, oni_reg_val_t 
 
 static int _oni_ensure_read_buffer(oni_ctx ctx)
 {
-    // NB: This function can only be called if the device table has been 
+    // NB: This function can only be called if the device table has been
     // populated and contains devices that produce data.
     if (ctx->max_read_frame_size == 0)
         return ONI_EINVALARG;
