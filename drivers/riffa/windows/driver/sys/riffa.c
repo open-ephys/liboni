@@ -155,6 +155,10 @@ NTSTATUS RiffaEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit) {
 	// Register the PnP Callbacks.
 	pnpPowerCallbacks.EvtDevicePrepareHardware = RiffaEvtDevicePrepareHardware;
 	pnpPowerCallbacks.EvtDeviceReleaseHardware = RiffaEvtDeviceReleaseHardware;
+	pnpPowerCallbacks.EvtDeviceD0Entry = RiffaEvtDeviceD0Entry;
+    pnpPowerCallbacks.EvtDeviceD0Exit = RiffaEvtDeviceD0Exit;
+    pnpPowerCallbacks.EvtDeviceSurpriseRemoval = RiffaEvtDeviceSurpriseRemoval;
+
 	WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
 
 	//Initialize file callbacks
@@ -192,6 +196,27 @@ NTSTATUS RiffaEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit) {
 	memset(devExt->Chnl, 0, 2 * RIFFA_MAX_NUM_CHNLS * sizeof(CHNL_DIR_STATE));
 	devExt->Device = device;
 	devExt->lockedFile = NULL;
+
+	WDF_TIMER_CONFIG watchdogConfig;
+	WDF_TIMER_CONFIG_INIT_PERIODIC(&watchdogConfig, RiffaWatchdogTimerFunc, RIFFA_WATCHDOG_INTERVAL);
+	
+	WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+	attributes.ParentObject = device;
+	status = WdfTimerCreate(&watchdogConfig, &attributes, &devExt->WatchdogTimer);
+	if (!NT_SUCCESS(status)) {
+		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "riffa: WdfTimerCreate (Watchdog) failed\n");
+		return status;
+	}
+
+	WDF_WORKITEM_CONFIG workItemConfig;
+	WDF_WORKITEM_CONFIG_INIT(&workItemConfig, RiffaEvtWatchdogWorker);
+	WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+	attributes.ParentObject = device;
+	status = WdfWorkItemCreate(&workItemConfig, &attributes, &devExt->WatchdogWorkItem);
+	if (!NT_SUCCESS(status)) {
+		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "riffa: WdfWorkItemCreate (Watchdog) failed\n");
+		return status;
+	}
 
 	// Create a new IO Queue for IRP_MJ_DEVICE_CONTROL requests.
 	WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchParallel);
@@ -279,6 +304,54 @@ VOID RiffaEvtDriverContextCleanup(IN WDFDRIVER Driver) {
 #endif
 }
 
+/**
+ * Watchdog timer callback function.
+ * This function is called when the watchdog timer expires.
+ * The watchdog is used to prevent a case where the FPGA power might be
+ * down but the PCIe link still up, which would cause the driver to hang indefinitely.
+ * (e.g.: A thunderbolt bridge where the link is still up but the FPGA is powered down)
+ */
+VOID RiffaWatchdogTimerFunc(IN WDFTIMER Timer) {
+	PDEVICE_EXTENSION devExt = RiffaGetDeviceContext(WdfTimerGetParentObject(Timer));
+	UINT32 irq_status;
+
+	if (!devExt->HardwarePresent) return;
+
+	// Check an inofensive register to see if the device is still present. 
+	// If it returns 0xFFFFFFFF, it means the device is no longer responding (Master Abort).
+	irq_status = READ_REGISTER_ULONG(devExt->Bar0 + RIFFA_NAME_REG);
+
+	if (irq_status == 0xFFFFFFFF) {
+		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+			"riffa: fpga:%s, WATCHDOG detected Master Abort. Delegating to Worker...\n", 
+			devExt->Name);
+		
+		devExt->HardwarePresent = FALSE;
+		
+		// Stop successive heartbeats
+		WdfTimerStop(Timer, FALSE); 
+		
+		// Enqueue a safe asynchronous action at PASSIVE_LEVEL
+		WdfWorkItemEnqueue(devExt->WatchdogWorkItem);
+	}
+}
+
+/**
+ * Watchdog worker callback function.
+ * This function is called when the watchdog work item is executed.
+ * Safely shuts down the driver when the FPGA is no longer responding, by calling WdfDeviceSetFailed.
+ */
+VOID RiffaEvtWatchdogWorker(IN WDFWORKITEM WorkItem) {
+	WDFDEVICE device = WdfWorkItemGetParentObject(WorkItem);
+	PDEVICE_EXTENSION devExt = RiffaGetDeviceContext(device);
+	
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+		"riffa: fpga:%s, Executing WdfDeviceSetFailed due to disconnection...\n", 
+		devExt->Name);
+
+	// This will internally trigger RiffaEvtDeviceSurpriseRemoval cleaning everything up
+	WdfDeviceSetFailed(device, WdfDeviceFailedAttemptRestart);
+}
 
 
 /**
@@ -339,6 +412,7 @@ NTSTATUS RiffaEvtDevicePrepareHardware(WDFDEVICE Device, WDFCMRESLIST Resources,
 							desc->u.Memory.Start.QuadPart, desc->u.Memory.Length);
 						return STATUS_INSUFFICIENT_RESOURCES;
 					}
+					devExt->HardwarePresent = TRUE;
 					foundBar0 = TRUE;
 				}
 				break;
@@ -366,6 +440,10 @@ NTSTATUS RiffaEvtDevicePrepareHardware(WDFDEVICE Device, WDFCMRESLIST Resources,
 
 	// Read the configuration register (also resets the device)
 	info = READ_REGISTER_ULONG(devExt->Bar0 + RIFFA_INFO_REG);
+	if (info == 0xFFFFFFFF) {
+        devExt->HardwarePresent = FALSE;
+        return STATUS_DEVICE_DOES_NOT_EXIST; // Disconnection during enumeration
+    }
 	devExt->NumChnls = (info & 0xF);
 	devExt->MaxNumScatterGatherElems = RIFFA_MIN_NUM_SG_ELEMS*((info>>19) & 0xF);
 
@@ -422,6 +500,7 @@ NTSTATUS RiffaEvtDevicePrepareHardware(WDFDEVICE Device, WDFCMRESLIST Resources,
 	for (i = 0; i < devExt->NumChnls; i++) {
 		// Create a new manual IO Queue for pending requests.
 		WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchManual);
+		queueConfig.EvtIoStop = RiffaEvtIoStop;
 		status = WdfIoQueueCreate(Device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES,
 			&devExt->Chnl[i].PendingQueue);
 		if(!NT_SUCCESS(status)) {
@@ -431,6 +510,7 @@ NTSTATUS RiffaEvtDevicePrepareHardware(WDFDEVICE Device, WDFCMRESLIST Resources,
 		}
 
 		WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchManual);
+		queueConfig.EvtIoStop = RiffaEvtIoStop;
 		status = WdfIoQueueCreate(Device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES,
 			&devExt->Chnl[RIFFA_MAX_NUM_CHNLS + i].PendingQueue);
 		if(!NT_SUCCESS(status)) {
@@ -589,6 +669,107 @@ NTSTATUS RiffaEvtDeviceReleaseHardware(IN WDFDEVICE Device, IN WDFCMRESLIST Reso
 	return status;
 }
 
+/**
+ * Called when the device is surprise-removed. This is called when the device is
+ * removed without a prior query-remove or remove request. This can happen if
+ * the device is physically removed from the system, or if the device stops
+ * responding to PnP requests.
+ *	.
+ * Device - A handle to the WDFDEVICE
+ */
+VOID RiffaEvtDeviceSurpriseRemoval(IN WDFDEVICE Device) {
+	PDEVICE_EXTENSION devExt = RiffaGetDeviceContext(Device);
+	UINT32 i;
+	PAGED_CODE();
+
+	WdfTimerStop(devExt->WatchdogTimer, TRUE);
+
+	// Reset the device to abort any transactions in flight.
+	if (devExt->Bar0 != NULL) {
+		READ_REGISTER_ULONG(devExt->Bar0 + RIFFA_INFO_REG);
+	}
+
+	devExt->HardwarePresent = FALSE;
+	DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "riffa: fpga:%s, Surprise Removal!\n", devExt->Name);
+
+	// Free all pending requests.
+	for (i = 0; i < devExt->NumChnls; i++) {
+		RiffaCompleteRequest(devExt, i, STATUS_DEVICE_DOES_NOT_EXIST, FALSE, TRUE);
+		RiffaCompleteRequest(devExt, RIFFA_MAX_NUM_CHNLS + i, STATUS_DEVICE_DOES_NOT_EXIST, FALSE, TRUE);
+	}
+}
+
+/**
+ * Called when a request is being stopped. This can happen if the device is being stopped or removed.
+ *	.
+ * Queue - A handle to the WDFQUEUE
+ * Request - A handle to the WDFREQUEST
+ * ActionFlags - Flags indicating the reason for stopping the request
+ */
+VOID RiffaEvtIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG ActionFlags) {
+	PDEVICE_EXTENSION devExt = RiffaGetDeviceContext(WdfIoQueueGetDevice(Queue));
+	UINT32 i;
+	
+	// If the request is being stopped because the device is being stopped or removed
+	if (ActionFlags & (WdfRequestStopActionSuspend | WdfRequestStopActionPurge)) {
+		
+		if (devExt->HardwarePresent) {
+			READ_REGISTER_ULONG(devExt->Bar0 + RIFFA_INFO_REG);
+		}
+
+		for (i = 0; i < devExt->NumChnls; i++) {
+			RiffaCompleteRequest(devExt, i, STATUS_CANCELLED, FALSE, TRUE);
+			RiffaCompleteRequest(devExt, RIFFA_MAX_NUM_CHNLS + i, STATUS_CANCELLED, FALSE, TRUE);
+		}
+		
+		// Clear internal state
+		memset(devExt->IntrData, 0, 2 * RIFFA_MAX_NUM_CHNLS * sizeof(INTR_CHNL_DIR_DATA));
+	}
+}
+
+/**
+ * Called when the device is entering the D0 power state. This is called when the device is
+ * being powered on or returning from a low-power state.
+ *	.
+ * Device - A handle to the WDFDEVICE
+ * PreviousState - The previous power state of the device
+ */
+NTSTATUS RiffaEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousState) {
+	PDEVICE_EXTENSION devExt = RiffaGetDeviceContext(Device);
+	UINT32 info;
+
+	if (PreviousState != WdfPowerDeviceD0) {
+		devExt->HardwarePresent = TRUE;
+		// Reset the device to recover initial state after coming out of sleep
+		info = READ_REGISTER_ULONG(devExt->Bar0 + RIFFA_INFO_REG);
+		if (info == 0xFFFFFFFF) {
+			devExt->HardwarePresent = FALSE;
+			return STATUS_DEVICE_DOES_NOT_EXIST;
+		}
+		WdfTimerStart(devExt->WatchdogTimer, WDF_REL_TIMEOUT_IN_MS(RIFFA_WATCHDOG_INTERVAL));
+	}
+	return STATUS_SUCCESS;
+}
+
+/**
+ * Called when the device is exiting the D0 power state. This is called when the device is
+ * being powered off or entering a low-power state.
+ *	.
+ * Device - A handle to the WDFDEVICE
+ * TargetState - The target power state of the device
+ */
+NTSTATUS RiffaEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetState) {
+	PDEVICE_EXTENSION devExt = RiffaGetDeviceContext(Device);
+
+	WdfTimerStop(devExt->WatchdogTimer, TRUE);
+
+	if (devExt->HardwarePresent) {
+		// Reset to stop any transactions in flight before going to sleep
+		READ_REGISTER_ULONG(devExt->Bar0 + RIFFA_INFO_REG);
+	}
+	return STATUS_SUCCESS;
+}
+
 
 
 /**
@@ -711,10 +892,25 @@ BOOLEAN RiffaEvtInterruptIsr(IN WDFINTERRUPT Interrupt, IN ULONG MessageID) {
 
 	devExt = RiffaGetDeviceContext(WdfInterruptGetDevice(Interrupt));
 
+	// If the device is not present, ignore the interrupt. 
+	// This can happen if the device is surprise-removed and the interrupt is still asserted.
+	if (!devExt->HardwarePresent) return FALSE;
+
 	// Read the interrupt register
 	vect0 = READ_REGISTER_ULONG(devExt->Bar0 + RIFFA_IRQ_0_REG);
+	// NB : If the device is removed, the read will return 0xFFFFFFFF. In that case, we should ignore the interrupt and not queue a DPC.
+	if (vect0 == 0xFFFFFFFF) {
+		devExt->HardwarePresent = FALSE;
+		return FALSE; 
+	}
 	if (devExt->NumChnls > 6)
+	{
 		vect1 = READ_REGISTER_ULONG(devExt->Bar0 + RIFFA_IRQ_1_REG);
+		if (vect1 == 0xFFFFFFFF) {
+			devExt->HardwarePresent = FALSE;
+			return FALSE; 
+		}
+	}
 
 	// Process the interrupt vector(s)
 	recog = RiffaProcessInterrupt(devExt, 0, vect0);
@@ -777,6 +973,10 @@ BOOLEAN RiffaProcessInterrupt(IN PDEVICE_EXTENSION DevExt, IN UINT32 Offset,
 			// Read the offset/last and length
 			offlast = READ_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(chnl, RIFFA_TX_OFFLAST_REG));
 			len = READ_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(chnl, RIFFA_TX_LEN_REG));
+			if (offlast == 0xFFFFFFFF || len == 0xFFFFFFFF) {
+				DevExt->HardwarePresent = FALSE;
+				return FALSE; // Disconnection during interrupt
+			}
 			DevExt->IntrData[RIFFA_MAX_NUM_CHNLS + chnl].OffLast = offlast;
 			DevExt->IntrData[RIFFA_MAX_NUM_CHNLS + chnl].Length = len;
 			DevExt->IntrData[RIFFA_MAX_NUM_CHNLS + chnl].NewTxn = TRUE;
@@ -923,7 +1123,14 @@ VOID RiffaRecvDone(PDEVICE_EXTENSION devExt, UINT32 chnl)
 					"riffa: fpga:%s chnl:%d, recv txn done\n", devExt->Name, chnl));
 
 				// Read the actual transfer length
-				tnfr = READ_REGISTER_ULONG(devExt->Bar0 + CHNL_REG(chnl, RIFFA_TX_TNFR_LEN_REG));
+				if (devExt->HardwarePresent)
+				{
+					tnfr = READ_REGISTER_ULONG(devExt->Bar0 + CHNL_REG(chnl, RIFFA_TX_TNFR_LEN_REG));
+				}
+				else {
+					tnfr = 0;
+					status = STATUS_DEVICE_DOES_NOT_EXIST;
+				}
 				RiffaTransactionComplete(devExt, chnl, tnfr, status);
 			}
 			else {
@@ -933,10 +1140,18 @@ VOID RiffaRecvDone(PDEVICE_EXTENSION devExt, UINT32 chnl)
 					KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
 						"riffa: fpga:%s chnl:%d, recv txn done\n", devExt->Name, chnl));
 					
+					status = STATUS_TRANSACTION_ABORTED;
 					// Read the actual transfer length
-					tnfr = READ_REGISTER_ULONG(devExt->Bar0 + CHNL_REG(chnl, RIFFA_TX_TNFR_LEN_REG));
+					if (devExt->HardwarePresent)
+					{
+						tnfr = READ_REGISTER_ULONG(devExt->Bar0 + CHNL_REG(chnl, RIFFA_TX_TNFR_LEN_REG));
+					}
+					else {
+						tnfr = 0;
+						status = STATUS_DEVICE_DOES_NOT_EXIST;
+					}
 					RiffaTransactionComplete(devExt, chnl, tnfr,
-						STATUS_TRANSACTION_ABORTED);
+						status);
 				}
 				else {
 					KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
@@ -959,7 +1174,14 @@ VOID RiffaSendDone(PDEVICE_EXTENSION devExt, UINT32 chnl)
 			txnComplete = WdfDmaTransactionDmaCompleted(devExt->Chnl[chnl].DmaTransaction, &status);
 			if (txnComplete) {
 				// Read the actual transfer length
-				tnfr = READ_REGISTER_ULONG(devExt->Bar0 + CHNL_REG(chnl, RIFFA_RX_TNFR_LEN_REG));
+				if (devExt->HardwarePresent)
+				{
+					tnfr = READ_REGISTER_ULONG(devExt->Bar0 + CHNL_REG(chnl, RIFFA_RX_TNFR_LEN_REG));
+				}
+				else {
+					tnfr = 0;
+					status = STATUS_DEVICE_DOES_NOT_EXIST;
+				}
 				KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
 					"riffa: fpga:%s chnl:%d, send txn done\n", devExt->Name, chnl));
 				RiffaTransactionComplete(devExt, chnl, tnfr, status);
@@ -968,10 +1190,18 @@ VOID RiffaSendDone(PDEVICE_EXTENSION devExt, UINT32 chnl)
 				if (doneReqd == 0) {
 					// Not complete and not expecting a done signal. Must be an error.
 					// End the transaction early. Read the actual transfer length
-					tnfr = READ_REGISTER_ULONG(devExt->Bar0 + CHNL_REG(chnl, RIFFA_RX_TNFR_LEN_REG));
+					status = STATUS_TRANSACTION_ABORTED;
+					if (devExt->HardwarePresent)
+					{
+						tnfr = READ_REGISTER_ULONG(devExt->Bar0 + CHNL_REG(chnl, RIFFA_RX_TNFR_LEN_REG));
+					}
+					else {
+						tnfr = 0;
+						status = STATUS_DEVICE_DOES_NOT_EXIST;
+					}
 					KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
 						"riffa: fpga:%s chnl:%d, send txn done\n", devExt->Name, chnl));
-					RiffaTransactionComplete(devExt, chnl, tnfr, STATUS_TRANSACTION_ABORTED);
+					RiffaTransactionComplete(devExt, chnl, tnfr, status);
 				}
 				else {
 					KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
@@ -1094,6 +1324,14 @@ VOID RiffaIoctlSend(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 		return;
 	}
 	io = (PRIFFA_FPGA_CHNL_IO)buf;
+
+	// Check if the device is locked and if the request is from the same file object
+	if (DevExt->lockedFile != NULL && DevExt->lockedFile != WdfRequestGetFileObject(Request)) {
+		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+			"riffa: fpga:%s, access denied (locked)\n", DevExt->Name);
+		WdfRequestCompleteWithInformation(Request, STATUS_ACCESS_DENIED, 0);
+		return;
+	}
 
 	// Validate the length, last, chnl
 	length = (io->Length < (OutputBufferLength>>2) ? io->Length : (OutputBufferLength>>2));
@@ -1230,6 +1468,14 @@ VOID RiffaIoctlRecv(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 		return;
 	}
 	io = (PRIFFA_FPGA_CHNL_IO)buf;
+
+	// Check if the device is locked and if the request is from the same file object
+	if (DevExt->lockedFile != NULL && DevExt->lockedFile != WdfRequestGetFileObject(Request)) {
+		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+			"riffa: fpga:%s, access denied (locked)\n", DevExt->Name);
+		WdfRequestCompleteWithInformation(Request, STATUS_ACCESS_DENIED, 0);
+		return;
+	}
 
 	// Validate the length, chnl
 	length = (io->Length < (OutputBufferLength>>2) ? io->Length : (OutputBufferLength>>2));
@@ -1411,8 +1657,17 @@ VOID RiffaIoctlList(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 VOID RiffaIoctlReset(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request) {
 	UINT32 i;
 
+	// Check if the device is locked and if the request is from the same file object
+	if (Request != NULL && DevExt->lockedFile != NULL && DevExt->lockedFile != WdfRequestGetFileObject(Request)) {
+		WdfRequestCompleteWithInformation(Request, STATUS_ACCESS_DENIED, 0);
+		return;
+	}
+
 	// Reset the device by reading the info/status register
-	READ_REGISTER_ULONG(DevExt->Bar0 + RIFFA_INFO_REG);
+	if (DevExt->HardwarePresent == TRUE)
+	{
+		READ_REGISTER_ULONG(DevExt->Bar0 + RIFFA_INFO_REG);
+	}
 
 	// Reset all the channels
 	for (i = 0; i < DevExt->NumChnls; i++) {
@@ -1723,22 +1978,31 @@ VOID RiffaProgramScatterGather(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl) {
 	DevExt->Chnl[Chnl].SgPos = pos;
 
 	if (i > 0) {
-		// Let the device know about the new scatter gather data.
-		if (Chnl < RIFFA_MAX_NUM_CHNLS) {
-			KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
-				"riffa: fpga:%s chnl:%d, sg buf for send txn: %d elements\n",
-				DevExt->Name, (Chnl < RIFFA_MAX_NUM_CHNLS ? Chnl : Chnl - RIFFA_MAX_NUM_CHNLS), i));
-			WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(Chnl, RIFFA_RX_SG_ADDR_LO_REG), bufAddr.LowPart);
-			WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(Chnl, RIFFA_RX_SG_ADDR_HI_REG), bufAddr.HighPart);
-			WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(Chnl, RIFFA_RX_SG_LEN_REG), (i*4*4)>>2); // Words!
+		if (DevExt->HardwarePresent)
+		{
+			// Let the device know about the new scatter gather data.
+			if (Chnl < RIFFA_MAX_NUM_CHNLS) {
+				KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+					"riffa: fpga:%s chnl:%d, sg buf for send txn: %d elements\n",
+					DevExt->Name, (Chnl < RIFFA_MAX_NUM_CHNLS ? Chnl : Chnl - RIFFA_MAX_NUM_CHNLS), i));
+				WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(Chnl, RIFFA_RX_SG_ADDR_LO_REG), bufAddr.LowPart);
+				WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(Chnl, RIFFA_RX_SG_ADDR_HI_REG), bufAddr.HighPart);
+				WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(Chnl, RIFFA_RX_SG_LEN_REG), (i*4*4)>>2); // Words!
+			}
+			else {
+				KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+					"riffa: fpga:%s chnl:%d, sg buf for recv txn: %d elements\n",
+					DevExt->Name, (Chnl < RIFFA_MAX_NUM_CHNLS ? Chnl : Chnl - RIFFA_MAX_NUM_CHNLS), i));
+				WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(Chnl - RIFFA_MAX_NUM_CHNLS, RIFFA_TX_SG_ADDR_LO_REG), bufAddr.LowPart);
+				WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(Chnl - RIFFA_MAX_NUM_CHNLS, RIFFA_TX_SG_ADDR_HI_REG), bufAddr.HighPart);
+				WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(Chnl - RIFFA_MAX_NUM_CHNLS, RIFFA_TX_SG_LEN_REG), (i*4*4)>>2); // Words!
+			}
 		}
-		else {
-			KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
-				"riffa: fpga:%s chnl:%d, sg buf for recv txn: %d elements\n",
+		else
+		{
+			KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+				"riffa: fpga:%s chnl:%d, sg buf for txn: %d elements, but hardware not present\n",
 				DevExt->Name, (Chnl < RIFFA_MAX_NUM_CHNLS ? Chnl : Chnl - RIFFA_MAX_NUM_CHNLS), i));
-			WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(Chnl - RIFFA_MAX_NUM_CHNLS, RIFFA_TX_SG_ADDR_LO_REG), bufAddr.LowPart);
-			WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(Chnl - RIFFA_MAX_NUM_CHNLS, RIFFA_TX_SG_ADDR_HI_REG), bufAddr.HighPart);
-			WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(Chnl - RIFFA_MAX_NUM_CHNLS, RIFFA_TX_SG_LEN_REG), (i*4*4)>>2); // Words!
 		}
 	}
 	else if (provided < length) {
@@ -1746,24 +2010,33 @@ VOID RiffaProgramScatterGather(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl) {
 		// until a "transfer done" signal is received. This is initiated differently
 		// for a send vs. a receive transaction.
 		InterlockedExchange(&DevExt->Chnl[Chnl].ReqdDone, 1);
-		if (Chnl < RIFFA_MAX_NUM_CHNLS) {
-			// Write the length to signal request for "done" signal after all the
-			// scatter gather regions have been used.
-		    WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(Chnl, RIFFA_RX_LEN_REG),
-		    	(ULONG)(provided>>2));
+		if (DevExt->HardwarePresent)
+		{
+			if (Chnl < RIFFA_MAX_NUM_CHNLS) {
+				// Write the length to signal request for "done" signal after all the
+				// scatter gather regions have been used.
+				WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(Chnl, RIFFA_RX_LEN_REG),
+		    		(ULONG)(provided>>2));
+			}
+			else {
+				// Read the length to signal request for "done" signal after all the
+				// scatter gather regions have been used.
+				READ_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(Chnl - RIFFA_MAX_NUM_CHNLS, RIFFA_TX_LEN_REG));
+			}
+			if (Chnl < RIFFA_MAX_NUM_CHNLS) {
+				KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+					"riffa: fpga:%s chnl:%d, splitting send txn\n", DevExt->Name, Chnl));
+			}
+			else {
+				KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
+					"riffa: fpga:%s chnl:%d, splitting recv txn\n", DevExt->Name, Chnl - RIFFA_MAX_NUM_CHNLS));
+			}
 		}
-		else {
-			// Read the length to signal request for "done" signal after all the
-			// scatter gather regions have been used.
-			READ_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(Chnl - RIFFA_MAX_NUM_CHNLS, RIFFA_TX_LEN_REG));
-		}
-		if (Chnl < RIFFA_MAX_NUM_CHNLS) {
-			KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
-				"riffa: fpga:%s chnl:%d, splitting send txn\n", DevExt->Name, Chnl));
-		}
-		else {
-			KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_TRACE_LEVEL,
-				"riffa: fpga:%s chnl:%d, splitting recv txn\n", DevExt->Name, Chnl - RIFFA_MAX_NUM_CHNLS));
+		else
+		{
+			KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+				"riffa: fpga:%s chnl:%d, splitting txn, but hardware not present\n",
+				DevExt->Name, (Chnl < RIFFA_MAX_NUM_CHNLS ? Chnl : Chnl - RIFFA_MAX_NUM_CHNLS)));
 		}
 	}
 
@@ -1881,8 +2154,11 @@ VOID RiffaProgramSend(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl, IN UINT32 Len
     // Let the device know about the new transfer.
     offlast = ((Offset<<1) | (Last & 0x1));
     chnl = (Chnl >= RIFFA_MAX_NUM_CHNLS ? Chnl - RIFFA_MAX_NUM_CHNLS : Chnl);
-    WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(chnl, RIFFA_RX_OFFLAST_REG), offlast);
-    WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(chnl, RIFFA_RX_LEN_REG), Length);
+	if (DevExt->HardwarePresent)
+	{
+		WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(chnl, RIFFA_RX_OFFLAST_REG), offlast);
+		WRITE_REGISTER_ULONG(DevExt->Bar0 + CHNL_REG(chnl, RIFFA_RX_LEN_REG), Length);
+	}
 }
 
 
