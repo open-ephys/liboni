@@ -330,6 +330,42 @@ int RIFFACALL fpga_list(fpga_info_list * list) {
 	return (int)fill_device_info(list);
 }
 
+int RIFFACALL fpga_driver_request_reload(fpga_t* fpga) {
+	BOOLEAN status;
+	OVERLAPPED overlapStruct = { 0 };
+	ULONG wordsReturned;
+
+	// Validate the device handle
+	if (fpga->dev == NULL || fpga->dev == INVALID_HANDLE_VALUE) {
+		printf("Invalid fpga_t device handle\n");
+		return -1;
+	}
+
+	// Call IOCTL with IOCTL_RIFFA_RELOADRQ. Must use the overlapped struct as the
+	// device was opened with overlap support.
+	status = DeviceIoControl(fpga->dev, IOCTL_RIFFA_RELOADRQ, NULL, 0, NULL, 0,
+		&wordsReturned, &overlapStruct);
+	if (!status) {
+		// Should be the IO Pending error
+		if (GetLastError() == ERROR_IO_PENDING) {
+			// Wait for the IOCTL to complete and get the return value
+			status = GetOverlappedResult(fpga->dev, &overlapStruct,
+				&wordsReturned, TRUE);
+			if (!status)
+			{
+				if (GetLastError() != ERROR_ACCESS_DENIED)
+					printf("Error in GetOverlappedResult: %d\n", GetLastError());
+				return -1;
+			}
+		}
+		else {
+			printf("Error in DeviceIoControl: %d\n", GetLastError());
+			return -1;
+		}
+	}
+	return 0;
+}
+
 /**
  * Returns a handle to the FPGA device specified by index. On failure, returns
  * an INVALID_HANDLE_VALUE. If the value of overlapped is TRUE, the device

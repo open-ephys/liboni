@@ -276,17 +276,40 @@ NTSTATUS RiffaEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit) {
 
 VOID RiffaFileCleanup(WDFFILEOBJECT FileObject)
 {
-
+	WDFDEVICE device;
 	PDEVICE_EXTENSION devExt;
 
 	PAGED_CODE();
 
-	devExt = RiffaGetDeviceContext(WdfFileObjectGetDevice(FileObject));
+	device = WdfFileObjectGetDevice(FileObject);
+	devExt = RiffaGetDeviceContext(device);
 
 	if (InterlockedCompareExchangePointer(&(devExt->lockedFile), devExt->lockedFile, devExt->lockedFile) == FileObject)
 	{
 		RiffaIoctlReset(devExt, NULL);
 		InterlockedExchangePointer(&(devExt->lockedFile), NULL);
+
+		if (InterlockedCompareExchange(&(devExt->ReloadRequested),FALSE,TRUE))
+		{
+			WDF_WORKITEM_CONFIG workItemConfig;
+			WDF_WORKITEM_CONFIG_INIT(&workItemConfig, RiffaEvtReloadDriver);
+
+			WDF_OBJECT_ATTRIBUTES attributes;
+			WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
+			attributes.ParentObject = device;
+
+			WDFWORKITEM hWorkItem;
+			NTSTATUS status = WdfWorkItemCreate(&workItemConfig, &attributes, &hWorkItem);
+			if (NT_SUCCESS(status))
+			{
+				WdfWorkItemEnqueue(hWorkItem);
+			}
+			else
+			{
+				DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
+					"riffa: WdfWorkItemCreate failed\n");
+			}
+		}
 	}
 }
 
@@ -302,6 +325,16 @@ VOID RiffaEvtDriverContextCleanup(IN WDFDRIVER Driver) {
 #else
 	(void)Driver;
 #endif
+}
+
+/**
+* Worker item that invalidates the driver after a reboot if it was requested by the user.
+*/
+VOID RiffaEvtReloadDriver(IN WDFWORKITEM WorkItem)
+{
+	WDFDEVICE device = WdfWorkItemGetParentObject(WorkItem);
+	WdfDeviceSetFailed(device, WdfDeviceFailedAttemptRestart);
+	WdfObjectDelete(WorkItem);
 }
 
 /**
@@ -1267,6 +1300,10 @@ VOID RiffaEvtIoDeviceControl(IN WDFQUEUE Queue, IN WDFREQUEST Request,
 		RiffaIoctlUnlock(devExt, Request);
 		break;
 
+	case IOCTL_RIFFA_RELOADRQ:
+		RiffaIoctlRequestReload(devExt, Request);
+		break;
+
     default:
         // The specified I/O control code is unrecognized by this driver.
 		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
@@ -1298,6 +1335,9 @@ VOID RiffaIoctlSend(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 	UINT64 length;
 	PCHAR buf = NULL;
 	size_t bufSize;
+	WDFFILEOBJECT fileObject;
+	
+	fileObject = WdfRequestGetFileObject(Request);
 
 	// Input should be non-zero
 	if(!InputBufferLength) {
@@ -1326,7 +1366,7 @@ VOID RiffaIoctlSend(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 	io = (PRIFFA_FPGA_CHNL_IO)buf;
 
 	// Check if the device is locked and if the request is from the same file object
-	if (DevExt->lockedFile != NULL && DevExt->lockedFile != WdfRequestGetFileObject(Request)) {
+	if (InterlockedCompareExchangePointer(&(DevExt->lockedFile), fileObject, fileObject) == fileObject) {
 		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
 			"riffa: fpga:%s, access denied (locked)\n", DevExt->Name);
 		WdfRequestCompleteWithInformation(Request, STATUS_ACCESS_DENIED, 0);
@@ -1442,6 +1482,9 @@ VOID RiffaIoctlRecv(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 	UINT64 length;
 	PCHAR buf = NULL;
 	size_t bufSize;
+	WDFFILEOBJECT fileObject;
+
+	fileObject = WdfRequestGetFileObject(Request);
 
 	// Input should be non-zero
 	if(!InputBufferLength) {
@@ -1470,7 +1513,7 @@ VOID RiffaIoctlRecv(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 	io = (PRIFFA_FPGA_CHNL_IO)buf;
 
 	// Check if the device is locked and if the request is from the same file object
-	if (DevExt->lockedFile != NULL && DevExt->lockedFile != WdfRequestGetFileObject(Request)) {
+	if (InterlockedCompareExchangePointer(&(DevExt->lockedFile), fileObject, fileObject) == fileObject) {
 		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL,
 			"riffa: fpga:%s, access denied (locked)\n", DevExt->Name);
 		WdfRequestCompleteWithInformation(Request, STATUS_ACCESS_DENIED, 0);
@@ -1656,9 +1699,11 @@ VOID RiffaIoctlList(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
  */
 VOID RiffaIoctlReset(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request) {
 	UINT32 i;
+	WDFFILEOBJECT fileObject;
+	fileObject = WdfRequestGetFileObject(Request);
 
 	// Check if the device is locked and if the request is from the same file object
-	if (Request != NULL && DevExt->lockedFile != NULL && DevExt->lockedFile != WdfRequestGetFileObject(Request)) {
+	if (InterlockedCompareExchangePointer(&(DevExt->lockedFile), fileObject, fileObject) == fileObject) {
 		WdfRequestCompleteWithInformation(Request, STATUS_ACCESS_DENIED, 0);
 		return;
 	}
@@ -1709,6 +1754,23 @@ VOID RiffaIoctlUnlock(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request)
 	}
 
 	WdfRequestCompleteWithInformation(Request, status, 0);
+}
+
+VOID RiffaIoctlRequestReload(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request)
+{
+	WDFFILEOBJECT fileObject;
+	fileObject = WdfRequestGetFileObject(Request);
+	NTSTATUS status = STATUS_INVALID_DEVICE_STATE;
+	if (InterlockedCompareExchangePointer(&(DevExt->lockedFile), fileObject, fileObject) == fileObject)
+	{
+		status = STATUS_DEVICE_BUSY;
+		if (InterlockedCompareExchange(&(DevExt->ReloadRequested), TRUE, FALSE) == FALSE)
+		{
+			status = STATUS_SUCCESS;
+		}
+	}
+	
+	WdfRequestComplete(Request, status);
 }
 
 /******************************************************************************

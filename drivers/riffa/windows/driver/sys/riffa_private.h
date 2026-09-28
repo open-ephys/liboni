@@ -125,6 +125,7 @@ typedef struct _DEVICE_EXTENSION {
 	BOOLEAN					HardwarePresent;
 	WDFTIMER				WatchdogTimer;
 	WDFWORKITEM				WatchdogWorkItem;
+	LONG					ReloadRequested; // reload driver request after reconfiguration
 } DEVICE_EXTENSION, *PDEVICE_EXTENSION;
 
 // The request extension for the request object
@@ -184,6 +185,8 @@ VOID RiffaIoctlList(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 VOID RiffaIoctlReset(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request);
 VOID RiffaIoctlLock(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request);
 VOID RiffaIoctlUnlock(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request);
+VOID RiffaIoctlRequestReload(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request);
+EVT_WDF_WORKITEM RiffaEvtReloadDriver;
 
 VOID RiffaCompleteRequest(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl, IN NTSTATUS Status, IN BOOLEAN TimedOut, IN BOOLEAN ClearReady);
 EVT_WDF_TIMER RiffaEvtTimerFunc;
