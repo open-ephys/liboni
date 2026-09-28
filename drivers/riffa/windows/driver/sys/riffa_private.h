@@ -20,6 +20,7 @@
 #define RIFFA_IRQ_1_REG				0xC
 #define RIFFA_RX_TNFR_LEN_REG		0xD
 #define RIFFA_TX_TNFR_LEN_REG		0xE
+#define RIFFA_NAME_REG				0xF
 
 // Size of common buffer for scatter gather elements
 #define RIFFA_MIN_SG_BUF_SIZE (4*1024)
@@ -41,6 +42,9 @@
 
 // Maximum number of RIFFA FPGAs
 #define RIFFA_MAX_NUM_FPGAS (5)
+
+// Watchdog timer interval (in milliseconds)
+#define RIFFA_WATCHDOG_INTERVAL (1000) 
 
 // The structure used to hold data transfer information
 typedef struct RIFFA_FPGA_CHNL_IO {
@@ -118,6 +122,10 @@ typedef struct _DEVICE_EXTENSION {
 	PUCHAR 					SpillBufferBase;
 	PHYSICAL_ADDRESS 		SpillBufferBaseLA;	// Logical Address
 	WDFFILEOBJECT			lockedFile;
+	BOOLEAN					HardwarePresent;
+	WDFTIMER				WatchdogTimer;
+	WDFWORKITEM				WatchdogWorkItem;
+	LONG					ReloadRequested; // reload driver request after reconfiguration
 } DEVICE_EXTENSION, *PDEVICE_EXTENSION;
 
 // The request extension for the request object
@@ -151,7 +159,12 @@ EVT_WDF_OBJECT_CONTEXT_CLEANUP RiffaEvtDriverContextCleanup;
 
 EVT_WDF_DEVICE_PREPARE_HARDWARE RiffaEvtDevicePrepareHardware;
 EVT_WDF_DEVICE_RELEASE_HARDWARE RiffaEvtDeviceReleaseHardware;
+EVT_WDF_DEVICE_D0_ENTRY RiffaEvtDeviceD0Entry;
+EVT_WDF_DEVICE_D0_EXIT RiffaEvtDeviceD0Exit;
+EVT_WDF_DEVICE_SURPRISE_REMOVAL RiffaEvtDeviceSurpriseRemoval;
 NTSTATUS RiffaReadHardwareIds(IN PDEVICE_EXTENSION DevExt);
+
+EVT_WDF_IO_QUEUE_IO_STOP RiffaEvtIoStop;
 
 EVT_WDF_FILE_CLEANUP RiffaFileCleanup;
 
@@ -172,9 +185,14 @@ VOID RiffaIoctlList(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request,
 VOID RiffaIoctlReset(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request);
 VOID RiffaIoctlLock(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request);
 VOID RiffaIoctlUnlock(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request);
+VOID RiffaIoctlRequestReload(IN PDEVICE_EXTENSION DevExt, IN WDFREQUEST Request);
+EVT_WDF_WORKITEM RiffaEvtReloadDriver;
 
 VOID RiffaCompleteRequest(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl, IN NTSTATUS Status, IN BOOLEAN TimedOut, IN BOOLEAN ClearReady);
 EVT_WDF_TIMER RiffaEvtTimerFunc;
+
+EVT_WDF_TIMER RiffaWatchdogTimerFunc;
+EVT_WDF_WORKITEM RiffaEvtWatchdogWorker;
 
 VOID RiffaStartRecvTransaction(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl);
 NTSTATUS RiffaStartDmaTransaction(IN PDEVICE_EXTENSION DevExt, IN UINT32 Chnl,

@@ -153,6 +153,15 @@ RIFFAAPI int RIFFACALL fpga_lock(fpga_t * fpga);
  * Returns nonzero if this handle did not have the lock.
  */
 RIFFAAPI int RIFFACALL fpga_unlock(fpga_t * fpga);
+
+/**
+* Requests a driver invalidation
+* Used to tell windows to reenumerate the device after a FPGA reconfiguration
+* This requires the handle to be locked and will happen upon closing
+* 
+* Returns nonzero if request was succesful
+*/
+RIFFAAPI int RIFFACALL fpga_driver_request_reload(fpga_t* fpga);
 #ifdef __cplusplus
 }
 #endif
