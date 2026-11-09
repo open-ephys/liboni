@@ -1273,14 +1273,17 @@ static int _oni_ensure_read_buffer(oni_ctx ctx)
         // (Re)set buffer state
         ctx->shared_rbuf->count = (struct ref) {_oni_destroy_buffer, 1};
         ctx->shared_rbuf->read_pos = ctx->shared_rbuf->buffer;
-        ctx->shared_rbuf->end_pos
-            = ctx->shared_rbuf->buffer + remaining + ctx->block_read_size;
+        ctx->shared_rbuf->end_pos = ctx->shared_rbuf->buffer + remaining;
 
         // Fill the buffer with new data
         int rc = _oni_read(ctx, ONI_READ_STREAM_DATA,
                           ctx->shared_rbuf->buffer + remaining,
                           ctx->block_read_size);
         if ((size_t)rc != ctx->block_read_size) return ONI_EREADFAILURE;
+
+        // NB: Only extend end_pos once the read succeeds. Otherwise, a failed
+        // read leaves uninitialized memory marked as valid data
+        ctx->shared_rbuf->end_pos += ctx->block_read_size;
     }
 
     return ONI_ESUCCESS;

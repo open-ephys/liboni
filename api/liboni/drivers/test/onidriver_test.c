@@ -1,9 +1,24 @@
 // This is a very simple ONI-compliant hardware emulator. It has some
 // limitations:
 //
-// 1. ONI_OPT_RUNNING does not enable/disable data. To make it work, data would need to be
-//    produced on a separate thread and passed through a blocking FIFO
-// 2. Writing data to the device does nothing (data is just ignored)
+// 1. Writing data to the device does nothing (data is just ignored)
+//
+// Like hardware, the context starts with acquisition stopped. Data stream reads
+// block until acquisition is started with ONI_OPT_RUNNING or
+// ONI_OPT_RESETACQCOUNTER (value 2). Stopping acquisition discards the frame
+// that was partially sent, as hardware flushes its FIFOs.
+//
+// Features for testing host software:
+//
+// 1. The host index selects the hub firmware version that is reported:
+//    TEST_UNSUPPORTED_HUB_FIRMWAREVER for TEST_UNSUPPORTED_HOST_IDX, and
+//    TEST_HUB_FIRMWAREVER for any other host index.
+// 2. Writing N > 0 to register TEST_REG_READFAULT of any test device lets N more
+//    data stream reads succeed, after which every data stream read fails with
+//    ONI_EREADFAILURE until the context is reset (ONI_OPT_RESET) or destroyed.
+//    Writing 0 before the fault is triggered disarms it. Reading the register
+//    returns the number of reads remaining before the fault, or 0 if no fault
+//    is armed.
 
 #include <assert.h>
 #include <errno.h>
@@ -11,6 +26,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 #include "../../onidefs.h"
 #include "../../oni.h"
@@ -25,6 +46,18 @@
 
 #define UNUSED(x) (void)(x)
 
+// Hub firmware versions ([15:8] major, [7:0] minor)
+#define TEST_HUB_FIRMWAREVER 0x0200
+#define TEST_UNSUPPORTED_HUB_FIRMWAREVER 0xFFFF // Never a valid firmware version
+#define TEST_UNSUPPORTED_HOST_IDX 128
+
+// Test device registers
+#define TEST_REG_ENABLE 0
+#define TEST_REG_MESSAGE 1
+#define TEST_REG_DUMMYWORDS 2
+#define TEST_REG_FRAMERATE 3
+#define TEST_REG_READFAULT 4
+
 #define ONI_RFRAMEHEADERSZ sizeof(oni_fifo_time_t) + 2 * sizeof(oni_fifo_dat_t) // [time, dev_idx, data_sz]
 
 // NB: To save some repetition
@@ -32,14 +65,14 @@
 #define MIN(a,b) ((a<b) ? a : b)
 
 const oni_driver_info_t driverInfo
-    = {.name = "test", .major = 2, .minor = 1, .patch = 0, .pre_release = NULL};
+    = {.name = "test", .major = 2, .minor = 2, .patch = 0, .pre_release = NULL};
 
 struct conf_reg {
     uint32_t dev_idx;
     uint32_t reg_addr;
     uint32_t reg_value;
     uint32_t rw;
-    uint32_t running;
+    volatile uint32_t running; // NB: Written by the config thread and read by the data reading thread
     uint32_t sysclkhz;
     uint32_t acqclkhz;
     uint32_t hwaddress;
@@ -88,6 +121,12 @@ struct oni_test_ctx_impl {
     // Enabled devices
     int num_enabled;
     int enabled_idx[NUMTESTDEVICES];
+
+    // Injected data stream read fault (see TEST_REG_READFAULT). NB: Written
+    // by the register access thread and read by the data reading thread.
+    volatile int read_fault_armed;
+    volatile int read_fault_tripped;
+    volatile uint32_t read_fault_countdown;
 };
 
 typedef struct oni_test_ctx_impl* oni_test_ctx;
@@ -112,6 +151,8 @@ static int _send_data_signal(oni_test_ctx ctx,
                              size_t n);
 static int _find_dev(oni_test_ctx ctx, oni_dev_idx_t idx);
 static int _find_hub_mgr(oni_dev_idx_t idx);
+static void _lock_enabled_devices(oni_test_ctx ctx);
+static void _wait_for_data(void);
 
 // TODO:
 //static const size_t write_stream_width = 4;
@@ -157,7 +198,7 @@ oni_driver_ctx oni_driver_create_ctx()
             ctx->dev_table[k].dummy_words = 2 * i + 1; // This needs to be odd to enfornce 32-bit boundaries on frame data
             ctx->dev_table[k].counter = 0;
             ctx->dev_table[k].hubhwid = 5;
-            ctx->dev_table[k].hubfirmver = 1600;
+            ctx->dev_table[k].hubfirmver = TEST_HUB_FIRMWAREVER;
             ctx->dev_table[k].hubclkhz = (i + 1) * 50e6;
             ctx->dev_table[k].hubdelayns = 628;
 
@@ -175,7 +216,7 @@ oni_driver_ctx oni_driver_create_ctx()
     ctx->conf.reg_addr = 0;
     ctx->conf.reg_value = 0;
     ctx->conf.rw = 0;
-    ctx->conf.running = 1;
+    ctx->conf.running = 0;
     ctx->conf.sysclkhz = 200e6;
     ctx->conf.acqclkhz = 200e6;
     ctx->conf.hwaddress = 0;
@@ -193,8 +234,13 @@ oni_driver_ctx oni_driver_create_ctx()
 
 int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 {
-    UNUSED(driver_ctx);
-    UNUSED(host_idx);
+    CTX_CAST;
+
+    if (host_idx == TEST_UNSUPPORTED_HOST_IDX) {
+        int i;
+        for (i = 0; i < ctx->num_devs; i++)
+            ctx->dev_table[i].hubfirmver = TEST_UNSUPPORTED_HUB_FIRMWAREVER;
+    }
 
     return ONI_ESUCCESS;
 }
@@ -263,6 +309,22 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
 
     if (stream == ONI_READ_STREAM_DATA)
     {
+        // Hardware produces no data while acquisition is stopped
+        while (!ctx->conf.running)
+            _wait_for_data();
+
+        if (ctx->read_fault_tripped)
+            return ONI_EREADFAILURE;
+
+        if (ctx->read_fault_armed) {
+            if (ctx->read_fault_countdown == 0) {
+                ctx->read_fault_armed = 0;
+                ctx->read_fault_tripped = 1;
+                return ONI_EREADFAILURE;
+            }
+            ctx->read_fault_countdown--;
+        }
+
         _fill_read_buffer(ctx, data, size);
        return size;
     }
@@ -358,17 +420,20 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
                             break;
                     }
                     _send_msg_signal(ctx, CONFIGRACK);
-                } else if (ctx->conf.reg_addr == 0) { // Register 0 (enable)
+                } else if (ctx->conf.reg_addr == TEST_REG_ENABLE) {
                     ctx->conf.reg_value = ctx->dev_table[i].stream_enabled;
                     _send_msg_signal(ctx, CONFIGRACK);
-                } else if (ctx->conf.reg_addr == 1) { // Register 1 (message)
+                } else if (ctx->conf.reg_addr == TEST_REG_MESSAGE) {
                     ctx->conf.reg_value = ctx->dev_table[i].message;
                     _send_msg_signal(ctx, CONFIGRACK);
-                } else if (ctx->conf.reg_addr == 2) { // Register 2 (read-only number of test words following message)
+                } else if (ctx->conf.reg_addr == TEST_REG_DUMMYWORDS) { // Read-only number of test words following message
                     ctx->conf.reg_value = ctx->dev_table[i].dummy_words;
                     _send_msg_signal(ctx, CONFIGRACK);
-                } else if (ctx->conf.reg_addr == 3) { // Register 3 (read-only frame rate in Hz with 0 being undefined)
+                } else if (ctx->conf.reg_addr == TEST_REG_FRAMERATE) { // Read-only frame rate in Hz with 0 being undefined
                     ctx->conf.reg_value = 0;
+                    _send_msg_signal(ctx, CONFIGRACK);
+                } else if (ctx->conf.reg_addr == TEST_REG_READFAULT) { // Reads remaining before an armed read fault
+                    ctx->conf.reg_value = ctx->read_fault_armed ? ctx->read_fault_countdown : 0;
                     _send_msg_signal(ctx, CONFIGRACK);
                 } else {
                     _send_msg_signal(ctx, CONFIGRNACK);
@@ -376,11 +441,17 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
             } else if (value) { // write
                 if (hub_mgr) {
                     _send_msg_signal(ctx, CONFIGWNACK); // Read only
-                } else if (ctx->conf.reg_addr == 0) { // Register 0 (enable)
+                } else if (ctx->conf.reg_addr == TEST_REG_ENABLE) {
                     ctx->dev_table[i].stream_enabled = (short)ctx->conf.reg_value;
                     _send_msg_signal(ctx, CONFIGWACK);
-                } else if (ctx->conf.reg_addr == 1) { // Register 1 (message)
+                } else if (ctx->conf.reg_addr == TEST_REG_MESSAGE) {
                     ctx->dev_table[i].message = (short)ctx->conf.reg_value;
+                    _send_msg_signal(ctx, CONFIGWACK);
+                } else if (ctx->conf.reg_addr == TEST_REG_READFAULT) { // Arm (N > 0) or disarm (0) a read fault
+                    if (!ctx->read_fault_tripped) {
+                        ctx->read_fault_countdown = ctx->conf.reg_value;
+                        ctx->read_fault_armed = ctx->conf.reg_value > 0;
+                    }
                     _send_msg_signal(ctx, CONFIGWACK);
                 } else {
                     _send_msg_signal(ctx, CONFIGWNACK);
@@ -391,28 +462,25 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
 
         }
         case ONI_CONFIG_RUNNING:
-            // TODO: To do this, we need data to be produced on a separate thread
-            // and passed through a blocking FIFO
+            // Discard the partially sent frame, as hardware flushes its FIFOs
+            // here. liboni drops its read buffer on every run state change,
+            // so the next data it reads must start on a frame boundary.
+            ctx->buff_pos = 0;
+
+            if (value)
+                _lock_enabled_devices(ctx);
+
+            // NB: Set last, so that a blocked read resumes with the state above
             ctx->conf.running = value;
-
-            // Lock in the devices that are enabled
-            if (value) {
-
-                 int i, k = 0;
-                 for (i = 0; i < ctx->num_devs; i++) {
-
-                    if (ctx->dev_table[i].stream_enabled) {
-                        ctx->enabled_idx[k] = i;
-                        k++;
-                    }
-                 }
-                 ctx->num_enabled = k;
-            }
-
             break;
         case ONI_CONFIG_RESET: {
 
             if (value == 0) return ONI_ESUCCESS;
+
+            // Reset read fault state
+            ctx->read_fault_armed = 0;
+            ctx->read_fault_tripped = 0;
+            ctx->read_fault_countdown = 0;
 
             // Put the device map onto the signal stream fifo
             _send_data_signal(ctx, DEVICEMAPACK, &ctx->num_devs, sizeof(ctx->num_devs));
@@ -429,8 +497,17 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
         case ONI_CONFIG_ACQCLKHZ:
             return ONI_EREADONLY;
         case ONI_CONFIG_RESETACQCOUNTER:
+            // 1: reset the acquisition counter. 2: reset the acquisition
+            // counter and start acquisition at the same time.
             if (value)
                 ctx->frame_num = 0;
+
+            // NB: Unlike ONI_CONFIG_RUNNING, liboni keeps its read buffer
+            // here, so the partially sent frame is kept too.
+            if (value == 2) {
+                _lock_enabled_devices(ctx);
+                ctx->conf.running = 1;
+            }
             break;
         case ONI_CONFIG_HWADDRESS:
             ctx->hw_addr = value;
@@ -613,4 +690,27 @@ static int _find_hub_mgr(oni_dev_idx_t idx)
         return ((idx & 0x0000FF00) >> 8);
 
     return -1;
+}
+
+// Lock in the devices that are enabled when acquisition starts
+static void _lock_enabled_devices(oni_test_ctx ctx)
+{
+    int i, k = 0;
+    for (i = 0; i < ctx->num_devs; i++) {
+        if (ctx->dev_table[i].stream_enabled) {
+            ctx->enabled_idx[k] = i;
+            k++;
+        }
+    }
+    ctx->num_enabled = k;
+}
+
+// Pause briefly while a data stream read waits for acquisition to start
+static void _wait_for_data(void)
+{
+#ifdef _WIN32
+    Sleep(1);
+#else
+    usleep(1000);
+#endif
 }
