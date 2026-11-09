@@ -32,10 +32,10 @@ namespace oni
         internal static extern int oni_get_opt(ContextHandle ctx, int option, StringBuilder val, IntPtr size);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        internal static extern int oni_set_opt(ContextHandle ctx, int option, IntPtr val, int size);
+        internal static extern int oni_set_opt(ContextHandle ctx, int option, IntPtr val, nuint size);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        internal static extern int oni_set_opt(ContextHandle ctx, int option, string val, int size);
+        internal static extern int oni_set_opt(ContextHandle ctx, int option, string val, nuint size);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
         internal static extern IntPtr oni_get_driver_info(ContextHandle ctx);
@@ -47,10 +47,10 @@ namespace oni
         internal static extern int oni_get_driver_opt(ContextHandle ctx, int option, StringBuilder val, IntPtr size);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        internal static extern int oni_set_driver_opt(ContextHandle ctx, int option, IntPtr val, int size);
+        internal static extern int oni_set_driver_opt(ContextHandle ctx, int option, IntPtr val, nuint size);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
-        internal static extern int oni_set_driver_opt(ContextHandle ctx, int option, string val, int size);
+        internal static extern int oni_set_driver_opt(ContextHandle ctx, int option, string val, nuint size);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl)]
         internal static extern int oni_read_reg(ContextHandle ctx, uint dev_idx, uint addr, IntPtr val);
@@ -62,7 +62,7 @@ namespace oni
         internal static extern int oni_read_frame(ContextHandle ctx, out IntPtr frame);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
-        internal static extern int oni_create_frame(ContextHandle ctx, out IntPtr frame, uint dev_idx, IntPtr data, uint data_sz);
+        internal static extern int oni_create_frame(ContextHandle ctx, out IntPtr frame, uint dev_idx, IntPtr data, nuint data_sz);
 
         [DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
         internal static extern int oni_write_frame(ContextHandle ctx, IntPtr frame);
