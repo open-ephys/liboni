@@ -124,13 +124,21 @@ namespace oni
             int size_dev = Marshal.SizeOf(new Device());
             int size = size_dev * num_devs; // bytes required to read table
 
-            var table = GetOption((int)Option.DEVICETABLE, size);
-
-            for (int i = 0; i < num_devs; i++)
+            var table = Marshal.AllocHGlobal(size);
+            try
             {
-                var d = (Device)Marshal.PtrToStructure(table, typeof(Device));
-                DeviceTable.Add(d.Address, d);
-                table = new IntPtr((long)table + size_dev);
+                GetOption((int)Option.DEVICETABLE, table, size);
+
+                for (int i = 0; i < num_devs; i++)
+                {
+                    var entry = new IntPtr((long)table + i * size_dev);
+                    var d = (Device)Marshal.PtrToStructure(entry, typeof(Device));
+                    DeviceTable.Add(d.Address, d);
+                }
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(table);
             }
         }
 
@@ -143,42 +151,34 @@ namespace oni
             PopulateDeviceTable();
         }
 
-        // GetOption
-        private IntPtr GetOption(int option, int size, bool drv_opt = false)
-        {
-            // NB: If I don't do all this wacky stuff, the size
-            // parameter ends up being wrong for 64-bit compilation.
-            var sz = Marshal.AllocHGlobal(IntPtr.Size);
-            if (IntPtr.Size == 4)
-            {
-                Marshal.WriteInt32(sz, size);
-            }
-            else
-            {
-                Marshal.WriteInt64(sz, size);
-            }
+        // NB: The option and register helpers pass pointers to stack variables rather than
+        // allocating native memory, which they would otherwise need to free on every call.
+        // Option sizes are size_t, so they are passed as a pointer to a pointer-sized value.
 
-            var value = Marshal.AllocHGlobal(size);
+        // GetOption
+        private void GetOption(int option, IntPtr value, int size, bool drv_opt = false)
+        {
+            var sz = (IntPtr)size;
 
             int rc;
             if (!drv_opt)
             {
-                rc = NativeMethods.oni_get_opt(ctx, option, value, sz);
+                rc = NativeMethods.oni_get_opt(ctx, option, value, (IntPtr)(&sz));
             }
             else
             {
-                rc = NativeMethods.oni_get_driver_opt(ctx, option, value, sz);
+                rc = NativeMethods.oni_get_driver_opt(ctx, option, value, (IntPtr)(&sz));
             }
 
             if (rc != 0) { throw new ONIException(rc); }
-            return value;
         }
 
         // Int32 GetOption
         private int GetIntOption(int option, bool drv_opt = false)
         {
-            var value = GetOption(option, Marshal.SizeOf(typeof(int)), drv_opt);
-            return Marshal.ReadInt32(value);
+            int value;
+            GetOption(option, (IntPtr)(&value), sizeof(int), drv_opt);
+            return value;
         }
 
         // String GetOption
@@ -186,16 +186,7 @@ namespace oni
         {
             const int BufferSize = 1000;
 
-            var sz = Marshal.AllocHGlobal(IntPtr.Size);
-            if (IntPtr.Size == 4)
-            {
-                Marshal.WriteInt32(sz, BufferSize);
-            }
-            else
-            {
-                Marshal.WriteInt64(sz, BufferSize);
-            }
-
+            var sz = (IntPtr)BufferSize;
 
 #if NET7_0_OR_GREATER
             var str = new char[BufferSize];
@@ -206,11 +197,11 @@ namespace oni
             int rc;
             if (!drv_opt)
             {
-                rc = NativeMethods.oni_get_opt(ctx, option, str, sz);
+                rc = NativeMethods.oni_get_opt(ctx, option, str, (IntPtr)(&sz));
             }
             else
             {
-                rc = NativeMethods.oni_get_driver_opt(ctx, option, str, sz);
+                rc = NativeMethods.oni_get_driver_opt(ctx, option, str, (IntPtr)(&sz));
             }
 
             if (rc != 0) { throw new ONIException(rc); }
@@ -220,24 +211,14 @@ namespace oni
         // Int32 SetOption
         private void SetIntOption(int opt, int value, bool drv_opt = false)
         {
-            var val = Marshal.AllocHGlobal(IntPtr.Size);
-            if (IntPtr.Size == 4)
-            {
-                Marshal.WriteInt32(val, value);
-            }
-            else
-            {
-                Marshal.WriteInt64(val, value);
-            }
-
             int rc;
             if (!drv_opt)
             {
-                rc = NativeMethods.oni_set_opt(ctx, opt, val, 4);
+                rc = NativeMethods.oni_set_opt(ctx, opt, (IntPtr)(&value), sizeof(int));
             }
             else
             {
-                rc = NativeMethods.oni_set_driver_opt(ctx, opt, val, 4);
+                rc = NativeMethods.oni_set_driver_opt(ctx, opt, (IntPtr)(&value), sizeof(int));
             }
 
             if (rc != 0) { throw new ONIException(rc); }
@@ -403,10 +384,10 @@ namespace oni
         /// address in invalid or if register is write only.</exception>
         public uint ReadRegister(uint dev_index, uint register_address)
         {
-            var val = Marshal.AllocHGlobal(4);
-            int rc = NativeMethods.oni_read_reg(ctx, dev_index, register_address, val);
+            uint value;
+            int rc = NativeMethods.oni_read_reg(ctx, dev_index, register_address, (IntPtr)(&value));
             if (rc != 0) { throw new ONIException(rc); }
-            return (uint)Marshal.ReadInt32(val);
+            return value;
         }
 
         /// <summary>
@@ -487,10 +468,15 @@ namespace oni
                 if (rc < 0) { throw new ONIException(rc); }
             }
 
-            rc = NativeMethods.oni_write_frame(ctx, frame);
-            if (rc < 0) { throw new ONIException(rc); }
-
-            NativeMethods.oni_destroy_frame(frame);
+            try
+            {
+                rc = NativeMethods.oni_write_frame(ctx, frame);
+                if (rc < 0) { throw new ONIException(rc); }
+            }
+            finally
+            {
+                NativeMethods.oni_destroy_frame(frame);
+            }
         }
 
         //public void Write<T>(uint dev_idx, T[] data) where T : unmanaged
@@ -543,10 +529,15 @@ namespace oni
             int rc = NativeMethods.oni_create_frame(ctx, out IntPtr frame, dev_index, data, (uint)data_size);
             if (rc < 0) { throw new ONIException(rc); }
 
-            rc = NativeMethods.oni_write_frame(ctx, frame);
-            if (rc < 0) { throw new ONIException(rc); }
-
-            NativeMethods.oni_destroy_frame(frame);
+            try
+            {
+                rc = NativeMethods.oni_write_frame(ctx, frame);
+                if (rc < 0) { throw new ONIException(rc); }
+            }
+            finally
+            {
+                NativeMethods.oni_destroy_frame(frame);
+            }
         }
 
         /// <summary>
