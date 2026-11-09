@@ -32,8 +32,9 @@ namespace oni
         internal Frame(IntPtr handle)
         : base(true)
         {
+            // NB: No GC memory pressure is registered: the frame data lives in a block buffer that is shared
+            // with other frames rather than owned by this one.
             SetHandle(handle);
-            GC.AddMemoryPressure(((frame_t*)handle.ToPointer())->data_sz);
         }
 
         /// <summary>
@@ -48,7 +49,6 @@ namespace oni
         protected override bool ReleaseHandle()
 #endif
         {
-            GC.RemoveMemoryPressure(((frame_t*)handle.ToPointer())->data_sz);
             NativeMethods.oni_destroy_frame(handle);
             return true;
         }
