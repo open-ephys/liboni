@@ -439,7 +439,7 @@ namespace oni
         /// or the selected device does not accept write data.</exception>
         public void Write<T>(uint dev_index, T value) where T : unmanaged
         {
-            Write(dev_index, new T[] { value });
+            Write(dev_index, (IntPtr)(&value), sizeof(T));
         }
 
         /// <summary>
@@ -478,38 +478,6 @@ namespace oni
                 NativeMethods.oni_destroy_frame(frame);
             }
         }
-
-        //public void Write<T>(uint dev_idx, T[] data) where T : unmanaged
-        //{
-        //    var data_pinned = GCHandle.Alloc(data, GCHandleType.Pinned);
-        //    var num_bytes = Buffer.ByteLength(data);
-        //    var p = (byte*)data_pinned.AddrOfPinnedObject().ToPointer();
-
-        //    int rc = NativeMethods.oni_create_frame(ctx, out Frame frame, dev_idx, (IntPtr)p, (uint)num_bytes);
-        //    if (rc < 0) { throw new ONIException(rc); }
-
-        //    // NB: oni_create_frame copies this data so we can free the pinned handle
-        //    data_pinned.Free();
-
-        //    rc = NativeMethods.oni_write_frame(ctx, frame);
-        //    if (rc < 0) { throw new ONIException(rc); }
-        //}
-
-        //public void Write<T>(uint dev_idx, T[] data) where T : unmanaged
-        //{
-        //    var num_bytes = Buffer.ByteLength(data);
-        //    var buffer = new byte[num_bytes];
-        //    Buffer.BlockCopy(data, 0, buffer, 0, num_bytes);
-
-        //    fixed (byte* p = buffer)
-        //    {
-        //        int rc = NativeMethods.oni_create_frame(ctx, out Frame frame, dev_idx, (IntPtr)p, (uint)num_bytes);
-        //        if (rc < 0) { throw new ONIException(rc); }
-
-        //        rc = NativeMethods.oni_write_frame(ctx, frame);
-        //        if (rc < 0) { throw new ONIException(rc); }
-        //    }
-        //}
 
         /// <summary>
         /// Write data at an <see cref="IntPtr"/> to a particular device within the
