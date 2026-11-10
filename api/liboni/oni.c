@@ -659,6 +659,19 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
     uint8_t *header = ctx->shared_rbuf->read_pos;
     ctx->shared_rbuf->read_pos += ONI_RFRAMEHEADERSZ;
 
+    // A header is valid only if it names a device in the device table and
+    // carries that device's read size. NB: A corrupt header, e.g. after a
+    // hardware buffer overflow, is a runtime error rather than a programming
+    // error, so it is reported rather than asserted.
+    oni_dev_idx_t dev_idx;
+    uint32_t data_sz;
+    memcpy(&dev_idx, header + sizeof(oni_fifo_time_t), sizeof(dev_idx));
+    memcpy(&data_sz, header + sizeof(oni_fifo_time_t) + sizeof(oni_fifo_dat_t), sizeof(data_sz));
+
+    int i = _oni_hash32_find(ctx, dev_idx);
+    if (i < 0 || data_sz == 0 || data_sz != ctx->dev_hash_table[i].read_size)
+        return ONI_EBADFRAME;
+
     // Allocate frame and buffer
     oni_frame_impl_t *iframe = malloc(sizeof(oni_frame_impl_t));
     if (!iframe)
@@ -672,14 +685,6 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
     // 1. index (4)
     // 2. data_sz (4)
     memcpy((void *)&iframe->private.f.time, header, ONI_RFRAMEHEADERSZ);
-    assert(iframe->private.f.data_sz > 0 && "Zero-sized frame");
-    assert(iframe->private.f.data_sz <= ctx->max_read_frame_size && "Invalid frame size");
-
-    // TODO: max_read_frame_size contains the header as well so the upper bound
-    // check is too relaxed.
-    if (iframe->private.f.data_sz == 0
-        || iframe->private.f.data_sz > ctx->max_read_frame_size)
-        return ONI_EBADFRAME;
 
     // Find read size (+ padding)
     // TODO:https://github.com/open-ephys/ONI/issues/3

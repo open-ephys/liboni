@@ -39,6 +39,13 @@
 // - TEST_REG_READSTALL: writing N > 0 makes the next data stream read block for
 //   N ms before it proceeds, once. Reading returns the stall that is still
 //   pending, or 0 if none is.
+// - TEST_REG_FRAMECORRUPT: writing N > 0 lets N more data stream reads produce
+//   valid frames, after which every frame header is corrupt until acquisition
+//   stops, as after a hardware buffer overflow. Corrupt headers alternate
+//   between a device index that is not in the device table and a data size
+//   that differs from the device's read size. Writing 0 before corruption
+//   starts disarms it. Reading returns the number of reads remaining before
+//   corruption starts, or 0 if none is armed.
 
 #include <assert.h>
 #include <errno.h>
@@ -80,6 +87,7 @@
 #define TEST_REG_READFAULT 4
 #define TEST_REG_WRITEFAULT 5
 #define TEST_REG_READSTALL 6
+#define TEST_REG_FRAMECORRUPT 7
 
 #define ONI_RFRAMEHEADERSZ sizeof(oni_fifo_time_t) + 2 * sizeof(oni_fifo_dat_t) // [time, dev_idx, data_sz]
 
@@ -159,6 +167,12 @@ struct oni_test_ctx_impl {
     // Injected data stream read stall in ms (see TEST_REG_READSTALL). NB:
     // Written by the register access thread and read by the data reading thread.
     volatile uint32_t read_stall_ms;
+
+    // Injected frame header corruption (see TEST_REG_FRAMECORRUPT). NB: Written
+    // by the register access thread and read by the data reading thread.
+    volatile int corrupt_armed;
+    volatile int corrupt_tripped;
+    volatile uint32_t corrupt_countdown;
 };
 
 typedef struct oni_test_ctx_impl* oni_test_ctx;
@@ -367,6 +381,15 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
             ctx->read_fault_countdown--;
         }
 
+        if (ctx->corrupt_armed) {
+            if (ctx->corrupt_countdown == 0) {
+                ctx->corrupt_armed = 0;
+                ctx->corrupt_tripped = 1;
+            } else {
+                ctx->corrupt_countdown--;
+            }
+        }
+
         _fill_read_buffer(ctx, data, size);
        return size;
     }
@@ -495,6 +518,9 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
                 } else if (ctx->conf.reg_addr == TEST_REG_READSTALL) { // Pending read stall in ms
                     ctx->conf.reg_value = ctx->read_stall_ms;
                     _send_msg_signal(ctx, CONFIGRACK);
+                } else if (ctx->conf.reg_addr == TEST_REG_FRAMECORRUPT) { // Reads remaining before armed frame corruption
+                    ctx->conf.reg_value = ctx->corrupt_armed ? ctx->corrupt_countdown : 0;
+                    _send_msg_signal(ctx, CONFIGRACK);
                 } else {
                     _send_msg_signal(ctx, CONFIGRNACK);
                 }
@@ -522,6 +548,12 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
                 } else if (ctx->conf.reg_addr == TEST_REG_READSTALL) { // Stall the next read for N ms
                     ctx->read_stall_ms = ctx->conf.reg_value;
                     _send_msg_signal(ctx, CONFIGWACK);
+                } else if (ctx->conf.reg_addr == TEST_REG_FRAMECORRUPT) { // Arm (N > 0) or disarm (0) frame corruption
+                    if (!ctx->corrupt_tripped) {
+                        ctx->corrupt_countdown = ctx->conf.reg_value;
+                        ctx->corrupt_armed = ctx->conf.reg_value > 0;
+                    }
+                    _send_msg_signal(ctx, CONFIGWACK);
                 } else {
                     _send_msg_signal(ctx, CONFIGWNACK);
                 }
@@ -548,6 +580,9 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
             ctx->write_fault_tripped = 0;
             ctx->write_fault_countdown = 0;
             ctx->read_stall_ms = 0;
+            ctx->corrupt_armed = 0;
+            ctx->corrupt_tripped = 0;
+            ctx->corrupt_countdown = 0;
 
             // Put the device map onto the signal stream fifo
             _send_data_signal(ctx, DEVICEMAPACK, &ctx->num_devs, sizeof(ctx->num_devs));
@@ -699,6 +734,15 @@ static void _fill_read_buffer(oni_test_ctx ctx, void *data, size_t size)
         *((uint32_t *)(ctx->read_buff + ctx->buff_pos + 12))
             = ctx->dev_table[d].dev.read_size;
 
+        // Corrupt the header, alternating between the device index and the
+        // data size. NB: The frame still occupies its true size in the stream.
+        if (ctx->corrupt_tripped) {
+            if (ctx->frame_num % 2)
+                *((uint32_t *)(ctx->read_buff + ctx->buff_pos + 8)) = 0xFFFFFFFE;
+            else
+                *((uint32_t *)(ctx->read_buff + ctx->buff_pos + 12)) += 4;
+        }
+
         // Hub counter
         *((uint64_t *)(ctx->read_buff + ctx->buff_pos + 16))
             = ctx->dev_table[d].counter++;
@@ -782,6 +826,9 @@ static void _stop_acquisition(oni_test_ctx ctx)
 {
     ctx->conf.running = 0;
     ctx->buff_pos = 0;
+
+    // Frame corruption lasts until acquisition stops
+    ctx->corrupt_tripped = 0;
 }
 
 // Block the calling thread for the given number of milliseconds

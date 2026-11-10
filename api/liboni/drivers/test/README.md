@@ -18,7 +18,7 @@ frame boundary.
   the context with host index 128 makes them report `0xFFFF` instead, a version
   that will never be valid, for testing how host software handles unsupported
   firmware.
-- **Fault injection registers**: registers 4 to 6 can be accessed through any
+- **Fault injection registers**: registers 4 to 7 can be accessed through any
   test device, but act on the whole context.
 - **Read fault injection**: writing N > 0 to register 4 of any test device lets
   N more data stream reads succeed, after which every data stream read fails
@@ -33,6 +33,13 @@ frame boundary.
   the next data stream read block for N ms before it proceeds, once. This
   emulates hardware that stops producing frames for a while. Reading the
   register returns the stall that is still pending, or 0 if none is.
+- **Frame corruption injection**: writing N > 0 to register 7 of any test device
+  lets N more data stream reads produce valid frames, after which every frame
+  header is corrupt until acquisition stops. This emulates a hardware buffer
+  overflow. Corrupt headers alternate between a device index that is not in the
+  device table and a data size that differs from the device's read size.
+  Writing 0 before corruption starts disarms it. Reading the register returns
+  the number of reads remaining before corruption starts, or 0 if none is armed.
 - **Initialization failure**: opening the context with host index 129 fails
   with `ONI_EINIT`.
 
@@ -45,6 +52,7 @@ frame boundary.
 | 4 | Read fault | R/W | Data stream reads remaining before an injected read fault |
 | 5 | Write fault | R/W | Data stream writes remaining before an injected write fault |
 | 6 | Read stall | R/W | Duration in ms of a stall injected into the next data stream read |
+| 7 | Frame corruption | R/W | Data stream reads remaining before frame headers are corrupted |
 
 ## Building the library
 ### Linux
