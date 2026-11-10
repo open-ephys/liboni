@@ -1,30 +1,44 @@
-// This is a very simple ONI-compliant hardware emulator. It has some
-// limitations:
+// A simple ONI-compliant hardware emulator for testing host software.
 //
-// 1. Writing data to the device does nothing (data is just ignored)
+// Acquisition
 //
-// Like hardware, the context starts with acquisition stopped. Data stream reads
-// block until acquisition is started with ONI_OPT_RUNNING or
-// ONI_OPT_RESETACQCOUNTER (value 2). Stopping acquisition discards the frame
-// that was partially sent, as hardware flushes its FIFOs.
+// Like hardware, the context starts with acquisition stopped, and data stream
+// reads block until acquisition is started with ONI_OPT_RUNNING or
+// ONI_OPT_RESETACQCOUNTER (value 2). Acquisition always starts on a frame
+// boundary, and stopping it flushes the data stream, discarding the frame that
+// was partially sent.
 //
-// Features for testing host software:
+// Limitations
 //
-// 1. The host index selects the hub firmware version that is reported:
-//    TEST_UNSUPPORTED_HUB_FIRMWAREVER for TEST_UNSUPPORTED_HOST_IDX, and
-//    TEST_HUB_FIRMWAREVER for any other host index.
-// 2. Writing N > 0 to register TEST_REG_READFAULT of any test device lets N moreq
-//    data stream reads succeed, after which every data stream read fails with
-//    ONI_EREADFAILURE until the context is reset (ONI_OPT_RESET) or destroyed.
-//    Writing 0 before the fault is triggered disarms it. Reading the register
-//    returns the number of reads remaining before the fault, or 0 if no fault
-//    is armed.
-// 3. Register TEST_REG_WRITEFAULT does the same for data stream writes, which
-//    then fail with ONI_EWRITEFAILURE.
-// 4. Writing N > 0 to register TEST_REG_READSTALL of any test device makes the
-//    next data stream read block for N ms before it proceeds, once. Reading the
-//    register returns the stall that is still pending, or 0 if none is.
-// 5. Opening the context with TEST_INIT_FAILURE_HOST_IDX fails with ONI_EINIT.
+// - The device table is fixed: NUMTESTHUBS hubs with NUMTESTDEVICESPERHUB test
+//   devices each.
+// - Frame sizes are fixed: a device's read frame size depends only on its hub,
+//   and every device's write frame size is 32 bytes.
+// - Data written to devices is accepted and ignored.
+//
+// Fault injection
+//
+// Some faults are selected by the host index when the context is opened:
+//
+// - TEST_UNSUPPORTED_HOST_IDX: hubs report TEST_UNSUPPORTED_HUB_FIRMWAREVER
+//   instead of TEST_HUB_FIRMWAREVER.
+// - TEST_INIT_FAILURE_HOST_IDX: opening the context fails with ONI_EINIT.
+//
+// Others are injected during operation by writing a register. These registers
+// can be accessed through any test device but act on the whole context, so that
+// host software can inject faults through ordinary register access rather than
+// a driver option. Resetting the context (ONI_OPT_RESET) clears all of them.
+//
+// - TEST_REG_READFAULT: writing N > 0 lets N more data stream reads succeed,
+//   after which every data stream read fails with ONI_EREADFAILURE until the
+//   context is reset or destroyed. Writing 0 before the fault trips disarms it.
+//   Reading returns the number of reads remaining before the fault, or 0 if no
+//   fault is armed.
+// - TEST_REG_WRITEFAULT: the same, for data stream writes, which then fail with
+//   ONI_EWRITEFAILURE.
+// - TEST_REG_READSTALL: writing N > 0 makes the next data stream read block for
+//   N ms before it proceeds, once. Reading returns the stall that is still
+//   pending, or 0 if none is.
 
 #include <assert.h>
 #include <errno.h>
@@ -102,8 +116,7 @@ typedef struct {
 struct oni_test_ctx_impl {
 
     // Block read size during buffer update in liboni
-    // NB: Must be a multiple of the read frame size
-    // ONI_FRAMEHEADERSZ + sizeof(data)
+    // NB: Must be a multiple of the read frame size ONI_FRAMEHEADERSZ + sizeof(data)
     oni_size_t block_read_size;
 
     // HW address
@@ -170,7 +183,8 @@ static int _send_data_signal(oni_test_ctx ctx,
                              size_t n);
 static int _find_dev(oni_test_ctx ctx, oni_dev_idx_t idx);
 static int _find_hub_mgr(oni_dev_idx_t idx);
-static void _lock_enabled_devices(oni_test_ctx ctx);
+static void _start_acquisition(oni_test_ctx ctx);
+static void _stop_acquisition(oni_test_ctx ctx);
 static void _sleep_ms(uint32_t ms);
 
 // TODO:
@@ -517,16 +531,10 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
 
         }
         case ONI_CONFIG_RUNNING:
-            // Discard the partially sent frame, as hardware flushes its FIFOs
-            // here. liboni drops its read buffer on every run state change,
-            // so the next data it reads must start on a frame boundary.
-            ctx->buff_pos = 0;
-
             if (value)
-                _lock_enabled_devices(ctx);
-
-            // NB: Set last, so that a blocked read resumes with the state above
-            ctx->conf.running = value;
+                _start_acquisition(ctx);
+            else
+                _stop_acquisition(ctx);
             break;
         case ONI_CONFIG_RESET: {
 
@@ -561,12 +569,8 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
             if (value)
                 ctx->frame_num = 0;
 
-            // NB: Unlike ONI_CONFIG_RUNNING, liboni keeps its read buffer
-            // here, so the partially sent frame is kept too.
-            if (value == 2) {
-                _lock_enabled_devices(ctx);
-                ctx->conf.running = 1;
-            }
+            if (value == 2)
+                _start_acquisition(ctx);
             break;
         case ONI_CONFIG_HWADDRESS:
             ctx->hw_addr = value;
@@ -751,9 +755,14 @@ static int _find_hub_mgr(oni_dev_idx_t idx)
     return -1;
 }
 
-// Lock in the devices that are enabled when acquisition starts
-static void _lock_enabled_devices(oni_test_ctx ctx)
+// Start acquisition on a frame boundary, with the devices that are enabled now
+static void _start_acquisition(oni_test_ctx ctx)
 {
+    if (ctx->conf.running)
+        return;
+
+    ctx->buff_pos = 0;
+
     int i, k = 0;
     for (i = 0; i < ctx->num_devs; i++) {
         if (ctx->dev_table[i].stream_enabled) {
@@ -762,6 +771,17 @@ static void _lock_enabled_devices(oni_test_ctx ctx)
         }
     }
     ctx->num_enabled = k;
+
+    // NB: Set last, so that a blocked read resumes with the state above
+    ctx->conf.running = 1;
+}
+
+// Stop acquisition and flush the data stream, discarding the frame that was
+// partially sent
+static void _stop_acquisition(oni_test_ctx ctx)
+{
+    ctx->conf.running = 0;
+    ctx->buff_pos = 0;
 }
 
 // Block the calling thread for the given number of milliseconds

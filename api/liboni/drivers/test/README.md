@@ -9,14 +9,17 @@ implementation has the following limitations:
 
 Like hardware, the context starts with acquisition stopped. Data stream reads
 block until acquisition is started by setting `ONI_OPT_RUNNING` to 1 or
-`ONI_OPT_RESETACQCOUNTER` to 2. Stopping acquisition discards the frame that was
-partially sent, as hardware flushes its FIFOs.
+`ONI_OPT_RESETACQCOUNTER` to 2. Stopping acquisition flushes the data stream,
+discarding the frame that was partially sent, and acquisition always starts on a
+frame boundary.
 
 ## Features for testing host software
 - **Hub firmware version**: hubs report firmware version 2.0 (`0x0200`). Opening
   the context with host index 128 makes them report `0xFFFF` instead, a version
   that will never be valid, for testing how host software handles unsupported
   firmware.
+- **Fault injection registers**: registers 4 to 6 can be accessed through any
+  test device, but act on the whole context.
 - **Read fault injection**: writing N > 0 to register 4 of any test device lets
   N more data stream reads succeed, after which every data stream read fails
   with `ONI_EREADFAILURE` until the context is reset (`ONI_OPT_RESET`) or
