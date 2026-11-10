@@ -78,6 +78,15 @@ namespace ClrOniRepl
             public int BlockWriteSize { get; set; }
         }
 
+        // Reads a line of whitespace-separated unsigned integers
+        static List<uint> ReadArguments()
+        {
+            var line = Console.ReadLine() ?? "";
+            return line.Split((char[])null, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => uint.TryParse(x, out uint r) ? r : throw new ArgumentException("Invalid arguments."))
+                .ToList();
+        }
+
         static void Main(string[] args)
         {
 
@@ -116,15 +125,33 @@ namespace ClrOniRepl
                         ctx.BlockReadSize = o.BlockReadSize;
                         ctx.BlockWriteSize = o.BlockWriteSize;
 
-                        // State acquisition and reset acquisition clock counter
-                        ctx.Start(true);
-
-                        // Start processor in background
                         if (o.DisplayPercentage <= 0 || o.DisplayPercentage > 100.0) throw new ArgumentException("Invalid frame display rate requested.");
-                        var displayEvery = (ulong)(100.0 / o.DisplayPercentage);
                         var processor = new DataProcessor(ctx, o.DisplayFrames, (ulong)(100.0 / o.DisplayPercentage));
-                        var procThread = new Thread(new ThreadStart(processor.CaptureData));
-                        procThread.Start();
+                        Thread procThread = null;
+                        bool acquiring = false;
+
+                        // NB: Data reads block while acquisition is stopped, and liboni discards its read
+                        // buffer when acquisition starts or stops. So the processor thread is started after
+                        // acquisition starts, and acquisition is stopped only after the thread has exited.
+                        void StartAcquisition(bool resetFrameClock)
+                        {
+                            ctx.Start(resetFrameClock);
+                            acquiring = true;
+                            processor.Quit = false;
+                            procThread = new Thread(new ThreadStart(processor.CaptureData));
+                            procThread.Start();
+                        }
+
+                        void StopAcquisition()
+                        {
+                            processor.Quit = true;
+                            procThread.Join();
+                            acquiring = false;
+                            ctx.Stop();
+                        }
+
+                        // Start acquisition and reset acquisition clock counter
+                        StartAcquisition(true);
 
                         int c = '-';
 
@@ -144,19 +171,23 @@ namespace ClrOniRepl
                                 Console.WriteLine("\tq - quit");
                                 Console.Write(">>> ");
 
-                                c = Console.ReadLine()[0];
+                                var line = Console.ReadLine();
+                                if (line == null) break; // Input was closed
+                                line = line.Trim();
+                                if (line.Length == 0) continue;
+                                c = line[0];
 
                                 switch (c)
                                 {
                                     case 'p':
-                                        if (!ctx.Running)
+                                        if (!acquiring)
                                         {
-                                            ctx.Start();
+                                            StartAcquisition(false);
                                             Console.WriteLine("Acquisition started.");
                                         }
                                         else
                                         {
-                                            ctx.Stop();
+                                            StopAcquisition();
                                             Console.WriteLine("Acquisition paused.");
                                         }
                                         break;
@@ -171,7 +202,7 @@ namespace ClrOniRepl
                                             Console.WriteLine(string.Format("Enter the percent of frames to display. 100.0 will display every frame. The current rate is {0}", rate));
                                             Console.Write(">>> ");
                                             var tmp = Console.ReadLine();
-                                            var newRate = double.TryParse(tmp, out double r) ? r : throw new ArgumentException("Invalid arguements.");
+                                            var newRate = double.TryParse(tmp, out double r) ? r : throw new ArgumentException("Invalid arguments.");
                                             if (newRate <= 0.0 || newRate > 100.0) throw new ArgumentException("Display rate must be between 0 and 100%.");
                                             processor.DisplayEvery = (ulong)(100.0 / newRate);
                                             break;
@@ -189,8 +220,8 @@ namespace ClrOniRepl
                                         {
                                             Console.WriteLine("Enter dev_idx reg_addr");
                                             Console.Write(">>> ");
-                                            var tmp = Console.ReadLine().Trim().Split(' ').ToList().Select(x => uint.TryParse(x, out uint r) ? r : throw new ArgumentException("Invalid arguements."));
-                                            if (tmp.Count() != 2) throw new ArgumentException("Invalid number of arguements.");
+                                            var tmp = ReadArguments();
+                                            if (tmp.Count() != 2) throw new ArgumentException("Invalid number of arguments.");
                                             Console.WriteLine(ctx.ReadRegister(tmp.ElementAt(0), tmp.ElementAt(1)));
 
                                             break;
@@ -199,8 +230,8 @@ namespace ClrOniRepl
                                         {
                                             Console.WriteLine("Enter dev_idx reg_addr reg_value");
                                             Console.Write(">>> ");
-                                            var tmp = Console.ReadLine().Trim().Split(' ').ToList().Select(x => uint.TryParse(x, out uint r) ? r : throw new ArgumentException("Invalid arguements."));
-                                            if (tmp.Count() != 3) throw new ArgumentException("Invalid number of arguements.");
+                                            var tmp = ReadArguments();
+                                            if (tmp.Count() != 3) throw new ArgumentException("Invalid number of arguments.");
                                             ctx.WriteRegister(tmp.ElementAt(0), tmp.ElementAt(1), tmp.ElementAt(2));
                                             break;
                                         }
@@ -209,12 +240,11 @@ namespace ClrOniRepl
                                         break;
 
                                     case 'x':
-                                        processor.Quit = true;
-                                        procThread.Join(200);
+                                        // NB: Reset requires acquisition to be stopped
+                                        if (acquiring) StopAcquisition();
                                         ctx.Refresh();
                                         Console.Write(Helpers.DeviceTableString(ctx));
-                                        ctx.Start(true);
-                                        procThread.Start();
+                                        StartAcquisition(true);
                                         break;
 
                                     default:
@@ -228,9 +258,7 @@ namespace ClrOniRepl
                             }
                         }
 
-                        // Join data and signal threads
-                        processor.Quit = true;
-                        procThread.Join(200);
+                        if (acquiring) StopAcquisition();
 
                     }
 
