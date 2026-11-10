@@ -13,12 +13,18 @@
 // 1. The host index selects the hub firmware version that is reported:
 //    TEST_UNSUPPORTED_HUB_FIRMWAREVER for TEST_UNSUPPORTED_HOST_IDX, and
 //    TEST_HUB_FIRMWAREVER for any other host index.
-// 2. Writing N > 0 to register TEST_REG_READFAULT of any test device lets N more
+// 2. Writing N > 0 to register TEST_REG_READFAULT of any test device lets N moreq
 //    data stream reads succeed, after which every data stream read fails with
 //    ONI_EREADFAILURE until the context is reset (ONI_OPT_RESET) or destroyed.
 //    Writing 0 before the fault is triggered disarms it. Reading the register
 //    returns the number of reads remaining before the fault, or 0 if no fault
 //    is armed.
+// 3. Register TEST_REG_WRITEFAULT does the same for data stream writes, which
+//    then fail with ONI_EWRITEFAILURE.
+// 4. Writing N > 0 to register TEST_REG_READSTALL of any test device makes the
+//    next data stream read block for N ms before it proceeds, once. Reading the
+//    register returns the stall that is still pending, or 0 if none is.
+// 5. Opening the context with TEST_INIT_FAILURE_HOST_IDX fails with ONI_EINIT.
 
 #include <assert.h>
 #include <errno.h>
@@ -50,6 +56,7 @@
 #define TEST_HUB_FIRMWAREVER 0x0200
 #define TEST_UNSUPPORTED_HUB_FIRMWAREVER 0xFFFF // Never a valid firmware version
 #define TEST_UNSUPPORTED_HOST_IDX 128
+#define TEST_INIT_FAILURE_HOST_IDX 129
 
 // Test device registers
 #define TEST_REG_ENABLE 0
@@ -57,6 +64,8 @@
 #define TEST_REG_DUMMYWORDS 2
 #define TEST_REG_FRAMERATE 3
 #define TEST_REG_READFAULT 4
+#define TEST_REG_WRITEFAULT 5
+#define TEST_REG_READSTALL 6
 
 #define ONI_RFRAMEHEADERSZ sizeof(oni_fifo_time_t) + 2 * sizeof(oni_fifo_dat_t) // [time, dev_idx, data_sz]
 
@@ -127,6 +136,16 @@ struct oni_test_ctx_impl {
     volatile int read_fault_armed;
     volatile int read_fault_tripped;
     volatile uint32_t read_fault_countdown;
+
+    // Injected data stream write fault (see TEST_REG_WRITEFAULT). NB: Written
+    // by the register access thread and read by the data writing thread.
+    volatile int write_fault_armed;
+    volatile int write_fault_tripped;
+    volatile uint32_t write_fault_countdown;
+
+    // Injected data stream read stall in ms (see TEST_REG_READSTALL). NB:
+    // Written by the register access thread and read by the data reading thread.
+    volatile uint32_t read_stall_ms;
 };
 
 typedef struct oni_test_ctx_impl* oni_test_ctx;
@@ -152,7 +171,7 @@ static int _send_data_signal(oni_test_ctx ctx,
 static int _find_dev(oni_test_ctx ctx, oni_dev_idx_t idx);
 static int _find_hub_mgr(oni_dev_idx_t idx);
 static void _lock_enabled_devices(oni_test_ctx ctx);
-static void _wait_for_data(void);
+static void _sleep_ms(uint32_t ms);
 
 // TODO:
 //static const size_t write_stream_width = 4;
@@ -236,6 +255,9 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
 {
     CTX_CAST;
 
+    if (host_idx == TEST_INIT_FAILURE_HOST_IDX)
+        return ONI_EINIT;
+
     if (host_idx == TEST_UNSUPPORTED_HOST_IDX) {
         int i;
         for (i = 0; i < ctx->num_devs; i++)
@@ -311,7 +333,13 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
     {
         // Hardware produces no data while acquisition is stopped
         while (!ctx->conf.running)
-            _wait_for_data();
+            _sleep_ms(1);
+
+        uint32_t stall_ms = ctx->read_stall_ms;
+        if (stall_ms > 0) {
+            ctx->read_stall_ms = 0;
+            _sleep_ms(stall_ms);
+        }
 
         if (ctx->read_fault_tripped)
             return ONI_EREADFAILURE;
@@ -349,12 +377,24 @@ int oni_driver_write_stream(oni_driver_ctx driver_ctx,
                             const char *data,
                             size_t size)
 {
-    UNUSED(driver_ctx);
+    CTX_CAST;
     size_t remaining = size >> 2; // bytes to 32 bit words
     size_t to_send, sent;
     uint32_t *ptr = (uint32_t *)data;
 
     if (stream != ONI_WRITE_STREAM_DATA) return ONI_EPATHINVALID;
+
+    if (ctx->write_fault_tripped)
+        return ONI_EWRITEFAILURE;
+
+    if (ctx->write_fault_armed) {
+        if (ctx->write_fault_countdown == 0) {
+            ctx->write_fault_armed = 0;
+            ctx->write_fault_tripped = 1;
+            return ONI_EWRITEFAILURE;
+        }
+        ctx->write_fault_countdown--;
+    }
 
     while (remaining > 0) {
         to_send = MIN(remaining, write_block_size);
@@ -435,6 +475,12 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
                 } else if (ctx->conf.reg_addr == TEST_REG_READFAULT) { // Reads remaining before an armed read fault
                     ctx->conf.reg_value = ctx->read_fault_armed ? ctx->read_fault_countdown : 0;
                     _send_msg_signal(ctx, CONFIGRACK);
+                } else if (ctx->conf.reg_addr == TEST_REG_WRITEFAULT) { // Writes remaining before an armed write fault
+                    ctx->conf.reg_value = ctx->write_fault_armed ? ctx->write_fault_countdown : 0;
+                    _send_msg_signal(ctx, CONFIGRACK);
+                } else if (ctx->conf.reg_addr == TEST_REG_READSTALL) { // Pending read stall in ms
+                    ctx->conf.reg_value = ctx->read_stall_ms;
+                    _send_msg_signal(ctx, CONFIGRACK);
                 } else {
                     _send_msg_signal(ctx, CONFIGRNACK);
                 }
@@ -452,6 +498,15 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
                         ctx->read_fault_countdown = ctx->conf.reg_value;
                         ctx->read_fault_armed = ctx->conf.reg_value > 0;
                     }
+                    _send_msg_signal(ctx, CONFIGWACK);
+                } else if (ctx->conf.reg_addr == TEST_REG_WRITEFAULT) { // Arm (N > 0) or disarm (0) a write fault
+                    if (!ctx->write_fault_tripped) {
+                        ctx->write_fault_countdown = ctx->conf.reg_value;
+                        ctx->write_fault_armed = ctx->conf.reg_value > 0;
+                    }
+                    _send_msg_signal(ctx, CONFIGWACK);
+                } else if (ctx->conf.reg_addr == TEST_REG_READSTALL) { // Stall the next read for N ms
+                    ctx->read_stall_ms = ctx->conf.reg_value;
                     _send_msg_signal(ctx, CONFIGWACK);
                 } else {
                     _send_msg_signal(ctx, CONFIGWNACK);
@@ -477,10 +532,14 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
 
             if (value == 0) return ONI_ESUCCESS;
 
-            // Reset read fault state
+            // Reset injected fault state
             ctx->read_fault_armed = 0;
             ctx->read_fault_tripped = 0;
             ctx->read_fault_countdown = 0;
+            ctx->write_fault_armed = 0;
+            ctx->write_fault_tripped = 0;
+            ctx->write_fault_countdown = 0;
+            ctx->read_stall_ms = 0;
 
             // Put the device map onto the signal stream fifo
             _send_data_signal(ctx, DEVICEMAPACK, &ctx->num_devs, sizeof(ctx->num_devs));
@@ -615,7 +674,7 @@ const oni_driver_info_t *oni_driver_info()
     return &driverInfo;
 }
 
-// NB: Right now,32-bit boundaries on the frame data is enforced through the selection of dummy_words.
+// NB: Right now, 32-bit boundaries on the frame data is enforced through the selection of dummy_words.
 static void _fill_read_buffer(oni_test_ctx ctx, void *data, size_t size)
 {
     // Here we are dealing with uint32_t data
@@ -705,12 +764,12 @@ static void _lock_enabled_devices(oni_test_ctx ctx)
     ctx->num_enabled = k;
 }
 
-// Pause briefly while a data stream read waits for acquisition to start
-static void _wait_for_data(void)
+// Block the calling thread for the given number of milliseconds
+static void _sleep_ms(uint32_t ms)
 {
 #ifdef _WIN32
-    Sleep(1);
+    Sleep(ms);
 #else
-    usleep(1000);
+    usleep(ms * 1000);
 #endif
 }

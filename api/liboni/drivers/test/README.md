@@ -24,6 +24,14 @@ partially sent, as hardware flushes its FIFOs.
   buffer overflow. Writing 0 before the fault is triggered disarms it. Reading
   the register returns the number of reads remaining before the fault, or 0 if
   no fault is armed.
+- **Write fault injection**: register 5 does the same for data stream writes,
+  which then fail with `ONI_EWRITEFAILURE`.
+- **Read stall injection**: writing N > 0 to register 6 of any test device makes
+  the next data stream read block for N ms before it proceeds, once. This
+  emulates hardware that stops producing frames for a while. Reading the
+  register returns the stall that is still pending, or 0 if none is.
+- **Initialization failure**: opening the context with host index 129 fails
+  with `ONI_EINIT`.
 
 | Register | Name | Access | Description |
 |---|---|---|---|
@@ -32,6 +40,8 @@ partially sent, as hardware flushes its FIFOs.
 | 2 | Dummy words | R | Number of counter words following the message |
 | 3 | Frame rate | R | Frame rate in Hz, always 0 (undefined) |
 | 4 | Read fault | R/W | Data stream reads remaining before an injected read fault |
+| 5 | Write fault | R/W | Data stream writes remaining before an injected write fault |
+| 6 | Read stall | R/W | Duration in ms of a stall injected into the next data stream read |
 
 ## Building the library
 ### Linux
