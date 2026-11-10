@@ -751,7 +751,10 @@ int oni_create_frame(const oni_ctx ctx,
     // Allocate data storage
     char *buffer_start = NULL;
     int rc = _oni_alloc_write_buffer(ctx, (void **)&buffer_start, ONI_WFRAMEHEADERSZ + asize);
-    if (rc) return rc;
+    if (rc) {
+        free(iframe);
+        return rc;
+    }
 
     // Fill out public fields
     // NB: https://stackoverflow.com/questions/9691404/how-to-initialize-const-in-a-struct-in-c-with-malloc

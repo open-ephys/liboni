@@ -31,11 +31,11 @@ namespace oni
 
         [LibraryImport(LibraryName)]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
-        internal static partial int oni_set_opt(ContextHandle ctx, int option, IntPtr val, int size);
+        internal static partial int oni_set_opt(ContextHandle ctx, int option, IntPtr val, nuint size);
 
         [LibraryImport(LibraryName, StringMarshalling = StringMarshalling.Utf8)]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
-        internal static partial int oni_set_opt(ContextHandle ctx, int option, string val, int size);
+        internal static partial int oni_set_opt(ContextHandle ctx, int option, string val, nuint size);
 
         [LibraryImport(LibraryName)]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
@@ -50,11 +50,11 @@ namespace oni
 
         [LibraryImport(LibraryName)]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
-        internal static partial int oni_set_driver_opt(ContextHandle ctx, int option, IntPtr val, int size);
+        internal static partial int oni_set_driver_opt(ContextHandle ctx, int option, IntPtr val, nuint size);
 
         [LibraryImport(LibraryName, StringMarshalling = StringMarshalling.Utf8)]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
-        internal static partial int oni_set_driver_opt(ContextHandle ctx, int option, string val, int size);
+        internal static partial int oni_set_driver_opt(ContextHandle ctx, int option, string val, nuint size);
 
         [LibraryImport(LibraryName)]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
@@ -70,7 +70,7 @@ namespace oni
 
         [LibraryImport(LibraryName, SetLastError = true)]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
-        internal static partial int oni_create_frame(ContextHandle ctx, out IntPtr frame, uint dev_idx, IntPtr data, uint data_sz);
+        internal static partial int oni_create_frame(ContextHandle ctx, out IntPtr frame, uint dev_idx, IntPtr data, nuint data_sz);
 
         [LibraryImport(LibraryName, SetLastError = true)]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]

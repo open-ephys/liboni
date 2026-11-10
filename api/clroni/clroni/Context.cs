@@ -230,11 +230,11 @@ namespace oni
             int rc;
             if (!drv_opt)
             {
-                rc = NativeMethods.oni_set_opt(ctx, opt, value, value.Length + 1);
+                rc = NativeMethods.oni_set_opt(ctx, opt, value, (nuint)(value.Length + 1));
             }
             else
             {
-                rc = NativeMethods.oni_set_driver_opt(ctx, opt, value, value.Length + 1);
+                rc = NativeMethods.oni_set_driver_opt(ctx, opt, value, (nuint)(value.Length + 1));
             }
 
             if (rc != 0) { throw new ONIException(rc); }
@@ -457,14 +457,15 @@ namespace oni
         /// data.</exception>
         public void Write<T>(uint dev_index, T[] data) where T : unmanaged
         {
-            var num_bytes = Buffer.ByteLength(data);
+            // NB: Buffer.ByteLength only accepts arrays of primitive types
+            var num_bytes = data.Length * sizeof(T);
             IntPtr frame;
             int rc;
 
             // NB: oni_create_frame copies this data
             fixed (T* p = data)
             {
-                rc = NativeMethods.oni_create_frame(ctx, out frame, dev_index, (IntPtr)p, (uint)num_bytes);
+                rc = NativeMethods.oni_create_frame(ctx, out frame, dev_index, (IntPtr)p, (nuint)num_bytes);
                 if (rc < 0) { throw new ONIException(rc); }
             }
 
@@ -494,7 +495,7 @@ namespace oni
         /// data.</exception>
         public void Write(uint dev_index, IntPtr data, int data_size)
         {
-            int rc = NativeMethods.oni_create_frame(ctx, out IntPtr frame, dev_index, data, (uint)data_size);
+            int rc = NativeMethods.oni_create_frame(ctx, out IntPtr frame, dev_index, data, (nuint)data_size);
             if (rc < 0) { throw new ONIException(rc); }
 
             try
