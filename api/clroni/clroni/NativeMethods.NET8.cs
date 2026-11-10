@@ -64,18 +64,9 @@ namespace oni
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
         internal static partial int oni_write_reg(ContextHandle ctx, uint dev_idx, uint addr, uint val);
 
-        //[DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
-        //internal static extern int oni_read_frame(ContextHandle ctx, out Frame frame);
-
         [LibraryImport(LibraryName, SetLastError = true)]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
         internal static partial int oni_read_frame(ContextHandle ctx, out IntPtr frame);
-
-        //[DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
-        //internal static extern int oni_create_frame(ContextHandle ctx, out Frame frame, uint dev_idx, IntPtr data, uint data_sz);
-
-        //[DllImport(LibraryName, CallingConvention = CCCdecl, SetLastError = true)]
-        //internal static extern int oni_write_frame(ContextHandle ctx, Frame frame);
 
         [LibraryImport(LibraryName, SetLastError = true)]
         [UnmanagedCallConv(CallConvs = new Type[] { typeof(CallConvCdecl) })]
