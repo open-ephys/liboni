@@ -8,9 +8,16 @@ using System.Security.Permissions;
 namespace oni
 {
     /// <summary>
-    /// Managed wrapper for an ONI-compliant data frame implementation. Produced by calls
-    /// to <see cref="Context.ReadFrame"/> .
+    /// Managed wrapper for an ONI-compliant data frame implementation. Produced by calls to <see
+    /// cref="Context.ReadFrame"/> .
     /// </summary>
+    /// <remarks>
+    /// The frame's data lives in a block buffer of <see cref="Context.BlockReadSize"/> bytes that is shared
+    /// with other frames, and the buffer is freed only when every frame that references it has been disposed.
+    /// Dispose each frame as soon as its data has been used, or copy the data out and dispose the frame. A
+    /// frame that is not disposed keeps its whole block buffer alive until the frame is finalized, and the
+    /// garbage collector is not aware of that memory.
+    /// </remarks>
 #if NET7_0_OR_GREATER
     public unsafe class Frame : SafeHandleZeroOrMinusOneIsInvalid
 #else
@@ -32,8 +39,9 @@ namespace oni
         internal Frame(IntPtr handle)
         : base(true)
         {
+            // NB: No GC memory pressure is registered: the frame data lives in a block buffer that is shared
+            // with other frames rather than owned by this one.
             SetHandle(handle);
-            GC.AddMemoryPressure(((frame_t*)handle.ToPointer())->data_sz);
         }
 
         /// <summary>
@@ -48,7 +56,6 @@ namespace oni
         protected override bool ReleaseHandle()
 #endif
         {
-            GC.RemoveMemoryPressure(((frame_t*)handle.ToPointer())->data_sz);
             NativeMethods.oni_destroy_frame(handle);
             return true;
         }
