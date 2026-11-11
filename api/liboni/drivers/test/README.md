@@ -7,6 +7,11 @@ implementation has the following limitations:
 - Writing frames is implemented without a visible effect: data is just ignored 
 - Data generation takes place on the read thread.
 
+Like hardware, a host index can be held by one context at a time. Opening a host
+index that another context of the process holds fails with `ONI_ERETRIG`, as the
+riffa driver does, until that context is destroyed. A negative host index opens
+host index 0.
+
 Like hardware, the context starts with acquisition stopped. Data stream reads
 block until acquisition is started by setting `ONI_OPT_RUNNING` to 1 or
 `ONI_OPT_RESETACQCOUNTER` to 2. Stopping acquisition flushes the data stream,
@@ -41,7 +46,12 @@ frame boundary.
   Writing 0 before corruption starts disarms it. Reading the register returns
   the number of reads remaining before corruption starts, or 0 if none is armed.
 - **Initialization failure**: opening the context with host index 129 fails
-  with `ONI_EINIT`.
+  with `ONI_EINIT`, without holding the host index.
+- **Device table failure**: with host index 130, the driver opens and holds the
+  host index, but the device table it reports repeats a device index, so
+  initializing the context fails with `ONI_EDEVIDXREPEAT`. The host index stays
+  held until the context is destroyed, which tests that host software destroys
+  a context whose initialization failed.
 
 | Register | Name | Access | Description |
 |---|---|---|---|

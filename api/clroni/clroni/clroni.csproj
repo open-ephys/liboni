@@ -8,7 +8,7 @@
     <!-- NB: Use the same language version for every target framework, rather than the SDK default of C# 7.3 for net472 and netstandard2.0 -->
     <LangVersion>12</LangVersion>
     <UseWindowsForms>false</UseWindowsForms>
-    <Version>6.3.2</Version>
+    <Version>6.3.3</Version>
     <Authors>Jon Newman</Authors>
     <Company>Open Ephys, Inc.</Company>
     <Copyright>©Open Ephys, Inc.</Copyright>

@@ -1,5 +1,12 @@
 // A simple ONI-compliant hardware emulator for testing host software.
 //
+// Opening
+//
+// Like hardware, a host index can be held by one context at a time. Opening a
+// host index that another context of the process holds fails with ONI_ERETRIG,
+// as the riffa driver does, until that context is destroyed. A negative host
+// index opens host index 0.
+//
 // Acquisition
 //
 // Like hardware, the context starts with acquisition stopped, and data stream
@@ -22,7 +29,12 @@
 //
 // - TEST_UNSUPPORTED_HOST_IDX: hubs report TEST_UNSUPPORTED_HUB_FIRMWAREVER
 //   instead of TEST_HUB_FIRMWAREVER.
-// - TEST_INIT_FAILURE_HOST_IDX: opening the context fails with ONI_EINIT.
+// - TEST_INIT_FAILURE_HOST_IDX: opening the context fails with ONI_EINIT,
+//   without holding the host index.
+// - TEST_BAD_DEVICE_TABLE_HOST_IDX: the driver opens and holds the host index,
+//   but the device table it reports repeats a device index, so initializing
+//   the context fails with ONI_EDEVIDXREPEAT. The host index stays held until
+//   the context is destroyed.
 //
 // Others are injected during operation by writing a register. These registers
 // can be accessed through any test device but act on the whole context, so that
@@ -57,6 +69,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #else
+#include <sched.h>
 #include <unistd.h>
 #endif
 
@@ -78,6 +91,10 @@
 #define TEST_UNSUPPORTED_HUB_FIRMWAREVER 0xFFFF // Never a valid firmware version
 #define TEST_UNSUPPORTED_HOST_IDX 128
 #define TEST_INIT_FAILURE_HOST_IDX 129
+#define TEST_BAD_DEVICE_TABLE_HOST_IDX 130
+
+// Maximum number of host indices held at once by the contexts of a process
+#define TEST_MAX_OPEN_HOSTS 64
 
 // Test device registers
 #define TEST_REG_ENABLE 0
@@ -96,7 +113,17 @@
 #define MIN(a,b) ((a<b) ? a : b)
 
 const oni_driver_info_t driverInfo
-    = {.name = "test", .major = 2, .minor = 2, .patch = 0, .pre_release = NULL};
+    = {.name = "test", .major = 2, .minor = 3, .patch = 0, .pre_release = NULL};
+
+// Host indices held by the open contexts of the process. NB: Shared by every
+// context, and guarded by open_hosts_lock.
+static int open_hosts[TEST_MAX_OPEN_HOSTS];
+static int num_open_hosts = 0;
+#ifdef _WIN32
+static volatile LONG open_hosts_lock = 0;
+#else
+static volatile char open_hosts_lock = 0;
+#endif
 
 struct conf_reg {
     uint32_t dev_idx;
@@ -129,6 +156,10 @@ struct oni_test_ctx_impl {
 
     // HW address
     uint32_t hw_addr;
+
+    // Host index this context holds, if holds_host is set
+    int host_idx;
+    int holds_host;
 
     // Counters
     uint64_t frame_num;
@@ -200,6 +231,8 @@ static int _find_hub_mgr(oni_dev_idx_t idx);
 static void _start_acquisition(oni_test_ctx ctx);
 static void _stop_acquisition(oni_test_ctx ctx);
 static void _sleep_ms(uint32_t ms);
+static int _claim_host(int host_idx);
+static void _release_host(int host_idx);
 
 // TODO:
 //static const size_t write_stream_width = 4;
@@ -286,6 +319,15 @@ int oni_driver_init(oni_driver_ctx driver_ctx, int host_idx)
     if (host_idx == TEST_INIT_FAILURE_HOST_IDX)
         return ONI_EINIT;
 
+    if (host_idx < 0)
+        host_idx = 0;
+
+    if (_claim_host(host_idx))
+        return ONI_ERETRIG;
+
+    ctx->host_idx = host_idx;
+    ctx->holds_host = 1;
+
     if (host_idx == TEST_UNSUPPORTED_HOST_IDX) {
         int i;
         for (i = 0; i < ctx->num_devs; i++)
@@ -299,6 +341,9 @@ int oni_driver_destroy_ctx(oni_driver_ctx driver_ctx)
 {
     CTX_CAST;
     assert(ctx != NULL && "Driver context is NULL");
+
+    if (ctx->holds_host)
+        _release_host(ctx->host_idx);
 
     // Free the queue
     queue_u8_destroy(ctx->sig_queue);
@@ -587,10 +632,13 @@ int oni_driver_write_config(oni_driver_ctx driver_ctx,
             // Put the device map onto the signal stream fifo
             _send_data_signal(ctx, DEVICEMAPACK, &ctx->num_devs, sizeof(ctx->num_devs));
 
-            // Loop through devices
+            // Loop through devices. NB: TEST_BAD_DEVICE_TABLE_HOST_IDX reports
+            // the first device in place of every other one.
             int i;
-            for (i = 0; i < ctx->num_devs; i++)
-                _send_data_signal(ctx, DEVICEINST, &ctx->dev_table[i].dev, sizeof(oni_device_t));
+            for (i = 0; i < ctx->num_devs; i++) {
+                int k = ctx->host_idx == TEST_BAD_DEVICE_TABLE_HOST_IDX ? 0 : i;
+                _send_data_signal(ctx, DEVICEINST, &ctx->dev_table[k].dev, sizeof(oni_device_t));
+            }
 
             break;
         }
@@ -839,4 +887,60 @@ static void _sleep_ms(uint32_t ms)
 #else
     usleep(ms * 1000);
 #endif
+}
+
+static void _lock_open_hosts(void)
+{
+#ifdef _WIN32
+    while (InterlockedExchange(&open_hosts_lock, 1))
+        SwitchToThread();
+#else
+    while (__atomic_test_and_set(&open_hosts_lock, __ATOMIC_ACQUIRE))
+        sched_yield();
+#endif
+}
+
+static void _unlock_open_hosts(void)
+{
+#ifdef _WIN32
+    InterlockedExchange(&open_hosts_lock, 0);
+#else
+    __atomic_clear(&open_hosts_lock, __ATOMIC_RELEASE);
+#endif
+}
+
+// Hold host_idx for a context. Returns 0, or -1 if another context holds it.
+static int _claim_host(int host_idx)
+{
+    int i, rc = 0;
+
+    _lock_open_hosts();
+    for (i = 0; i < num_open_hosts; i++) {
+        if (open_hosts[i] == host_idx)
+            rc = -1;
+    }
+
+    if (rc == 0) {
+        if (num_open_hosts < TEST_MAX_OPEN_HOSTS)
+            open_hosts[num_open_hosts++] = host_idx;
+        else
+            rc = -1;
+    }
+    _unlock_open_hosts();
+
+    return rc;
+}
+
+static void _release_host(int host_idx)
+{
+    int i;
+
+    _lock_open_hosts();
+    for (i = 0; i < num_open_hosts; i++) {
+        if (open_hosts[i] == host_idx) {
+            open_hosts[i] = open_hosts[--num_open_hosts];
+            break;
+        }
+    }
+    _unlock_open_hosts();
 }

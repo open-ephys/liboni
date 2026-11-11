@@ -101,13 +101,21 @@ namespace oni
                     "acquisition context for the specified driver: {0}.", string.IsNullOrEmpty(driver) ? "None" : driver));
             }
 
-            var rc = NativeMethods.oni_init_ctx(ctx, index);
-            if (rc != 0) { throw new ONIException(rc); }
+            try
+            {
+                var rc = NativeMethods.oni_init_ctx(ctx, index);
+                if (rc != 0) { throw new ONIException(rc); }
 
-            Driver = new DriverInfo(NativeMethods.oni_get_driver_info(ctx));
+                Driver = new DriverInfo(NativeMethods.oni_get_driver_info(ctx));
 
-            PopulateDeviceTable();
-            
+                PopulateDeviceTable();
+            }
+            catch
+            {
+                // NB: If initialization failed, caller can't dispose so do it here
+                ctx.Dispose();
+                throw;
+            }
         }
 
         // Populate device table
