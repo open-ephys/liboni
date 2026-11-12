@@ -21,7 +21,14 @@ static inline lib_handle_t open_library(const char* name)
 #else
     // Clear errors
     dlerror();
-    lib_handle_t lib = dlopen(name, RTLD_NOW | RTLD_LOCAL);
+    // RTLD_NODELETE: never unmap the driver on dlclose(). Some drivers (notably
+    // the FT600 driver, which statically links libftd3xx/libusb) spawn internal
+    // background threads - e.g. libusb's netlink hotplug monitor - that are not
+    // joined by oni_driver_destroy_ctx(). Unmapping the library while such a
+    // thread is still alive leaves it executing freed code and crashes the host
+    // process. Keeping the mapping resident also means a subsequent dlopen reuses
+    // the already-initialized driver state instead of spawning a duplicate thread.
+    lib_handle_t lib = dlopen(name, RTLD_NOW | RTLD_LOCAL | RTLD_NODELETE);
 #ifndef NDEBUG
     char *e = dlerror();
     if (e != NULL)
