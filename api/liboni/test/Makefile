@@ -26,7 +26,7 @@ debug: all
 profile: LDFLAGS += -lprofiler ## Link in the perftools profiler
 profile: all
 
-cobs-test: cobs_test.c testfunc.c ## Make COBS test program
+cobs-test: cobs_test.c testfunc.c ../onidriverloader.c ## Make COBS test program
 	@echo Making $@
 	$(CC) $(CFLAGS) $^ -lm $(LDFLAGS) -o $@
 

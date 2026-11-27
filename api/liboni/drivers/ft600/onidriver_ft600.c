@@ -630,10 +630,12 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
             // started
         }
 
+#if defined _WIN32 || defined LINUX_ASYNC
+        // Post the initial overlapped reads (synchronous reads need no priming)
         if (ctx->mustStart) {
             ctx->mustStart = 0;
             for (size_t i = 0; i < ctx->numInOverlapped; i++) {
-#if _WIN32
+#ifdef _WIN32
                 ftStatus = FT_ReadPipeEx(ctx->ftHandle,
                                          pipe_in,
                                          ctx->inBuffer + (i * ctx->inBlockSize),
@@ -641,7 +643,6 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
                                          &ctx->inTransferred[i],
                                          &ctx->inOverlapped[i]);
 #else
-#ifdef LINUX_ASYNC
                 ftStatus
                     = FT_ReadPipeAsync(ctx->ftHandle,
                                        pipeid_data,
@@ -650,13 +651,13 @@ int oni_driver_read_stream(oni_driver_ctx driver_ctx,
                                        &ctx->inTransferred[i],
                                        &ctx->inOverlapped[i]);
 #endif
-#endif
                 if (ftStatus != FT_OK && ftStatus != FT_IO_PENDING) {
                     printf("Read failure %d\n", ftStatus);
                     return ONI_EREADFAILURE;
                 }
             }
         }
+#endif
         size_t remaining = ((size >> 2) << 2); // round to 32bit boundaries;
         int read = 0;
         if (remaining < ctx->inBlockSize)
@@ -902,7 +903,6 @@ int oni_driver_read_config(oni_driver_ctx driver_ctx,
 
 static inline void oni_ft600_start_acq(oni_ft600_ctx ctx)
 {
-    int ftStatus;
     ctx->mustStart = 1;
     ctx->state = STATE_RUNNING;
 }

@@ -3,7 +3,7 @@ SHELL     :=  /bin/bash
 NAME      :=  libonidriver_test
 DNAME     :=  $(NAME).so.1
 DNAMELN   :=  $(NAME).so
-SRC       :=  onidriver_test.c queue_u8.c ../../oni-repl/testfunc.c
+SRC       :=  onidriver_test.c queue_u8.c ../../test/testfunc.c
 OBJ       :=  $(SRC:.c=.o)
 CFLAGS    :=  -pedantic -Wall -W -Werror -fPIC -O3 $(DEFS)
 LDFLAGS   :=  -L.
