@@ -695,7 +695,7 @@ int oni_read_frame(const oni_ctx ctx, oni_frame_t **frame)
     // Direct frame data's view into the pre-collected buffer
     assert(ctx->shared_rbuf->read_pos + rsize <= ctx->shared_rbuf->end_pos 
         && "Attempted to read past buffer end");
-    iframe->private.f.data = ctx->shared_rbuf->read_pos;
+    iframe->private.f.data = (char *)ctx->shared_rbuf->read_pos;
     ctx->shared_rbuf->read_pos += rsize;
 
     // Update buffer ref count and provide reference to frame
